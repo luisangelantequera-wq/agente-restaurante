@@ -1,0 +1,31 @@
+/* === CONTACTIA — style.css ===
+Estilos principales del chat web para Contactia
+Personalizar colores según el restaurante.
+Añadir un logo de Contactia o del local.
+Usar animaciones suaves para el chat.
+   Autor: Luis & ChatGPT — 2025
+*/
+
+/* RESET Y BASE */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+  background: #f6f6f6;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: #333;
+}
+
+/* CONTENEDOR PRINCIPAL DEL CHAT */
+#chat-box {
+  width: 420px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 
