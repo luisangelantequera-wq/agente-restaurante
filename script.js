@@ -132,57 +132,98 @@ async function procesarMensajeUsuario(texto) {
     }
   }
 
-  // — RESERVA —
-  if (detectarReserva(texto) && !modoReserva) {
-    modoReserva = true;
-    datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
-    agregarMensaje("bot", "Perfecto 😊 ¿Para cuántas personas deseas hacer la reserva?");
+// — RESERVA —
+if (detectarReserva(texto) && !modoReserva) {
+  modoReserva = true;
+  datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
+  agregarMensaje("bot", "Perfecto 😊 ¿Para cuántas personas deseas hacer la reserva?");
+  return;
+}
+
+if (modoReserva) {
+  // 1️⃣ Personas
+  if (datosReserva.personas === "" && !isNaN(parseInt(texto))) {
+    datosReserva.personas = parseInt(texto);
+    agregarMensaje("bot", "¿Qué día deseas la reserva? (formato DD/MM/AAAA)");
     return;
   }
 
-  if (modoReserva) {
-    if (datosReserva.personas === "" && !isNaN(parseInt(texto))) {
-      datosReserva.personas = parseInt(texto);
-      agregarMensaje("bot", "¿Qué día deseas la reserva? (formato AAAA-MM-DD)");
+  // 2️⃣ Fecha (convertir formato DD/MM/AAAA → AAAA-MM-DD)
+  if (datosReserva.fecha === "" && /^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
+    const [dia, mes, año] = texto.split("/");
+    datosReserva.fecha = `${año}-${mes}-${dia}`;
+    agregarMensaje("bot", "¿A qué hora? (por ejemplo 14:00)");
+    return;
+  }
+
+  // 3️⃣ Hora
+  if (datosReserva.hora === "" && /^\d{1,2}:\d{2}$/.test(texto)) {
+    datosReserva.hora = texto;
+    agregarMensaje("bot", "Un momento, voy a comprobar si hay mesas disponibles...");
+    const disponibilidad = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accion: "verificar",
+        restaurante_id: datosReserva.restaurante_id,
+        fecha: datosReserva.fecha,
+        hora: datosReserva.hora,
+        personas: datosReserva.personas
+      })
+    });
+    const data = await disponibilidad.json();
+    if (data.disponible) {
+      agregarMensaje("bot", "¡Sí! Tenemos mesas disponibles 🎉 ¿Podrías indicarme tu nombre completo?");
       return;
-    }
-    if (datosReserva.fecha === "" && /^\d{4}-\d{2}-\d{2}$/.test(texto)) {
-      datosReserva.fecha = texto;
-      agregarMensaje("bot", "¿A qué hora? (por ejemplo 14:00)");
-      return;
-    }
-    if (datosReserva.hora === "" && /^\d{1,2}:\d{2}$/.test(texto)) {
-      datosReserva.hora = texto;
-      agregarMensaje("bot", "¿Podrías indicarme tu nombre completo?");
-      return;
-    }
-    if (datosReserva.nombre === "") {
-      datosReserva.nombre = texto;
-      agregarMensaje("bot", "Gracias, ahora necesito un correo electrónico para enviarte la confirmación.");
-      return;
-    }
-    if (datosReserva.email === "" && texto.includes("@")) {
-      datosReserva.email = texto;
-      agregarMensaje("bot", "Perfecto, y por último, ¿podrías indicarme tu número de teléfono (con prefijo +34 si es posible)?");
-      return;
-    }
-    if (datosReserva.telefono === "" && /^[+0-9\s-]{7,15}$/.test(texto)) {
-      datosReserva.telefono = texto.replace(/\s/g, "");
-      agregarMensaje("bot", "Gracias 😊 Estoy procesando tu reserva...");
-      const respuesta = await enviarReserva(datosReserva);
-      agregarMensaje("bot", respuesta);
+    } else {
+      agregarMensaje("bot", "Lo siento 😞 no hay mesas disponibles para esa hora. ¿Quieres probar con otro horario o día?");
       modoReserva = false;
       datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
       return;
     }
+  }
 
-    agregarMensaje("bot", "Por favor, responde con el dato solicitado para continuar la reserva.");
+  // 4️⃣ Nombre
+  if (datosReserva.nombre === "") {
+    datosReserva.nombre = texto;
+    agregarMensaje("bot", "Gracias, ¿Ahora necesitamos un correo electrónico para la confirmación?");
     return;
   }
 
-  // — Sin contexto —
-  agregarMensaje("bot", "👋 Hola, soy Contactia. ¿Quieres hacer una reserva o cancelar una existente?");
+  // 5️⃣ Email
+  if (datosReserva.email === "" && texto.includes("@")) {
+    datosReserva.email = texto;
+    agregarMensaje("bot", "Perfecto, ¿podrías darme tu número de teléfono movil?");
+    return;
+  }
+
+  // 6️⃣ Teléfono
+  if (datosReserva.telefono === "" && /^[+0-9\s-]{7,15}$/.test(texto)) {
+    let tel = texto.replace(/\s/g, "");
+    if (!tel.startsWith("+")) {
+      if (tel.startsWith("6") || tel.startsWith("7")) tel = `+34${tel}`;
+    }
+    datosReserva.telefono = tel;
+
+    agregarMensaje("bot", "Gracias 😊 Estoy procesando tu reserva...");
+
+    const respuesta = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(datosReserva),
+    });
+    const resultado = await respuesta.json();
+    agregarMensaje("bot", resultado.reply || "Reserva completada.");
+    modoReserva = false;
+    datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
+    return;
+  }
+
+  agregarMensaje("bot", "Por favor, responde con el dato solicitado para continuar la reserva.");
+  return;
 }
+
+
 
 // ───────────────────────────────
 // Envío de mensajes
