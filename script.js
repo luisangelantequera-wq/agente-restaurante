@@ -1,22 +1,6 @@
 // === CONTACTIA — script.js ===
 // Controla la conversación en la web, las reservas, cancelaciones y mensajes.
 // Comunicación con /api/chat (reservas) y /api/cancelar (cancelaciones)
-//
-//CONTROLAMOS:
-// El chat visual del usuario (en la web)
-// Las conversaciones inteligentes (reservar / cancelar / mensajes normales)
-// La comunicación con las APIs /api/chat y /api/cancelar
-// las respuestas dinámicas del asistente Contactia
-//
-// Paso	Acción
-// 2️⃣	Pide personas → fecha → hora → nombre → email → teléfono
-// 4️⃣ 	El backend guarda la reserva, envía el correo y ahora el WhatsApp con Twilio
-//
-// ──────────────────────────────────────────────────────────────
-// 1️⃣ Inicialización
-// ──────────────────────────────────────────────────────────────
-
-// Flujo completo con solicitud de teléfono para WhatsApp
 
 const chatContainer = document.getElementById("chat-container");
 const input = document.getElementById("user-input");
@@ -26,7 +10,7 @@ const sendButton = document.getElementById("send-btn");
 let modoReserva = false;
 let modoCancelacion = false;
 let datosReserva = {
-  restaurante_id: 1, // puedes asignar dinámicamente si lo necesitas
+  restaurante_id: 1,
   fecha: "",
   hora: "",
   personas: "",
@@ -89,13 +73,11 @@ async function cancelarReserva(id, email) {
   return data.reply || "No se recibió respuesta del servidor.";
 }
 
-// ───────────────────────────────
 // Conversación principal
-// ───────────────────────────────
 async function procesarMensajeUsuario(texto) {
   texto = texto.trim();
 
-  // — CANCELACIÓN —
+  // --- CANCELACIÓN ---
   if (detectarCancelacion(texto) && !modoCancelacion) {
     modoCancelacion = true;
     cancelEmail = "";
@@ -132,102 +114,99 @@ async function procesarMensajeUsuario(texto) {
     }
   }
 
-// — RESERVA —
-if (detectarReserva(texto) && !modoReserva) {
-  modoReserva = true;
-  datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
-  agregarMensaje("bot", "Perfecto 😊 ¿Para cuántas personas deseas hacer la reserva?");
-  return;
-}
-
-if (modoReserva) {
-  // 1️⃣ Personas
-  if (datosReserva.personas === "" && !isNaN(parseInt(texto))) {
-    datosReserva.personas = parseInt(texto);
-    agregarMensaje("bot", "¿Qué día deseas la reserva? (formato DD/MM/AAAA)");
+  // --- RESERVA ---
+  if (detectarReserva(texto) && !modoReserva) {
+    modoReserva = true;
+    datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
+    agregarMensaje("bot", "Perfecto 😊 ¿Para cuántas personas deseas hacer la reserva?");
     return;
   }
 
-  // 2️⃣ Fecha (convertir formato DD/MM/AAAA → AAAA-MM-DD)
-  if (datosReserva.fecha === "" && /^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
-    const [dia, mes, año] = texto.split("/");
-    datosReserva.fecha = `${año}-${mes}-${dia}`;
-    agregarMensaje("bot", "¿A qué hora? (por ejemplo 14:00)");
-    return;
-  }
-
-  // 3️⃣ Hora
-  if (datosReserva.hora === "" && /^\d{1,2}:\d{2}$/.test(texto)) {
-    datosReserva.hora = texto;
-    agregarMensaje("bot", "Un momento, voy a comprobar si hay mesas disponibles...");
-    const disponibilidad = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accion: "verificar",
-        restaurante_id: datosReserva.restaurante_id,
-        fecha: datosReserva.fecha,
-        hora: datosReserva.hora,
-        personas: datosReserva.personas
-      })
-    });
-    const data = await disponibilidad.json();
-    if (data.disponible) {
-      agregarMensaje("bot", "¡Sí! Tenemos mesas disponibles 🎉 ¿Podrías indicarme tu nombre completo?");
+  if (modoReserva) {
+    // 1️⃣ Personas
+    if (datosReserva.personas === "" && !isNaN(parseInt(texto))) {
+      datosReserva.personas = parseInt(texto);
+      agregarMensaje("bot", "¿Qué día deseas la reserva? (formato DD/MM/AAAA)");
       return;
-    } else {
-      agregarMensaje("bot", "Lo siento 😞 no hay mesas disponibles para esa hora. ¿Quieres probar con otro horario o día?");
+    }
+
+    // 2️⃣ Fecha
+    if (datosReserva.fecha === "" && /^\d{2}\/\d{2}\/\d{4}$/.test(texto)) {
+      const [dia, mes, año] = texto.split("/");
+      datosReserva.fecha = `${año}-${mes}-${dia}`;
+      agregarMensaje("bot", "¿A qué hora? (por ejemplo 14:00)");
+      return;
+    }
+
+    // 3️⃣ Hora
+    if (datosReserva.hora === "" && /^\d{1,2}:\d{2}$/.test(texto)) {
+      datosReserva.hora = texto;
+      agregarMensaje("bot", "Un momento, voy a comprobar si hay mesas disponibles...");
+      const disponibilidad = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accion: "verificar",
+          restaurante_id: datosReserva.restaurante_id,
+          fecha: datosReserva.fecha,
+          hora: datosReserva.hora,
+          personas: datosReserva.personas
+        })
+      });
+      const data = await disponibilidad.json();
+      if (data.disponible) {
+        agregarMensaje("bot", "¡Sí! Tenemos mesas disponibles 🎉 ¿Podrías indicarme tu nombre completo?");
+        return;
+      } else {
+        agregarMensaje("bot", "Lo siento 😞 no hay mesas disponibles para esa hora. ¿Quieres probar con otro horario o día?");
+        modoReserva = false;
+        datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
+        return;
+      }
+    }
+
+    // 4️⃣ Nombre
+    if (datosReserva.nombre === "") {
+      datosReserva.nombre = texto;
+      agregarMensaje("bot", "Gracias, ¿me das ahora un correo electrónico para la confirmación?");
+      return;
+    }
+
+    // 5️⃣ Email
+    if (datosReserva.email === "" && texto.includes("@")) {
+      datosReserva.email = texto;
+      agregarMensaje("bot", "Perfecto, ¿podrías darme tu número de teléfono móvil?");
+      return;
+    }
+
+    // 6️⃣ Teléfono
+    if (datosReserva.telefono === "" && /^[+0-9\s-]{7,15}$/.test(texto)) {
+      let tel = texto.replace(/\s/g, "");
+      if (!tel.startsWith("+")) {
+        if (tel.startsWith("6") || tel.startsWith("7")) tel = `+34${tel}`;
+      }
+      datosReserva.telefono = tel;
+
+      agregarMensaje("bot", "Gracias 😊 Estoy procesando tu reserva...");
+
+      const respuesta = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(datosReserva),
+      });
+      const resultado = await respuesta.json();
+      agregarMensaje("bot", resultado.reply || "Reserva completada.");
       modoReserva = false;
       datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
       return;
     }
-  }
 
-  // 4️⃣ Nombre
-  if (datosReserva.nombre === "") {
-    datosReserva.nombre = texto;
-    agregarMensaje("bot", "Gracias, ¿Ahora necesitamos un correo electrónico para la confirmación?");
+    agregarMensaje("bot", "Por favor, responde con el dato solicitado para continuar la reserva.");
     return;
   }
+} // ← cierre correcto de la función procesarMensajeUsuario
 
-  // 5️⃣ Email
-  if (datosReserva.email === "" && texto.includes("@")) {
-    datosReserva.email = texto;
-    agregarMensaje("bot", "Perfecto, ¿podrías darme tu número de teléfono movil?");
-    return;
-  }
-
-  // 6️⃣ Teléfono
-  if (datosReserva.telefono === "" && /^[+0-9\s-]{7,15}$/.test(texto)) {
-    let tel = texto.replace(/\s/g, "");
-    if (!tel.startsWith("+")) {
-      if (tel.startsWith("6") || tel.startsWith("7")) tel = `+34${tel}`;
-    }
-    datosReserva.telefono = tel;
-
-    agregarMensaje("bot", "Gracias 😊 Estoy procesando tu reserva...");
-
-    const respuesta = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(datosReserva),
-    });
-    const resultado = await respuesta.json();
-    agregarMensaje("bot", resultado.reply || "Reserva completada.");
-    modoReserva = false;
-    datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
-    return;
-  }
-
-  agregarMensaje("bot", "Por favor, responde con el dato solicitado para continuar la reserva.");
-  return;
-}
-
-
-
-// ───────────────────────────────
 // Envío de mensajes
-// ───────────────────────────────
 sendButton.addEventListener("click", () => {
   const texto = input.value;
   if (texto.trim() === "") return;

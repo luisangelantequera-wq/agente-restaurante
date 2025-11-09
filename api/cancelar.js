@@ -99,6 +99,21 @@ export default async function handler(req, res) {
       body: JSON.stringify({ fields: { estado: "cancelada" } }),
     });
 
+
+// Enviar WhatsApp al cliente (si hay teléfono)
+if (reserva.fields.telefono) {
+  await enviarWhatsAppCancelacion({
+    telefono: reserva.fields.telefono,
+    nombre: reserva.fields.nombre_completo,
+    restaurante: reserva.fields.restaurante_nombre || "Tu restaurante",
+    fecha: reserva.fields.fecha,
+    hora: reserva.fields.hora,
+    personas: reserva.fields.personas,
+    idReserva: reserva.fields.id_reserva
+  });
+}
+
+
     // 3️⃣ Liberar la mesa (si existía)
     if (mesa) {
       await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Mesas/${mesa}`, {
@@ -129,5 +144,25 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("Error en cancelación:", err);
     return res.status(500).json({ reply: "Error interno al cancelar la reserva." });
+  }
+}
+
+// === 5️⃣ Enviar confirmación por WhatsApp al cliente ===
+import twilio from "twilio";
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+async function enviarWhatsAppCancelacion({ telefono, nombre, restaurante, fecha, hora, personas, idReserva }) {
+  try {
+    const mensaje = `❌ *Tu reserva ha sido cancelada correctamente*\n\n🍽 *${restaurante}*\n📅 ${fecha} - ${hora}\n👥 ${personas} personas\n🧍 ${nombre}\n🪪 ID: ${idReserva}\n\nEsperamos verte pronto 👋`;
+
+    await client.messages.create({
+      from: process.env.TWILIO_WHATSAPP_FROM,
+      to: `whatsapp:${telefono}`,
+      body: mensaje
+    });
+
+    console.log("✅ WhatsApp de cancelación enviado:", telefono);
+  } catch (err) {
+    console.error("❌ Error al enviar WhatsApp de cancelación:", err);
   }
 }

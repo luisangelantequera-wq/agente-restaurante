@@ -233,8 +233,6 @@ if (telefonoCliente) {
 
 
 
-
-
     // 1️⃣ Cargar datos del restaurante
     const restResp = await fetch(
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Restaurantes?filterByFormula=${encodeURIComponent(`{id}=${Number(restaurante_id)}`)}`,
@@ -248,8 +246,8 @@ if (telefonoCliente) {
     const horario_reservas = safeJSON(R.horario_reservas, {});
     const dias_cierre = safeJSON(R.dias_cierre, []);
     const cierres_especiales = safeJSON(R.cierres_especiales, []);
-    const intervalo = Number(R.intervalo_minutos || 15);
-    const dia = diaSemanaES(fecha);
+  const intervalo = Number(R.intervalo_minutos || 15);
+  const dia = diaSemanaES(fecha);
 
     // 2️⃣ Validar día y hora
     if (dias_cierre.includes(dia))
