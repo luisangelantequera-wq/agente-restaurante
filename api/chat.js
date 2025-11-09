@@ -145,11 +145,51 @@ export default async function handler(req, res) {
     return res.status(405).json({ reply: "Método no permitido" });
 
   try {
-    const { restaurante_id, fecha, hora, personas, nombre, email, mensaje = "" } = req.body;
+    const { restaurante_id, fecha, hora, personas, nombre, email, telefono, mensaje = "" } = req.body;
 
     if (!restaurante_id || !fecha || !hora || !personas || !nombre || !email) {
       return res.status(400).json({ reply: "Faltan datos obligatorios." });
     }
+
+
+
+// 5️⃣½ Enviar confirmación WhatsApp al cliente (Twilio)
+import twilio from "twilio";
+const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+
+async function enviarWhatsAppCliente({ telefono, nombre, restaurante, fecha, hora, personas, idReserva }) {
+  try {
+    const mensaje = `🍽 *${restaurante}*\n\n✅ *Tu reserva está confirmada*\n📅 ${fecha} - ${hora}\n👥 ${personas} personas\n🧍 ${nombre}\n🪪 ID: ${idReserva}\n\nSi necesitas modificar o cancelar, responde a este mensaje.`;
+    
+    await client.messages.create({
+      from: process.env.TWILIO_WHATSAPP_FROM,
+      to: `whatsapp:${telefono}`, // formato internacional, ej: +34600123456
+      body: mensaje
+    });
+
+    console.log("✅ WhatsApp enviado al cliente:", telefono);
+  } catch (err) {
+    console.error("❌ Error al enviar WhatsApp:", err);
+  }
+}
+
+
+if (telefonoCliente) {
+  await enviarWhatsAppCliente({
+    telefono: telefonoCliente,
+    nombre,
+    restaurante: R.nombre,
+    fecha,
+    hora,
+    personas,
+    idReserva
+  });
+}
+
+
+
+
+
 
     // 1️⃣ Cargar datos del restaurante
     const restResp = await fetch(
@@ -215,6 +255,7 @@ export default async function handler(req, res) {
         personas: Number(personas),
         nombre_completo: nombre,
         email,
+    telefono, // 📱 nuevo campo
         mensaje,
         estado: "confirmada",
       },
@@ -242,6 +283,26 @@ export default async function handler(req, res) {
       restaurante: R.nombre,
       direccion: R.direccion,
     });
+
+// Enviar WhatsApp de confirmación si hay teléfono
+if (telefono) {
+  await enviarWhatsAppCliente({
+    telefono,
+    nombre,
+    restaurante: R.nombre,
+    fecha,
+    hora,
+    personas,
+    idReserva
+  });
+}
+
+✅ Con esto:
+El teléfono llega desde el front
+Se guarda en Airtable
+Se usa para enviar el WhatsApp
+Todo el flujo queda automatizado
+
 
     // 6️⃣ Respuesta
     return res.status(200).json({
