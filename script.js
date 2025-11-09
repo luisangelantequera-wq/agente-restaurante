@@ -1,22 +1,17 @@
 // === CONTACTIA — script.js ===
 // Controla la conversación en la web, las reservas, cancelaciones y mensajes.
 // Comunicación con /api/chat (reservas) y /api/cancelar (cancelaciones)
-
+//
 //CONTROLAMOS:
 // El chat visual del usuario (en la web)
 // Las conversaciones inteligentes (reservar / cancelar / mensajes normales)
 // La comunicación con las APIs /api/chat y /api/cancelar
 // las respuestas dinámicas del asistente Contactia
-
-Paso	Acción
-1️⃣	Detecta si el usuario quiere reservar
-2️⃣	Pide personas → fecha → hora → nombre → email → teléfono
-3️⃣	Llama a /api/chat con todos los datos
-4️⃣	El backend guarda la reserva, envía el correo y ahora el WhatsApp con Twilio
-5️⃣	Muestra confirmación visual en el chat
-
-
-
+//
+// Paso	Acción
+// 2️⃣	Pide personas → fecha → hora → nombre → email → teléfono
+// 4️⃣ 	El backend guarda la reserva, envía el correo y ahora el WhatsApp con Twilio
+//
 // ──────────────────────────────────────────────────────────────
 // 1️⃣ Inicialización
 // ──────────────────────────────────────────────────────────────
