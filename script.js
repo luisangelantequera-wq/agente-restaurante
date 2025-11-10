@@ -321,7 +321,7 @@ if (confirmacionPendiente) {
   }
 }
 
-
+}
 
 // ← cierre correcto de la función procesarMensajeUsuario
 
