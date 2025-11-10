@@ -49,7 +49,6 @@ function detectarReserva(texto) {
     t.includes("reservar") ||
     t.includes("reserva") ||    
     t.includes("necesito una mesa")
-    t.includes("quiero mesa")
   );
 }
 
