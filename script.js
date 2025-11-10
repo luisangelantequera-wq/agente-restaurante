@@ -345,3 +345,4 @@ input.addEventListener("keydown", (e) => {
 window.addEventListener("load", () => {
   agregarMensaje("bot", "👋 ¡Hola! Soy Contactia, tu asistente virtual. ¿Quieres hacer una reserva o cancelar una existente?");
 });
+}
