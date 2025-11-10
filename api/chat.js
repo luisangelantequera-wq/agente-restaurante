@@ -147,53 +147,49 @@ export default async function handler(req, res) {
   try {
 
 // === 1️⃣ Detección de acción "verificar" (comprobación de disponibilidad) ===
+
 if (req.body.accion === "verificar") {
   const { restaurante_id, fecha, hora, personas } = req.body;
 
-  // Buscar mesas del restaurante
-  const mesasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Mesas?filterByFormula=${encodeURIComponent(`{restaurante_id}='${restaurante_id}'`)}`;
-  const mesasResp = await fetch(mesasURL, {
-    headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
-  });
-  const mesasData = await mesasResp.json();
-  const mesas = mesasData.records || [];
+  try {
+    // Buscar mesas
+    const mesasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Mesas?filterByFormula=${encodeURIComponent(`{restaurante_id}='${restaurante_id}'`)}`;
+    const mesasResp = await fetch(mesasURL, {
+      headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
+    });
+    const mesasData = await mesasResp.json();
+    const mesas = mesasData.records || [];
 
-  if (mesas.length === 0) {
-    return res.status(200).json({ disponible: false, mensaje: "No hay mesas registradas." });
-  }
+    // Buscar reservas
+    const reservasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Reservas?filterByFormula=${encodeURIComponent(`AND({fecha}='${fecha}', {hora}='${hora}', {estado}='confirmada')`)}`;
+    const reservasResp = await fetch(reservasURL, {
+      headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
+    });
+    const reservasData = await reservasResp.json();
+    const reservas = reservasData.records || [];
 
-  // Buscar reservas existentes para esa fecha y hora
-  const reservasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Reservas?filterByFormula=${encodeURIComponent(`AND({fecha}='${fecha}', {hora}='${hora}', {estado}='confirmada')`)}`;
-  const reservasResp = await fetch(reservasURL, {
-    headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
-  });
-  const reservasData = await reservasResp.json();
-  const reservas = reservasData.records || [];
+    // Filtrar mesas ocupadas
+    const mesasOcupadas = reservas.map(r => r.fields.mesa?.[0]).filter(Boolean);
 
-  // Identificar mesas ocupadas
-  const mesasOcupadas = reservas.map(r => r.fields.mesa?.[0]).filter(Boolean);
+    // Encontrar una mesa libre
+    const mesaLibre = mesas.find(m =>
+      !mesasOcupadas.includes(m.id) &&
+      m.fields.capacidad >= personas
+    );
 
-  // Buscar una mesa libre con capacidad suficiente
-  const mesaLibre = mesas.find(m =>
-    !mesasOcupadas.includes(m.id) &&
-    m.fields.capacidad >= personas
-  );
+    // ✅ Respuesta clara al frontend
+    if (mesaLibre) {
+      return res.status(200).json({ disponible: true });
+    } else {
+      return res.status(200).json({ disponible: false });
+    }
 
-  // Responder resultado
-  if (mesaLibre) {
-    return res.status(200).json({ disponible: true });
-  } else {
-    return res.status(200).json({ disponible: false });
+  } catch (error) {
+    console.error("Error al verificar disponibilidad:", error);
+    return res.status(500).json({ disponible: false, error: "Error interno" });
   }
 }
 
-
-
-    const { restaurante_id, fecha, hora, personas, nombre, email, telefono, mensaje = "" } = req.body;
-
-    if (!restaurante_id || !fecha || !hora || !personas || !nombre || !email) {
-      return res.status(400).json({ reply: "Faltan datos obligatorios." });
-    }
 
 
 
@@ -216,6 +212,8 @@ async function enviarWhatsAppCliente({ telefono, nombre, restaurante, fecha, hor
     console.error("❌ Error al enviar WhatsApp:", err);
   }
 }
+
+
 
 
 if (telefonoCliente) {
