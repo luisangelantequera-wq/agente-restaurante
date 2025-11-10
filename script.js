@@ -7,9 +7,9 @@ const input = document.getElementById("user-input");
 const sendButton = document.getElementById("send-btn");
 
 // Variables globales
-let confirmacionPendiente = false;
 let modoReserva = false;
 let modoCancelacion = false;
+let confirmacionPendiente = false;
 let datosReserva = {
   restaurante_id: 1,
   fecha: "",
@@ -47,8 +47,8 @@ function detectarReserva(texto) {
   const t = texto.toLowerCase();
   return (
     t.includes("reservar") ||
-    t.includes("reserva") ||    
-    t.includes("necesito una mesa")
+    t.includes("reserva") ||
+    t.includes("quiero mesa")
   );
 }
 
@@ -139,130 +139,33 @@ async function procesarMensajeUsuario(texto) {
       return;
     }
 
-
-// 3️⃣ Hora (o corrección de hora)
-if (/^\d{1,2}:\d{2}$/.test(texto) || texto.toLowerCase().includes("mejor a las")) {
-  // Si el usuario ya había puesto hora, actualizamos
-  const horaNueva = texto.match(/\d{1,2}:\d{2}/);
-  if (horaNueva) {
-    datosReserva.hora = horaNueva[0];
-  }
-
-  agregarMensaje("bot", "Un momento, voy a comprobar si hay mesas disponibles...");
-  const disponibilidad = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      accion: "verificar",
-      restaurante_id: datosReserva.restaurante_id,
-      fecha: datosReserva.fecha,
-      hora: datosReserva.hora,
-      personas: datosReserva.personas
-    })
-  });
-
-  const data = await disponibilidad.json();
-  if (data.disponible) {
-    agregarMensaje("bot", "¡Sí! Tenemos mesas disponibles 🎉 ¿Podrías indicarme tu nombre completo?");
-    return;
-  } else {
-    agregarMensaje("bot", "Lo siento 😞 no hay mesas disponibles para esa hora. ¿Quieres probar con otro horario o día?");
-    modoReserva = false;
-    datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
-    return;
-  }
-}
-
-
-// 3️⃣b Corrección de fecha (si el usuario cambia de día)
-if (
-  texto.toLowerCase().includes("mañana") ||
-  texto.toLowerCase().includes("pasado mañana") ||
-  texto.toLowerCase().includes("cambia") ||
-  /^\d{2}\/\d{2}\/\d{4}$/.test(texto)
-) {
-  const hoy = new Date();
-  let nuevaFecha = "";
-
-  if (texto.toLowerCase().includes("mañana")) {
-    hoy.setDate(hoy.getDate() + 1);
-    nuevaFecha = hoy.toISOString().split("T")[0];
-  } else if (texto.toLowerCase().includes("pasado mañana")) {
-    hoy.setDate(hoy.getDate() + 2);
-    nuevaFecha = hoy.toISOString().split("T")[0];
-  } else {
-    // Buscar formato DD/MM/AAAA en el texto
-    const match = texto.match(/\d{2}\/\d{2}\/\d{4}/);
-    if (match) {
-      const [dia, mes, año] = match[0].split("/");
-      nuevaFecha = `${año}-${mes}-${dia}`;
+    // 3️⃣ Hora (y corrección)
+    if (/^\d{1,2}:\d{2}$/.test(texto) || texto.toLowerCase().includes("mejor a las")) {
+      const horaNueva = texto.match(/\d{1,2}:\d{2}/);
+      if (horaNueva) datosReserva.hora = horaNueva[0];
+      agregarMensaje("bot", "Un momento, voy a comprobar si hay mesas disponibles...");
+      const disponibilidad = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accion: "verificar",
+          restaurante_id: datosReserva.restaurante_id,
+          fecha: datosReserva.fecha,
+          hora: datosReserva.hora,
+          personas: datosReserva.personas
+        })
+      });
+      const data = await disponibilidad.json();
+      if (data.disponible) {
+        agregarMensaje("bot", "¡Sí! Tenemos mesas disponibles 🎉 ¿Podrías indicarme tu nombre completo?");
+        return;
+      } else {
+        agregarMensaje("bot", "Lo siento 😞 no hay mesas disponibles para esa hora. ¿Quieres probar con otro horario o día?");
+        modoReserva = false;
+        datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
+        return;
+      }
     }
-  }
-
-  if (nuevaFecha) {
-    datosReserva.fecha = nuevaFecha;
-    agregarMensaje("bot", `Perfecto, cambio la reserva al ${texto.match(/\d{2}\/\d{2}\/\d{4}/)?.[0] || texto}. Un momento, voy a comprobar la disponibilidad...`);
-
-    const disponibilidad = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accion: "verificar",
-        restaurante_id: datosReserva.restaurante_id,
-        fecha: datosReserva.fecha,
-        hora: datosReserva.hora,
-        personas: datosReserva.personas
-      })
-    });
-
-    const data = await disponibilidad.json();
-    if (data.disponible) {
-      agregarMensaje("bot", "¡Sí! Tenemos mesas disponibles 🎉 ¿Podrías indicarme tu nombre completo?");
-    } else {
-      agregarMensaje("bot", "Lo siento 😞 no hay mesas disponibles para ese día y hora. ¿Quieres probar con otra fecha?");
-      modoReserva = false;
-      datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
-    }
-    return;
-  }
-}
-
-// 3️⃣c Corrección del número de personas
-if (
-  texto.toLowerCase().includes("somos") ||
-  texto.toLowerCase().includes("personas") ||
-  texto.toLowerCase().includes("cambia a") ||
-  (!isNaN(parseInt(texto)) && datosReserva.personas !== "")
-) {
-  const nuevoNumero = parseInt(texto.match(/\d+/)?.[0]);
-  if (nuevoNumero && nuevoNumero > 0 && nuevoNumero <= 20) {
-    datosReserva.personas = nuevoNumero;
-    agregarMensaje("bot", `Perfecto, actualizo la reserva para ${nuevoNumero} personas. Voy a comprobar la disponibilidad...`);
-
-    const disponibilidad = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accion: "verificar",
-        restaurante_id: datosReserva.restaurante_id,
-        fecha: datosReserva.fecha,
-        hora: datosReserva.hora,
-        personas: datosReserva.personas
-      })
-    });
-
-    const data = await disponibilidad.json();
-    if (data.disponible) {
-      agregarMensaje("bot", "¡Sí! Tenemos mesas disponibles 🎉 ¿Podrías indicarme tu nombre completo?");
-    } else {
-      agregarMensaje("bot", "Lo siento 😞 no hay mesas disponibles para ese número de personas. ¿Quieres probar con otro horario o día?");
-      modoReserva = false;
-      datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
-    }
-    return;
-  }
-}
-
 
     // 4️⃣ Nombre
     if (datosReserva.nombre === "") {
@@ -278,52 +181,52 @@ if (
       return;
     }
 
+    // 6️⃣ Teléfono y resumen de confirmación
+    if (datosReserva.telefono === "" && /^[+0-9\s-]{7,15}$/.test(texto)) {
+      let tel = texto.replace(/\s/g, "");
+      if (!tel.startsWith("+")) {
+        if (tel.startsWith("6") || tel.startsWith("7")) tel = `+34${tel}`;
+      }
+      datosReserva.telefono = tel;
 
-// 6️⃣ Teléfono y resumen de confirmación
-if (datosReserva.telefono === "" && /^[+0-9\s-]{7,15}$/.test(texto)) {
-  let tel = texto.replace(/\s/g, "");
-  if (!tel.startsWith("+")) {
-    if (tel.startsWith("6") || tel.startsWith("7")) tel = `+34${tel}`;
+      const resumen = `✨ Por favor, confirma los datos de tu reserva:\n\n🍽 *Restaurante Sol*\n📅 ${datosReserva.fecha.split("-").reverse().join("/")} – ${datosReserva.hora}\n👥 ${datosReserva.personas} personas\n🧍 ${datosReserva.nombre}\n📧 ${datosReserva.email}\n📱 ${datosReserva.telefono}\n\n¿Deseas confirmar la reserva? (Sí / No)`;
+
+      agregarMensaje("bot", resumen);
+      confirmacionPendiente = true;
+      return;
+    }
+
+    // 7️⃣ Confirmación
+    if (confirmacionPendiente) {
+      if (texto.toLowerCase().startsWith("s")) {
+        agregarMensaje("bot", "Gracias 😊 Estoy procesando tu reserva...");
+        const respuesta = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(datosReserva),
+        });
+        const resultado = await respuesta.json();
+        agregarMensaje("bot", resultado.reply || "Reserva completada.");
+        modoReserva = false;
+        confirmacionPendiente = false;
+        datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
+        return;
+      } else if (texto.toLowerCase().startsWith("n")) {
+        agregarMensaje("bot", "De acuerdo 👍. He cancelado el proceso de reserva. Puedes empezar de nuevo cuando quieras.");
+        modoReserva = false;
+        confirmacionPendiente = false;
+        datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
+        return;
+      } else {
+        agregarMensaje("bot", "Por favor, responde *Sí* o *No* para confirmar o cancelar la reserva.");
+        return;
+      }
+    }
+
+    agregarMensaje("bot", "Por favor, responde con el dato solicitado para continuar la reserva.");
+    return;
   }
-  datosReserva.telefono = tel;
-
-  const resumen = `✨ Por favor, confirma los datos de tu reserva:\n\n🍽 *Restaurante Sol*\n📅 ${datosReserva.fecha.split("-").reverse().join("/")} – ${datosReserva.hora}\n👥 ${datosReserva.personas} personas\n🧍 ${datosReserva.nombre}\n📧 ${datosReserva.email}\n📱 ${datosReserva.telefono}\n\n¿Deseas confirmar la reserva? (Sí / No)`;
-
-  agregarMensaje("bot", resumen);
-  confirmacionPendiente = true;
-  return;
 }
-
-// 7️⃣ Confirmación final del usuario
-if (confirmacionPendiente) {
-  if (texto.toLowerCase().startsWith("s")) {
-    agregarMensaje("bot", "Gracias 😊 Estoy procesando tu reserva...");
-    const respuesta = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(datosReserva),
-    });
-    const resultado = await respuesta.json();
-    agregarMensaje("bot", resultado.reply || "Reserva completada.");
-    modoReserva = false;
-    confirmacionPendiente = false;
-    datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
-    return;
-  } else if (texto.toLowerCase().startsWith("n")) {
-    agregarMensaje("bot", "De acuerdo 👍. He cancelado el proceso de reserva. Puedes empezar de nuevo cuando quieras.");
-    modoReserva = false;
-    confirmacionPendiente = false;
-    datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
-    return;
-  } else {
-    agregarMensaje("bot", "Por favor, responde *Sí* o *No* para confirmar o cancelar la reserva.");
-    return;
-  }
-}
-
-}
-
-// ← cierre correcto de la función procesarMensajeUsuario
 
 // Envío de mensajes
 sendButton.addEventListener("click", () => {
@@ -345,4 +248,4 @@ input.addEventListener("keydown", (e) => {
 window.addEventListener("load", () => {
   agregarMensaje("bot", "👋 ¡Hola! Soy Contactia, tu asistente virtual. ¿Quieres hacer una reserva o cancelar una existente?");
 });
-}
+
