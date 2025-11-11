@@ -1,14 +1,11 @@
-// === CHAT.JS — Contactia (versión CommonJS para Vercel) ===
-// Sistema de reservas con Airtable + Gmail (nodemailer) + Twilio (WhatsApp)
-// Compatible con entorno Node.js (sin "type": "module")
+// === CHAT.JS — Contactia (modo DEBUG) ===
+// Conexión con Airtable + Gmail + Twilio
+// Incluye console.log detallado para ver lo que ocurre en Vercel
 
 const nodemailer = require("nodemailer");
 const twilio = require("twilio");
 const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
-// ────────────────────────────────────────────────────────────────
-// UTILIDADES
-// ────────────────────────────────────────────────────────────────
 function diaSemanaES(fechaISO) {
   const d = new Date(fechaISO);
   return d.toLocaleDateString("es-ES", { weekday: "long" }).toLowerCase();
@@ -44,9 +41,6 @@ function safeJSON(value, fallback) {
   }
 }
 
-// ────────────────────────────────────────────────────────────────
-// EMAIL
-// ────────────────────────────────────────────────────────────────
 async function enviarCorreoConfirmacion({ email, nombre, fecha, hora, personas, idReserva, restaurante, direccion }) {
   const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -57,24 +51,13 @@ async function enviarCorreoConfirmacion({ email, nombre, fecha, hora, personas, 
   });
 
   const html = `
-  <div style="background-color:#fafafa;padding:40px 0;font-family:Arial,sans-serif;">
-    <table style="max-width:600px;margin:auto;background-color:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
-      <tr>
-        <td style="text-align:center;padding:20px 0;background-color:#d35400;border-top-left-radius:12px;border-top-right-radius:12px;">
-          <h1 style="color:#fff;margin:0;font-size:22px;">${restaurante}</h1>
-          ${direccion ? `<div style="color:#ffeede;font-size:12px;margin-top:6px;">${direccion}</div>` : ``}
-        </td>
-      </tr>
-      <tr>
-        <td style="padding:28px;">
-          <p style="font-size:16px;color:#333;">Hola <strong>${nombre}</strong>, tu reserva ha sido <strong>confirmada</strong>.</p>
-          <p>📅 ${fecha} – ${hora}</p>
-          <p>👥 ${personas} personas</p>
-          <p>🪪 ID de reserva: <strong>${idReserva}</strong></p>
-          <p>¡Gracias por reservar con Contactia!</p>
-        </td>
-      </tr>
-    </table>
+  <div style="font-family:Arial,sans-serif;padding:20px;">
+    <h2>🍷 Confirmación de tu reserva en ${restaurante}</h2>
+    <p>Hola ${nombre}, tu reserva ha sido <strong>confirmada</strong>.</p>
+    <p>📅 ${fecha} – ${hora}</p>
+    <p>👥 ${personas} personas</p>
+    <p>🪪 ID de reserva: <strong>${idReserva}</strong></p>
+    <p>📍 ${direccion || ""}</p>
   </div>`;
 
   await transporter.sendMail({
@@ -85,15 +68,11 @@ async function enviarCorreoConfirmacion({ email, nombre, fecha, hora, personas, 
   });
 }
 
-// ────────────────────────────────────────────────────────────────
-// WHATSAPP
-// ────────────────────────────────────────────────────────────────
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 async function enviarWhatsAppCliente({ telefono, nombre, restaurante, fecha, hora, personas, idReserva }) {
   try {
-    const mensaje = `🍽 *${restaurante}*\n\n✅ *Tu reserva está confirmada*\n📅 ${fecha} - ${hora}\n👥 ${personas} personas\n🧍 ${nombre}\n🪪 ID: ${idReserva}\n\nSi necesitas modificar o cancelar, responde a este mensaje.`;
-
+    const mensaje = `🍽 *${restaurante}*\n\n✅ *Tu reserva está confirmada*\n📅 ${fecha} - ${hora}\n👥 ${personas} personas\n🧍 ${nombre}\n🪪 ID: ${idReserva}`;
     await client.messages.create({
       from: process.env.TWILIO_WHATSAPP_FROM,
       to: `whatsapp:${telefono}`,
@@ -104,9 +83,6 @@ async function enviarWhatsAppCliente({ telefono, nombre, restaurante, fecha, hor
   }
 }
 
-// ────────────────────────────────────────────────────────────────
-// HANDLER PRINCIPAL
-// ────────────────────────────────────────────────────────────────
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     res.statusCode = 405;
@@ -121,63 +97,55 @@ module.exports = async (req, res) => {
       req.body = JSON.parse(body || "{}");
     }
 
-    const { restaurante_id, fecha, hora, personas, nombre, email, telefono, mensaje = "", accion } = req.body;
+    const { restaurante_id, fecha, hora, personas, nombre, email, telefono, mensaje = "" } = req.body;
+    console.log("📥 Datos recibidos:", req.body);
 
-    // === 1️⃣ Verificar disponibilidad ===
-    if (accion === "verificar") {
-      const mesasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Mesas?filterByFormula=${encodeURIComponent(`{restaurante_id}='${restaurante_id}'`)}`;
-      const mesasResp = await fetch(mesasURL, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
-      const mesasData = await mesasResp.json();
-      const mesas = mesasData.records || [];
-
-      const reservasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Reservas?filterByFormula=${encodeURIComponent(`AND({fecha}='${fecha}', {hora}='${hora}', {estado}='confirmada')`)}`;
-      const reservasResp = await fetch(reservasURL, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
-      const reservasData = await reservasResp.json();
-      const reservas = reservasData.records || [];
-
-      const mesasOcupadas = reservas.map(r => r.fields.mesa?.[0]).filter(Boolean);
-      const mesaLibre = mesas.find(m => !mesasOcupadas.includes(m.id) && m.fields.capacidad >= personas);
-
-      res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify({ disponible: !!mesaLibre }));
-    }
-
-    // === 2️⃣ Obtener restaurante ===
+    // === 1️⃣ Buscar restaurante ===
     const restResp = await fetch(
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Restaurantes?filterByFormula=${encodeURIComponent(`{id}=${Number(restaurante_id)}`)}`,
       { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } }
     );
     const restData = await restResp.json();
+    console.log("🏨 Restaurante encontrado:", JSON.stringify(restData, null, 2));
+
     if (!restData.records?.length) {
       res.statusCode = 404;
       return res.end(JSON.stringify({ reply: "Restaurante no encontrado." }));
     }
 
     const R = restData.records[0].fields;
-
-    // === 3️⃣ Validar horario ===
     const dia = diaSemanaES(fecha);
     const horario_reservas = safeJSON(R.horario_reservas, {});
-    const dias_cierre = safeJSON(R.dias_cierre, []);
-    const cierres_especiales = safeJSON(R.cierres_especiales, []);
+    console.log("🕓 Horario reservas:", horario_reservas);
 
-    if (dias_cierre.includes(dia)) return res.end(JSON.stringify({ reply: `El restaurante cierra los ${dia}s.` }));
-    if (cierres_especiales.includes(fecha)) return res.end(JSON.stringify({ reply: `El restaurante estará cerrado el ${fecha}.` }));
-    if (!horaEnRangos(hora, horario_reservas[dia])) return res.end(JSON.stringify({ reply: `Hora fuera del horario del ${dia}.` }));
-
-    // === 4️⃣ Buscar mesa libre ===
+    // === 2️⃣ Obtener mesas ===
     const mesasResp = await fetch(
-      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Mesas?filterByFormula=${encodeURIComponent(`{Restaurante}='${R.nombre}'`)}`,
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Mesas?filterByFormula=${encodeURIComponent(`{restaurante}='${R.nombre}'`)}`,
       { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } }
     );
     const mesasData = await mesasResp.json();
+    console.log("🪑 Mesas encontradas:", mesasData.records?.length || 0);
+    mesasData.records?.forEach((m, i) => {
+      console.log(`→ Mesa ${i + 1}:`, m.fields.nombre_mesa, "| Capacidad:", m.fields.capacidad, "| Estado:", m.fields.estado, "| Restaurante:", m.fields.restaurante);
+    });
+
+    // === 3️⃣ Seleccionar mesa libre ===
     const mesaLibre = mesasData.records.find(
       (m) => Number(m.fields.capacidad) >= Number(personas) && m.fields.estado?.toLowerCase() === "libre"
     );
-    if (!mesaLibre) return res.end(JSON.stringify({ reply: `No hay mesas disponibles para ${personas} personas.` }));
 
-    // === 5️⃣ Crear reserva ===
+    if (!mesaLibre) {
+      console.log("❌ No se encontró mesa libre para", personas, "personas");
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify({ reply: `No hay mesas disponibles para ${personas} personas.` }));
+    }
+
+    console.log("✅ Mesa libre encontrada:", mesaLibre.fields.nombre_mesa);
+
+    // === 4️⃣ Crear reserva ===
     const idReserva = generarIdReserva(R.nombre, fecha);
+    console.log("🪪 Creando reserva:", idReserva);
+
     await fetch(
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Reservas`,
       {
@@ -204,7 +172,9 @@ module.exports = async (req, res) => {
       }
     );
 
-    // === 6️⃣ Confirmaciones ===
+    console.log("📦 Reserva creada correctamente en Airtable.");
+
+    // === 5️⃣ Confirmaciones ===
     await enviarCorreoConfirmacion({
       email,
       nombre,
@@ -231,12 +201,12 @@ module.exports = async (req, res) => {
     res.setHeader("Content-Type", "application/json");
     return res.end(JSON.stringify({
       reply: `✅ Reserva confirmada en ${R.nombre} para ${personas} personas el ${fecha} a las ${hora}.
-🪑 Mesa: ${mesaLibre.fields.nombre}
-🪪 ID: ${idReserva}
-📧 Correo de confirmación enviado a ${email}.`
+🪑 Mesa: ${mesaLibre.fields.nombre_mesa}
+🪪 ID: ${idReserva}`
     }));
+
   } catch (err) {
-    console.error("❌ Error general:", err);
+    console.error("💥 ERROR GENERAL:", err);
     res.statusCode = 500;
     res.end(JSON.stringify({ reply: "Error interno del servidor." }));
   }
