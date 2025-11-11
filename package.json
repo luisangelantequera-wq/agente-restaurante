@@ -1,23 +1,10 @@
-// Este archivo es el “documento de identidad” de tu proyecto para Vercel: le indica qué dependencias instalar y cómo ejecutar tus funciones.//
-// Te explico qué hace cada parte
-//  Campo	Función
-// "name"	Nombre del proyecto (puede ser “contactia” o el que prefieras).
-// "version"	Solo informativo (sirve para control interno).
-// "description":Breve descripción del proyecto.
-// "main"	No lo usa Vercel, pero se mantiene por compatibilidad.
-// "scripts"	Permite ejecutar el proyecto localmente con vercel dev.
-// "dependencies"	Aquí van los paquetes que Vercel instalará automáticamente (solo nodemailer en tu caso).
-// "engines"	Indica que se usará Node.js versión 18 o superior (la que usa Vercel).
-// "license"	Puedes dejar MIT (libre) o privado si lo prefieres.
-//
-
 {
   "name": "contactia",
   "version": "1.0.0",
   "description": "Asistente virtual Contactia para reservas y cancelaciones de restaurantes con Airtable y Gmail.",
   "main": "index.js",
   "scripts": {
-    "start": "vercel dev"
+  "start": "vercel dev"
   },
   "dependencies": {
     "nodemailer": "^6.9.9",
@@ -28,3 +15,10 @@
   },
   "license": "MIT"
 }
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "twilio": "^5.10.5"
+}
+
+
+
