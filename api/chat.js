@@ -20,10 +20,17 @@ import nodemailer from "nodemailer";
 // ───────────────────────────────────────────────────────────────────────────────
 
 
-import nodemailer from "nodemailer";
-import twilio from "twilio";
+// === CHAT.JS — Contactia (versión CommonJS para Vercel) ===
+// Sistema de reservas con Airtable + Gmail (nodemailer) + Twilio (WhatsApp)
+// Compatible con entorno Node.js (sin "type": "module")
 
-// ──────────────────────────────── UTILIDADES ────────────────────────────────
+const nodemailer = require("nodemailer");
+const twilio = require("twilio");
+const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
+
+// ────────────────────────────────────────────────────────────────
+// UTILIDADES
+// ────────────────────────────────────────────────────────────────
 function diaSemanaES(fechaISO) {
   const d = new Date(fechaISO);
   return d.toLocaleDateString("es-ES", { weekday: "long" }).toLowerCase();
@@ -59,7 +66,9 @@ function safeJSON(value, fallback) {
   }
 }
 
-// ──────────────────────────────── EMAIL ────────────────────────────────
+// ────────────────────────────────────────────────────────────────
+// EMAIL
+// ────────────────────────────────────────────────────────────────
 async function enviarCorreoConfirmacion({ email, nombre, fecha, hora, personas, idReserva, restaurante, direccion }) {
   const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -98,7 +107,9 @@ async function enviarCorreoConfirmacion({ email, nombre, fecha, hora, personas, 
   });
 }
 
-// ──────────────────────────────── WHATSAPP ────────────────────────────────
+// ────────────────────────────────────────────────────────────────
+// WHATSAPP
+// ────────────────────────────────────────────────────────────────
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 async function enviarWhatsAppCliente({ telefono, nombre, restaurante, fecha, hora, personas, idReserva }) {
@@ -115,11 +126,24 @@ async function enviarWhatsAppCliente({ telefono, nombre, restaurante, fecha, hor
   }
 }
 
-// ──────────────────────────────── HANDLER PRINCIPAL ────────────────────────────────
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ reply: "Método no permitido" });
+// ────────────────────────────────────────────────────────────────
+// HANDLER PRINCIPAL (exportado como CommonJS)
+// ────────────────────────────────────────────────────────────────
+module.exports = async (req, res) => {
+  if (req.method !== "POST") {
+    res.statusCode = 405;
+    return res.end(JSON.stringify({ reply: "Método no permitido" }));
+  }
 
   try {
+    // Si el body no está parseado
+    let body = "";
+    if (!req.body) {
+      req.on("data", chunk => (body += chunk.toString()));
+      await new Promise(resolve => req.on("end", resolve));
+      req.body = JSON.parse(body || "{}");
+    }
+
     const { restaurante_id, fecha, hora, personas, nombre, email, telefono, mensaje = "", accion } = req.body;
 
     // === 1️⃣ Comprobación de disponibilidad ===
@@ -137,7 +161,8 @@ export default async function handler(req, res) {
       const mesasOcupadas = reservas.map(r => r.fields.mesa?.[0]).filter(Boolean);
       const mesaLibre = mesas.find(m => !mesasOcupadas.includes(m.id) && m.fields.capacidad >= personas);
 
-      return res.status(200).json({ disponible: !!mesaLibre });
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify({ disponible: !!mesaLibre }));
     }
 
     // === 2️⃣ Obtener datos del restaurante ===
@@ -146,7 +171,10 @@ export default async function handler(req, res) {
       { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } }
     );
     const restData = await restResp.json();
-    if (!restData.records?.length) return res.json({ reply: "Restaurante no encontrado." });
+    if (!restData.records?.length) {
+      res.statusCode = 404;
+      return res.end(JSON.stringify({ reply: "Restaurante no encontrado." }));
+    }
 
     const R = restData.records[0].fields;
 
@@ -156,9 +184,9 @@ export default async function handler(req, res) {
     const dias_cierre = safeJSON(R.dias_cierre, []);
     const cierres_especiales = safeJSON(R.cierres_especiales, []);
 
-    if (dias_cierre.includes(dia)) return res.json({ reply: `El restaurante cierra los ${dia}s.` });
-    if (cierres_especiales.includes(fecha)) return res.json({ reply: `El restaurante estará cerrado el ${fecha}.` });
-    if (!horaEnRangos(hora, horario_reservas[dia])) return res.json({ reply: `Hora fuera del horario del ${dia}.` });
+    if (dias_cierre.includes(dia)) return res.end(JSON.stringify({ reply: `El restaurante cierra los ${dia}s.` }));
+    if (cierres_especiales.includes(fecha)) return res.end(JSON.stringify({ reply: `El restaurante estará cerrado el ${fecha}.` }));
+    if (!horaEnRangos(hora, horario_reservas[dia])) return res.end(JSON.stringify({ reply: `Hora fuera del horario del ${dia}.` }));
 
     // === 4️⃣ Buscar mesa libre ===
     const mesasResp = await fetch(
@@ -169,7 +197,7 @@ export default async function handler(req, res) {
     const mesaLibre = mesasData.records.find(
       (m) => Number(m.fields.capacidad) >= Number(personas) && m.fields.estado?.toLowerCase() === "libre"
     );
-    if (!mesaLibre) return res.json({ reply: `No hay mesas disponibles para ${personas} personas.` });
+    if (!mesaLibre) return res.end(JSON.stringify({ reply: `No hay mesas disponibles para ${personas} personas.` }));
 
     // Marcar mesa como reservada
     await fetch(
@@ -239,14 +267,18 @@ export default async function handler(req, res) {
     }
 
     // === 7️⃣ Respuesta al usuario ===
-    return res.status(200).json({
-      reply: `✅ Reserva confirmada en ${R.nombre} para ${personas} personas el ${fecha} a las ${hora}.
+    res.setHeader("Content-Type", "application/json");
+    return res.end(
+      JSON.stringify({
+        reply: `✅ Reserva confirmada en ${R.nombre} para ${personas} personas el ${fecha} a las ${hora}.
 🪑 Mesa: ${mesaLibre.fields.nombre}
 🪪 ID: ${idReserva}
 📧 Correo de confirmación enviado a ${email}.`,
-    });
+      })
+    );
   } catch (err) {
-    console.error("Error general:", err);
-    return res.status(500).json({ reply: "Error interno del servidor." });
+    console.error("❌ Error general:", err);
+    res.statusCode = 500;
+    res.end(JSON.stringify({ reply: "Error interno del servidor." }));
   }
-}
+};
