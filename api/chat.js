@@ -166,7 +166,8 @@ const restResp = await fetch(
 
     // === 2️⃣ Obtener mesas ===
     const mesasResp = await fetch(
-  `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${encodeURIComponent(`{restaurante}='${R.nombre}'`)}`
+  `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${encodeURIComponent("{restaurante}='" + R.nombre + "'")}`
+
       { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } }
     );
     const mesasData = await mesasResp.json();
