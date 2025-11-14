@@ -54,7 +54,7 @@ function detectarReserva(texto) {
 
 // Enviar a API de reserva
 async function enviarReserva(datos) {
-  const res = await fetch("/api/chat", {
+  const res = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(datos),
@@ -65,7 +65,7 @@ async function enviarReserva(datos) {
 
 // Enviar a API de cancelación
 async function cancelarReserva(id, email) {
-  const res = await fetch("/api/cancelar", {
+  const res = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/cancelar", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id_reserva: id, email }),
@@ -144,7 +144,7 @@ async function procesarMensajeUsuario(texto) {
       const horaNueva = texto.match(/\d{1,2}:\d{2}/);
       if (horaNueva) datosReserva.hora = horaNueva[0];
       agregarMensaje("bot", "Un momento, voy a comprobar si hay mesas disponibles...");
-      const disponibilidad = await fetch("/api/chat", {
+      const disponibilidad = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -200,7 +200,7 @@ async function procesarMensajeUsuario(texto) {
     if (confirmacionPendiente) {
       if (texto.toLowerCase().startsWith("s")) {
         agregarMensaje("bot", "Gracias 😊 Estoy procesando tu reserva...");
-        const respuesta = await fetch("/api/chat", {
+        const respuesta = awaitfetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(datosReserva),
