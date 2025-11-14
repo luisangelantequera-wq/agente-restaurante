@@ -165,16 +165,31 @@ const restResp = await fetch(
     console.log("🕓 Horario reservas:", horario_reservas);
 
     // === 2️⃣ Obtener mesas ===
-    const mesasResp = await fetch(
-  `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${encodeURIComponent("{restaurante}='" + R.nombre + "'")}`
 
-      { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } }
-    );
-    const mesasData = await mesasResp.json();
-    console.log("🪑 Mesas encontradas:", mesasData.records?.length || 0);
-    mesasData.records?.forEach((m, i) => {
-      console.log(`→ Mesa ${i + 1}:`, m.fields.nombre_mesa, "| Capacidad:", m.fields.capacidad, "| Estado:", m.fields.estado, "| Restaurante:", m.fields.restaurante);
-    });
+// === 2️⃣ Obtener mesas ===
+const filtroMesas = encodeURIComponent(`{restaurante}='${R.nombre}'`);
+const mesasUrl = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${filtroMesas}`;
+
+const mesasResp = await fetch(mesasUrl, {
+  headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
+});
+
+const mesasData = await mesasResp.json();
+console.log("🪑 Mesas encontradas:", mesasData.records?.length || 0);
+mesasData.records?.forEach((m, i) => {
+  console.log(
+    `→ Mesa ${i + 1}:`,
+    m.fields.nombre_mesa,
+    "| Capacidad:",
+    m.fields.capacidad,
+    "| Estado:",
+    m.fields.estado,
+    "| Restaurante:",
+    m.fields.restaurante
+  );
+});
+
+
 
     // === 3️⃣ Seleccionar mesa libre ===
     const mesaLibre = mesasData.records.find(
