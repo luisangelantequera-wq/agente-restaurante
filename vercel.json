@@ -1,8 +1,3 @@
-// "version": 2	Indica que usa el sistema moderno de Vercel.
-// "builds"	Dice que todos los .js dentro de /api/ son funciones de //servidor y el resto son archivos estáticos // // (HTML, CSS, JS de tu web).
-// "routes"	Asegura que todas las URLs normales cargan tu index.html, y //las que empiecen con /api/ se dirigen a // tus funciones.
-//
-
 {
   "version": 2,
   "builds": [
