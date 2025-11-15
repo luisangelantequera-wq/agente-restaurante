@@ -200,7 +200,7 @@ async function procesarMensajeUsuario(texto) {
     if (confirmacionPendiente) {
       if (texto.toLowerCase().startsWith("s")) {
         agregarMensaje("bot", "Gracias 😊 Estoy procesando tu reserva...");
-        const respuesta = awaitfetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
+        const respuesta = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(datosReserva),

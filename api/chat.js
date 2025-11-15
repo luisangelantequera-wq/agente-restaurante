@@ -109,9 +109,19 @@ if (req.body.accion === "verificar") {
     console.log("🧩 Ejecutando verificación de mesas disponibles...");
 
     const mesasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${encodeURIComponent(`{id (from restaurante)}='${String(restaurante_id)}'`)}`;
-    const mesasResp = await fetch(mesasURL, {
-      headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
-    });
+    
+   const mesasResp = await fetch(
+  `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${encodeURIComponent("{restaurante}='" + R.nombre + "'")}`,
+  {
+    headers: {
+      Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`
+    }
+  }
+);
+
+
+
+
     const mesasData = await mesasResp.json();
 
     console.log("🪑 Mesas encontradas en verificar:", mesasData.records?.length || 0);
