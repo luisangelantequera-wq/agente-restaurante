@@ -1,6 +1,6 @@
-// === CHAT.JS — Contactia (modo DEBUG) ===
+// === CHAT.JS – Contactia (VERSIÓN CORREGIDA FINAL) ===
 // Conexión con Airtable + Gmail + Twilio
-// Incluye console.log detallado para ver lo que ocurre en Vercel
+// Corregido para usar el campo lookup "id (from restaurante)"
 
 const nodemailer = require("nodemailer");
 const twilio = require("twilio");
@@ -56,7 +56,7 @@ async function enviarCorreoConfirmacion({ email, nombre, fecha, hora, personas, 
     <p>Hola ${nombre}, tu reserva ha sido <strong>confirmada</strong>.</p>
     <p>📅 ${fecha} – ${hora}</p>
     <p>👥 ${personas} personas</p>
-    <p>🪪 ID de reserva: <strong>${idReserva}</strong></p>
+    <p>🎫 ID de reserva: <strong>${idReserva}</strong></p>
     <p>📍 ${direccion || ""}</p>
   </div>`;
 
@@ -72,7 +72,7 @@ const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TO
 
 async function enviarWhatsAppCliente({ telefono, nombre, restaurante, fecha, hora, personas, idReserva }) {
   try {
-    const mensaje = `🍽 *${restaurante}*\n\n✅ *Tu reserva está confirmada*\n📅 ${fecha} - ${hora}\n👥 ${personas} personas\n🧍 ${nombre}\n🪪 ID: ${idReserva}`;
+    const mensaje = `🍽 *${restaurante}*\n\n✅ *Tu reserva está confirmada*\n📅 ${fecha} - ${hora}\n👥 ${personas} personas\n🧑 ${nombre}\n🎫 ID: ${idReserva}`;
     await client.messages.create({
       from: process.env.TWILIO_WHATSAPP_FROM,
       to: `whatsapp:${telefono}`,
@@ -98,127 +98,163 @@ module.exports = async (req, res) => {
     }
 
     const { restaurante_id, fecha, hora, personas, nombre, email, telefono, mensaje = "" } = req.body;
-    console.log("📥 Datos recibidos:", req.body);
+    console.log("🔥 Datos recibidos:", JSON.stringify(req.body, null, 2));
 
-
-
-// === 🔎 COMPROBACIÓN DE DISPONIBILIDAD (VERIFICAR) ===
-
-if (req.body.accion === "verificar") {
-  try {
-    console.log("🧩 Ejecutando verificación de mesas disponibles...");
-
-    const mesasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${encodeURIComponent(`{id (from restaurante)}='${String(restaurante_id)}'`)}`;
+    // === 1️⃣ BUSCAR RESTAURANTE ===
+    console.log("🔍 Buscando restaurante con id:", restaurante_id);
     
-   const mesasResp = await fetch(
-  `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${encodeURIComponent("{restaurante}='" + R.nombre + "'")}`,
-  {
-    headers: {
-      Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`
-    }
-  }
-);
-
-
-
-
-    const mesasData = await mesasResp.json();
-
-    console.log("🪑 Mesas encontradas en verificar:", mesasData.records?.length || 0);
-    mesasData.records?.forEach((m, i) => {
-      console.log(`→ Mesa ${i + 1}:`, m.fields.nombre_mesa, "| Capacidad:", m.fields.capacidad, "| Estado:", m.fields.estado);
-    });
-
-    const reservasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS?filterByFormula=${encodeURIComponent(`AND({fecha}='${fecha}', {hora}='${hora}', {estado}='confirmada')`)}`;
-    const reservasResp = await fetch(reservasURL, {
-      headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
-    });
-    const reservasData = await reservasResp.json();
-    const reservas = reservasData.records || [];
-
-    const mesasOcupadas = reservas.map((r) => r.fields.mesa?.[0]).filter(Boolean);
-    const mesaLibre = mesasData.records.find(
-      (m) => !mesasOcupadas.includes(m.id) && m.fields.estado?.toLowerCase() === "libre" && m.fields.capacidad >= personas
+    const restResp = await fetch(
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESTAURANTES?filterByFormula=${encodeURIComponent(`{id}=${String(restaurante_id)}`)}`,
+      { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } }
     );
 
-    console.log("✅ Resultado verificación:", mesaLibre ? `Mesa libre encontrada: ${mesaLibre.fields.nombre_mesa}` : "No hay mesas libres.");
-
-    res.setHeader("Content-Type", "application/json");
-    return res.end(JSON.stringify({ disponible: !!mesaLibre }));
-  } catch (err) {
-    console.error("💥 Error en verificación:", err);
-    res.statusCode = 500;
-    return res.end(JSON.stringify({ reply: "Error al verificar disponibilidad" }));
-  }
-}
-
-
-
-    // === 1️⃣ Buscar restaurante ===
-
-const restResp = await fetch(
-  `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESTAURANTES?filterByFormula=${encodeURIComponent(`{id}='${String(restaurante_id)}'`)}`,
-  { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } }
-);
-
     const restData = await restResp.json();
-    console.log("🏨 Restaurante encontrado:", JSON.stringify(restData, null, 2));
+    console.log("🏨 Restaurante encontrado:", restData.records?.length ? "SÍ" : "NO");
 
     if (!restData.records?.length) {
+      console.log("❌ No se encontró el restaurante con id:", restaurante_id);
       res.statusCode = 404;
       return res.end(JSON.stringify({ reply: "Restaurante no encontrado." }));
     }
 
     const R = restData.records[0].fields;
-    const dia = diaSemanaES(fecha);
-    const horario_reservas = safeJSON(R.horario_reservas, {});
-    console.log("🕓 Horario reservas:", horario_reservas);
+    const restauranteRecordId = restData.records[0].id;
+    console.log("✅ Restaurante:", R.nombre, "| Record ID:", restauranteRecordId);
 
-    // === 2️⃣ Obtener mesas ===
+    // === 2️⃣ VERIFICACIÓN DE DISPONIBILIDAD ===
+    if (req.body.accion === "verificar") {
+      try {
+        console.log("🧩 Verificando disponibilidad...");
+        console.log("   📍 Restaurante ID:", restaurante_id);
+        console.log("   📅 Fecha:", fecha, "| Hora:", hora, "| Personas:", personas);
 
-// === 2️⃣ Obtener mesas ===
-const filtroMesas = encodeURIComponent(`{restaurante}='${R.nombre}'`);
-const mesasUrl = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${filtroMesas}`;
+        // CLAVE: Filtrar por el campo lookup "id (from restaurante)"
+        const filtroMesas = encodeURIComponent(`{id (from restaurante)}=${restaurante_id}`);
+        const mesasUrl = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${filtroMesas}`;
+        
+        console.log("🔗 Consultando mesas:", mesasUrl);
+        
+        const mesasResp = await fetch(mesasUrl, {
+          headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
+        });
 
-const mesasResp = await fetch(mesasUrl, {
-  headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
-});
+        const mesasData = await mesasResp.json();
+        console.log("🪑 Mesas encontradas:", mesasData.records?.length || 0);
+        
+        mesasData.records?.forEach((m, i) => {
+          console.log(`   → Mesa ${i + 1}:`, {
+            id_mesa: m.fields.id,
+            nombre: m.fields.nombre_mesa,
+            capacidad: m.fields.capacidad,
+            estado: m.fields.estado,
+            id_restaurante: m.fields["id (from restaurante)"]
+          });
+        });
 
-const mesasData = await mesasResp.json();
-console.log("🪑 Mesas encontradas:", mesasData.records?.length || 0);
-mesasData.records?.forEach((m, i) => {
-  console.log(
-    `→ Mesa ${i + 1}:`,
-    m.fields.nombre_mesa,
-    "| Capacidad:",
-    m.fields.capacidad,
-    "| Estado:",
-    m.fields.estado,
-    "| Restaurante:",
-    m.fields.restaurante
-  );
-});
+        if (!mesasData.records?.length) {
+          console.log("⚠️ No se encontraron mesas para el restaurante con id:", restaurante_id);
+          res.setHeader("Content-Type", "application/json");
+          return res.end(JSON.stringify({ disponible: false }));
+        }
 
+        // Buscar reservas existentes
+        const reservasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS?filterByFormula=${encodeURIComponent(`AND({fecha}='${fecha}', {hora}='${hora}', {estado}='confirmada')`)}`;
+        
+        const reservasResp = await fetch(reservasURL, {
+          headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
+        });
+        const reservasData = await reservasResp.json();
+        const reservas = reservasData.records || [];
+        
+        console.log("📅 Reservas existentes:", reservas.length);
 
+        const mesasOcupadas = reservas
+          .map((r) => r.fields.mesa?.[0])
+          .filter(Boolean);
+        
+        console.log("🚫 Mesas ocupadas:", mesasOcupadas);
 
-    // === 3️⃣ Seleccionar mesa libre ===
+        // Buscar mesa disponible
+        const mesaLibre = mesasData.records.find(
+          (m) => !mesasOcupadas.includes(m.id) && 
+                 m.fields.estado?.toLowerCase() === "libre" && 
+                 Number(m.fields.capacidad) >= Number(personas)
+        );
+
+        if (mesaLibre) {
+          console.log("✅ Mesa disponible:", mesaLibre.fields.nombre_mesa);
+        } else {
+          console.log("❌ No hay mesas disponibles");
+        }
+
+        res.setHeader("Content-Type", "application/json");
+        return res.end(JSON.stringify({ disponible: !!mesaLibre }));
+      } catch (err) {
+        console.error("💥 Error en verificación:", err);
+        res.statusCode = 500;
+        return res.end(JSON.stringify({ reply: "Error al verificar disponibilidad" }));
+      }
+    }
+
+    // === 3️⃣ PROCESO DE RESERVA COMPLETO ===
+    console.log("🎯 Iniciando reserva...");
+
+    // Obtener mesas usando el campo lookup
+    const filtroMesas = encodeURIComponent(`{id (from restaurante)}=${restaurante_id}`);
+    const mesasUrl = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${filtroMesas}`;
+
+    const mesasResp = await fetch(mesasUrl, {
+      headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
+    });
+
+    const mesasData = await mesasResp.json();
+    console.log("🪑 Mesas disponibles:", mesasData.records?.length || 0);
+
+    if (!mesasData.records?.length) {
+      console.log("❌ No hay mesas para este restaurante");
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify({ 
+        reply: `No hay mesas configuradas para ${R.nombre}.` 
+      }));
+    }
+
+    // Buscar mesa libre
     const mesaLibre = mesasData.records.find(
-      (m) => Number(m.fields.capacidad) >= Number(personas) && m.fields.estado?.toLowerCase() === "libre"
+      (m) => Number(m.fields.capacidad) >= Number(personas) && 
+             m.fields.estado?.toLowerCase() === "libre"
     );
 
     if (!mesaLibre) {
-      console.log("❌ No se encontró mesa libre para", personas, "personas");
+      console.log("❌ No hay mesa disponible");
       res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify({ reply: `No hay mesas disponibles para ${personas} personas.` }));
+      return res.end(JSON.stringify({ 
+        reply: `No hay mesas disponibles para ${personas} personas.` 
+      }));
     }
 
-    console.log("✅ Mesa libre encontrada:", mesaLibre.fields.nombre_mesa);
+    console.log("✅ Mesa seleccionada:", mesaLibre.fields.nombre_mesa);
 
-    // === 4️⃣ Crear reserva ===
+    // === 4️⃣ CREAR RESERVA ===
     const idReserva = generarIdReserva(R.nombre, fecha);
-    console.log("🪪 Creando reserva:", idReserva);
+    console.log("🎫 Creando reserva:", idReserva);
 
-    await fetch(
+    const reservaData = {
+      fields: {
+        id_reserva: idReserva,
+        restaurante: [restauranteRecordId],
+        mesa: [mesaLibre.id],
+        fecha,
+        hora,
+        personas: Number(personas),
+        nombre_completo: nombre,
+        email,
+        telefono,
+        mensaje,
+        estado: "confirmada",
+      },
+    };
+
+    const crearReservaResp = await fetch(
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS`,
       {
         method: "POST",
@@ -226,60 +262,71 @@ mesasData.records?.forEach((m, i) => {
           Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          fields: {
-            id_reserva: idReserva,
-            restaurante: [restData.records[0].id],
-            mesa: [mesaLibre.id],
-            fecha,
-            hora,
-            personas: Number(personas),
-            nombre_completo: nombre,
-            email,
-            telefono,
-            mensaje,
-            estado: "confirmada",
-          },
-        }),
+        body: JSON.stringify(reservaData),
       }
     );
 
-    console.log("📦 Reserva creada correctamente en Airtable.");
+    const reservaCreada = await crearReservaResp.json();
+    
+    if (!crearReservaResp.ok) {
+      console.error("❌ Error al crear reserva:", reservaCreada);
+      res.statusCode = 500;
+      return res.end(JSON.stringify({ 
+        reply: "Error al crear la reserva.",
+        error: reservaCreada 
+      }));
+    }
 
-    // === 5️⃣ Confirmaciones ===
-    await enviarCorreoConfirmacion({
-      email,
-      nombre,
-      fecha,
-      hora,
-      personas,
-      idReserva,
-      restaurante: R.nombre,
-      direccion: R.direccion,
-    });
+    console.log("📦 Reserva creada:", reservaCreada.id);
 
-    if (telefono) {
-      await enviarWhatsAppCliente({
-        telefono,
+    // === 5️⃣ CONFIRMACIONES ===
+    try {
+      await enviarCorreoConfirmacion({
+        email,
         nombre,
-        restaurante: R.nombre,
         fecha,
         hora,
         personas,
         idReserva,
+        restaurante: R.nombre,
+        direccion: R.direccion,
       });
+      console.log("📧 Correo enviado");
+    } catch (emailErr) {
+      console.error("⚠️ Error email:", emailErr.message);
+    }
+
+    if (telefono) {
+      try {
+        await enviarWhatsAppCliente({
+          telefono,
+          nombre,
+          restaurante: R.nombre,
+          fecha,
+          hora,
+          personas,
+          idReserva,
+        });
+        console.log("📱 WhatsApp enviado");
+      } catch (whatsappErr) {
+        console.error("⚠️ Error WhatsApp:", whatsappErr.message);
+      }
     }
 
     res.setHeader("Content-Type", "application/json");
     return res.end(JSON.stringify({
       reply: `✅ Reserva confirmada en ${R.nombre} para ${personas} personas el ${fecha} a las ${hora}.
 🪑 Mesa: ${mesaLibre.fields.nombre_mesa}
-🪪 ID: ${idReserva}`
+🎫 ID: ${idReserva}`
     }));
 
   } catch (err) {
     console.error("💥 ERROR GENERAL:", err);
+    console.error("Stack:", err.stack);
     res.statusCode = 500;
-    res.end(JSON.stringify({ reply: "Error interno del servidor." }));
+    res.end(JSON.stringify({ 
+      reply: "Error interno del servidor.",
+      error: err.message 
+    }));
   }
 };
