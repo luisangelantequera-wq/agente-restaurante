@@ -1,6 +1,5 @@
-// === CONTACTIA — script.js ===
+// === CONTACTIA – script.js CORREGIDO ===
 // Controla la conversación en la web, las reservas, cancelaciones y mensajes.
-// Comunicación con /api/chat (reservas) y /api/cancelar (cancelaciones)
 
 const chatContainer = document.getElementById("chat-container");
 const input = document.getElementById("user-input");
@@ -50,17 +49,6 @@ function detectarReserva(texto) {
     t.includes("reserva") ||
     t.includes("quiero mesa")
   );
-}
-
-// Enviar a API de reserva
-async function enviarReserva(datos) {
-  const res = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(datos),
-  });
-  const data = await res.json();
-  return data.reply || "No se recibió respuesta del servidor.";
 }
 
 // Enviar a API de cancelación
@@ -118,7 +106,15 @@ async function procesarMensajeUsuario(texto) {
   // --- RESERVA ---
   if (detectarReserva(texto) && !modoReserva) {
     modoReserva = true;
-    datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
+    datosReserva = { 
+      restaurante_id: 1, 
+      fecha: "", 
+      hora: "", 
+      personas: "", 
+      nombre: "", 
+      email: "", 
+      telefono: "" 
+    };
     agregarMensaje("bot", "Perfecto 😊 ¿Para cuántas personas deseas hacer la reserva?");
     return;
   }
@@ -139,36 +135,83 @@ async function procesarMensajeUsuario(texto) {
       return;
     }
 
-    // 3️⃣ Hora (y corrección)
-    if (/^\d{1,2}:\d{2}$/.test(texto) || texto.toLowerCase().includes("mejor a las")) {
-      const horaNueva = texto.match(/\d{1,2}:\d{2}/);
-      if (horaNueva) datosReserva.hora = horaNueva[0];
+    // 3️⃣ Hora (y verificación de disponibilidad)
+    if (datosReserva.hora === "" && /^\d{1,2}:\d{2}$/.test(texto)) {
+      datosReserva.hora = texto;
       agregarMensaje("bot", "Un momento, voy a comprobar si hay mesas disponibles...");
-      const disponibilidad = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accion: "verificar",
-          restaurante_id: datosReserva.restaurante_id,
-          fecha: datosReserva.fecha,
-          hora: datosReserva.hora,
-          personas: datosReserva.personas
-        })
-      });
-      const data = await disponibilidad.json();
-      if (data.disponible) {
-        agregarMensaje("bot", "¡Sí! Tenemos mesas disponibles 🎉 ¿Podrías indicarme tu nombre completo?");
-        return;
-      } else {
-        agregarMensaje("bot", "Lo siento 😞 no hay mesas disponibles para esa hora. ¿Quieres probar con otro horario o día?");
+      
+      try {
+        console.log("🔍 Verificando disponibilidad con datos:", datosReserva);
+        
+        const disponibilidad = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accion: "verificar",
+            restaurante_id: datosReserva.restaurante_id,
+            fecha: datosReserva.fecha,
+            hora: datosReserva.hora,
+            personas: datosReserva.personas
+          })
+        });
+        
+        const data = await disponibilidad.json();
+        console.log("✅ Respuesta de verificación:", data);
+        
+        if (data.disponible) {
+          agregarMensaje("bot", "¡Sí! Tenemos mesas disponibles 🎉 ¿Podrías indicarme tu nombre completo?");
+          return;
+        } else {
+          agregarMensaje("bot", "Lo siento 😞 no hay mesas disponibles para esa hora. ¿Quieres probar con otro horario o día?");
+          datosReserva.hora = ""; // Limpiar hora para permitir reintentar
+          return;
+        }
+      } catch (error) {
+        console.error("❌ Error verificando disponibilidad:", error);
+        agregarMensaje("bot", "Hubo un error al verificar disponibilidad. Por favor, intenta de nuevo.");
         modoReserva = false;
         datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
         return;
       }
     }
 
+    // Si ya tenía hora y escriben otra hora (cambio de hora)
+    if (datosReserva.hora !== "" && datosReserva.nombre === "" && /^\d{1,2}:\d{2}$/.test(texto)) {
+      datosReserva.hora = texto;
+      agregarMensaje("bot", "Perfecto, verificando disponibilidad para las " + texto + "...");
+      
+      try {
+        const disponibilidad = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accion: "verificar",
+            restaurante_id: datosReserva.restaurante_id,
+            fecha: datosReserva.fecha,
+            hora: datosReserva.hora,
+            personas: datosReserva.personas
+          })
+        });
+        
+        const data = await disponibilidad.json();
+        
+        if (data.disponible) {
+          agregarMensaje("bot", "¡Perfecto! Hay disponibilidad 🎉 ¿Podrías indicarme tu nombre completo?");
+          return;
+        } else {
+          agregarMensaje("bot", "Tampoco hay disponibilidad a esa hora. ¿Quieres intentar con otra hora o día?");
+          datosReserva.hora = "";
+          return;
+        }
+      } catch (error) {
+        console.error("❌ Error verificando disponibilidad:", error);
+        agregarMensaje("bot", "Error al verificar disponibilidad. Intenta de nuevo.");
+        return;
+      }
+    }
+
     // 4️⃣ Nombre
-    if (datosReserva.nombre === "") {
+    if (datosReserva.nombre === "" && datosReserva.hora !== "") {
       datosReserva.nombre = texto;
       agregarMensaje("bot", "Gracias, ¿me das ahora un correo electrónico para la confirmación?");
       return;
@@ -181,7 +224,7 @@ async function procesarMensajeUsuario(texto) {
       return;
     }
 
-    // 6️⃣ Teléfono y resumen de confirmación
+    // 6️⃣ Teléfono y resumen
     if (datosReserva.telefono === "" && /^[+0-9\s-]{7,15}$/.test(texto)) {
       let tel = texto.replace(/\s/g, "");
       if (!tel.startsWith("+")) {
@@ -189,7 +232,16 @@ async function procesarMensajeUsuario(texto) {
       }
       datosReserva.telefono = tel;
 
-      const resumen = `✨ Por favor, confirma los datos de tu reserva:\n\n🍽 *Restaurante Sol*\n📅 ${datosReserva.fecha.split("-").reverse().join("/")} – ${datosReserva.hora}\n👥 ${datosReserva.personas} personas\n🧍 ${datosReserva.nombre}\n📧 ${datosReserva.email}\n📱 ${datosReserva.telefono}\n\n¿Deseas confirmar la reserva? (Sí / No)`;
+      const resumen = `✨ Por favor, confirma los datos de tu reserva:
+
+🍽 *Restaurante Sol*
+📅 ${datosReserva.fecha.split("-").reverse().join("/")} – ${datosReserva.hora}
+👥 ${datosReserva.personas} personas
+🧑 ${datosReserva.nombre}
+📧 ${datosReserva.email}
+📱 ${datosReserva.telefono}
+
+¿Deseas confirmar la reserva? (Sí / No)`;
 
       agregarMensaje("bot", resumen);
       confirmacionPendiente = true;
@@ -200,13 +252,26 @@ async function procesarMensajeUsuario(texto) {
     if (confirmacionPendiente) {
       if (texto.toLowerCase().startsWith("s")) {
         agregarMensaje("bot", "Gracias 😊 Estoy procesando tu reserva...");
-        const respuesta = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(datosReserva),
-        });
-        const resultado = await respuesta.json();
-        agregarMensaje("bot", resultado.reply || "Reserva completada.");
+        
+        try {
+          console.log("📤 Enviando reserva con datos:", datosReserva);
+          
+          const respuesta = await fetch("https://agente-restaurante-git-main-reservas-projects-46f41d07.vercel.app/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(datosReserva),
+          });
+          
+          const resultado = await respuesta.json();
+          console.log("✅ Respuesta del servidor:", resultado);
+          
+          agregarMensaje("bot", resultado.reply || "Reserva completada.");
+          
+        } catch (error) {
+          console.error("❌ Error al crear reserva:", error);
+          agregarMensaje("bot", "Hubo un error al procesar tu reserva. Por favor, inténtalo de nuevo.");
+        }
+        
         modoReserva = false;
         confirmacionPendiente = false;
         datosReserva = { restaurante_id: 1, fecha: "", hora: "", personas: "", nombre: "", email: "", telefono: "" };
@@ -226,6 +291,9 @@ async function procesarMensajeUsuario(texto) {
     agregarMensaje("bot", "Por favor, responde con el dato solicitado para continuar la reserva.");
     return;
   }
+
+  // Si no está en ningún modo, respuesta genérica
+  agregarMensaje("bot", "No entiendo tu solicitud. ¿Quieres hacer una reserva o cancelar una existente?");
 }
 
 // Envío de mensajes
@@ -246,6 +314,5 @@ input.addEventListener("keydown", (e) => {
 
 // Mensaje inicial
 window.addEventListener("load", () => {
-  agregarMensaje("bot", "👋 ¡Hola! Soy Contactia, tu asistente virtual. ¿Quieres hacer una reserva o cancelar una existente?");
+  agregarMensaje("bot", "👋 ¡Hola! Soy Contactia, tu asistente virtual del Restaurante Sol. ¿Quieres hacer una reserva o cancelar una existente?");
 });
-
