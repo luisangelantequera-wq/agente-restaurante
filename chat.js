@@ -13,7 +13,8 @@ function diaSemanaES(fechaISO) {
 
 function horaEnRangos(horaHHMM, rangos) {
   if (!Array.isArray(rangos)) return false;
-  const toMin = (hhmm) => {
+  const toMin
+ = (hhmm) => {
     const [h, m] = hhmm.split(":").map(Number);
     return h * 60 + m;
   };
@@ -100,16 +101,53 @@ module.exports = async (req, res) => {
     return res.end(JSON.stringify({ reply: "Método no permitido" }));
   }
 
-  try {
-    let body = "";
-    if (!req.body) {
-      req.on("data", chunk => (body += chunk.toString()));
-      await new Promise(resolve => req.on("end", resolve));
-      req.body = JSON.parse(body || "{}");
-    }
 
-    const { restaurante_id, fecha, hora, personas, nombre, email, telefono, mensaje = "" } = req.body;
-    console.log("🔥 Datos recibidos:", JSON.stringify(req.body, null, 2));
+// ===============================
+// ✅ Body parsing robusto (Vercel)
+// ===============================
+
+
+let parsedBody = {};
+
+if (req.body && typeof req.body === "object" && Object.keys(req.body).length > 0) {
+  parsedBody = req.body;
+} else if (typeof req.body === "string") {
+  parsedBody = safeJSON(req.body, {});
+} else if (Buffer.isBuffer(req.body)) {
+  parsedBody = safeJSON(req.body.toString("utf8"), {});
+} else {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk.toString()));
+  await new Promise((resolve) => req.on("end", resolve));
+  parsedBody = safeJSON(body, {});
+}
+
+req.body = parsedBody;
+
+// 🔎 Logs de diagnóstico
+console.log("🧾 Content-Type:", req.headers["content-type"]);
+console.log("🧾 Body keys:", Object.keys(req.body || {}));
+
+// ✅ Sacar restaurante_id de donde venga
+const resolvedRestauranteId =
+  (req.body && (req.body.restaurante_id ?? req.body.restauranteId ?? req.body.restaurante)) ||
+  (req.query && (req.query.restaurante_id ?? req.query.restauranteId ?? req.query.restaurante));
+
+// 🔥 Parche temporal mientras probamos (Restaurante Sol = 1)
+
+
+const resolvedRestauranteId =
+  (req.body && (req.body.restaurante_id ?? req.body.restauranteId ?? req.body.restaurante)) ||
+  (req.query && (req.query.restaurante_id ?? req.query.restauranteId ?? req.query.restaurante));
+
+const restaurante_id = resolvedRestauranteId ?? 1;
+
+console.log("🔥 restaurante_id recibido:", restaurante_id);
+console.log("🔥 Payload completo:", JSON.stringify(req.body, null, 2));
+
+// A partir de aquí ya puedes usar req.body con seguridad:
+const { fecha, hora, personas, nombre, email, telefono, mensaje = "" } = req.body || {};
+
 
     // === 1️⃣ BUSCAR RESTAURANTE ===
 
