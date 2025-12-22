@@ -91,25 +91,42 @@ module.exports = async (req, res) => {
 
   try {
     let body = "";
-    if (!req.body) {
+    if (!req.body || typeof req.body === "string" || Buffer.isBuffer(req.body)) {
       req.on("data", chunk => (body += chunk.toString()));
       await new Promise(resolve => req.on("end", resolve));
-      req.body = JSON.parse(body || "{}");
+      req.body = safeJSON(body, {});
     }
 
-    const { restaurante_id, fecha, hora, personas, nombre, email, telefono, mensaje = "" } = req.body;
-    console.log("🔥 Datos recibidos:", JSON.stringify(req.body, null, 2));
+    const resolvedRestauranteId =
+      (req.body && (req.body.restaurante_id ?? req.body.restauranteId ?? req.body.restaurante)) ||
+      (req.query && (req.query.restaurante_id ?? req.query.restauranteId ?? req.query.restaurante));
+
+    const { fecha, hora, personas, nombre, email, telefono, mensaje = "" } = req.body || {};
+    const restaurante_id = resolvedRestauranteId;
+    console.log("🔥 Datos recibidos (restaurante_id):", restaurante_id);
+    console.log("🔥 Payload completo:", JSON.stringify(req.body, null, 2));
+
+    if (!restaurante_id) {
+      console.log("❌ restaurante_id faltante o inválido");
+      res.statusCode = 400;
+      return res.end(JSON.stringify({ reply: "restaurante_id requerido" }));
+    }
 
     // === 1️⃣ BUSCAR RESTAURANTE ===
     console.log("🔍 Buscando restaurante con id:", restaurante_id);
     
-    const restResp = await fetch(
-      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESTAURANTES?filterByFormula=${encodeURIComponent(`{id}=${String(restaurante_id)}`)}`,
-      { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } }
-    );
+    const filtroRestaurante = `OR({id}=${Number(restaurante_id)}, {id}='${String(restaurante_id)}')`;
+    const restUrl = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESTAURANTES?filterByFormula=${encodeURIComponent(filtroRestaurante)}`;
+    console.log("🔗 REST URL:", restUrl);
 
-    const restData = await restResp.json();
-    console.log("🏨 Restaurante encontrado:", restData.records?.length ? "SÍ" : "NO");
+    const restResp = await fetch(restUrl, {
+      headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
+    });
+
+    const restText = await restResp.text();
+    const restData = safeJSON(restText, {});
+    console.log("🏨 Restaurante status:", restResp.status, restResp.statusText);
+    console.log("🏨 Registros RESTAURANTES:", restData.records?.length || 0);
 
     if (!restData.records?.length) {
       console.log("❌ No se encontró el restaurante con id:", restaurante_id);
@@ -129,16 +146,18 @@ module.exports = async (req, res) => {
         console.log("   📅 Fecha:", fecha, "| Hora:", hora, "| Personas:", personas);
 
         // CLAVE: Filtrar por el campo lookup "id (from restaurante)"
-        const filtroMesas = encodeURIComponent(`{id (from restaurante)}=${restaurante_id}`);
-        const mesasUrl = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${filtroMesas}`;
-        
+        const filtroMesasFormula = `OR({id (from restaurante)}=${Number(restaurante_id)}, {id (from restaurante)}='${String(restaurante_id)}')`;
+        const mesasUrl = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${encodeURIComponent(filtroMesasFormula)}`;
+
         console.log("🔗 Consultando mesas:", mesasUrl);
-        
+
         const mesasResp = await fetch(mesasUrl, {
           headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
         });
 
-        const mesasData = await mesasResp.json();
+        const mesasText = await mesasResp.text();
+        const mesasData = safeJSON(mesasText, {});
+        console.log("🪑 Mesas status:", mesasResp.status, mesasResp.statusText);
         console.log("🪑 Mesas encontradas:", mesasData.records?.length || 0);
         
         mesasData.records?.forEach((m, i) => {
@@ -159,13 +178,15 @@ module.exports = async (req, res) => {
 
         // Buscar reservas existentes
         const reservasURL = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS?filterByFormula=${encodeURIComponent(`AND({fecha}='${fecha}', {hora}='${hora}', {estado}='confirmada')`)}`;
-        
+
         const reservasResp = await fetch(reservasURL, {
           headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
         });
-        const reservasData = await reservasResp.json();
+        const reservasText = await reservasResp.text();
+        const reservasData = safeJSON(reservasText, {});
         const reservas = reservasData.records || [];
-        
+
+        console.log("📅 Reservas status:", reservasResp.status, reservasResp.statusText);
         console.log("📅 Reservas existentes:", reservas.length);
 
         const mesasOcupadas = reservas
@@ -200,14 +221,17 @@ module.exports = async (req, res) => {
     console.log("🎯 Iniciando reserva...");
 
     // Obtener mesas usando el campo lookup
-    const filtroMesas = encodeURIComponent(`{id (from restaurante)}=${restaurante_id}`);
-    const mesasUrl = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${filtroMesas}`;
+    const filtroMesas = `OR({id (from restaurante)}=${Number(restaurante_id)}, {id (from restaurante)}='${String(restaurante_id)}')`;
+    const mesasUrl = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS?filterByFormula=${encodeURIComponent(filtroMesas)}`;
+    console.log("🔗 Mesas URL (reserva):", mesasUrl);
 
     const mesasResp = await fetch(mesasUrl, {
       headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` },
     });
 
-    const mesasData = await mesasResp.json();
+    const mesasText = await mesasResp.text();
+    const mesasData = safeJSON(mesasText, {});
+    console.log("🪑 Mesas status (reserva):", mesasResp.status, mesasResp.statusText);
     console.log("🪑 Mesas disponibles:", mesasData.records?.length || 0);
 
     if (!mesasData.records?.length) {
