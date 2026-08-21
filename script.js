@@ -1,36 +1,35 @@
-// === CONTACTIA V2 - script.js ===
-// FASE 1: flujo mínimo de reserva
-// Objetivo: pedir personas, fecha, hora y comprobar disponibilidad.
-// Todavía NO crea reservas.
+// ============================================================
+// CONTACTIA V2 - script.js
+// FASE 2: comprobar disponibilidad + crear reserva real
+// ============================================================
 
-// ─────────────────────────────────────────────────────────────
+
 // 1️⃣ ELEMENTOS DE LA PANTALLA
-// ─────────────────────────────────────────────────────────────
 const chatBox = document.getElementById("chat-box");
 const input = document.getElementById("user-input");
 const sendButton = document.getElementById("send-btn");
 
 
-// ─────────────────────────────────────────────────────────────
 // 2️⃣ ESTADO DE LA CONVERSACIÓN
-// ─────────────────────────────────────────────────────────────
 let paso = "inicio";
 
 let datosReserva = {
   restaurante_id: 1,
   personas: null,
   fecha: "",
-  hora: ""
+  hora: "",
+  nombre: "",
+  email: "",
+  telefono: ""
 };
 
 
-// ─────────────────────────────────────────────────────────────
-// 3️⃣ MOSTRAR MENSAJES EN EL CHAT
-// ─────────────────────────────────────────────────────────────
+// 3️⃣ MOSTRAR MENSAJES
 function agregarMensaje(texto, tipo) {
   const mensaje = document.createElement("div");
 
   mensaje.classList.add("message", tipo);
+
   mensaje.textContent =
     tipo === "user"
       ? `Tú: ${texto}`
@@ -41,9 +40,7 @@ function agregarMensaje(texto, tipo) {
 }
 
 
-// ─────────────────────────────────────────────────────────────
-// 4️⃣ CONVERTIR DD/MM/AAAA → AAAA-MM-DD
-// ─────────────────────────────────────────────────────────────
+// 4️⃣ FECHA DD/MM/AAAA → AAAA-MM-DD
 function convertirFechaAEstandar(fecha) {
   const partes = fecha.split("/");
 
@@ -57,25 +54,49 @@ function convertirFechaAEstandar(fecha) {
 }
 
 
-// ─────────────────────────────────────────────────────────────
-// 5️⃣ VALIDAR FECHA DD/MM/AAAA
-// ─────────────────────────────────────────────────────────────
+// 5️⃣ MOSTRAR FECHA EN ESPAÑOL
+function mostrarFecha(fechaISO) {
+  const [anio, mes, dia] = fechaISO.split("-");
+  return `${dia}/${mes}/${anio}`;
+}
+
+
+// 6️⃣ VALIDACIONES
 function fechaValida(texto) {
   return /^\d{2}\/\d{2}\/\d{4}$/.test(texto);
 }
 
-
-// ─────────────────────────────────────────────────────────────
-// 6️⃣ VALIDAR HORA HH:MM
-// ─────────────────────────────────────────────────────────────
 function horaValida(texto) {
   return /^\d{1,2}:\d{2}$/.test(texto);
 }
 
+function emailValido(texto) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto);
+}
 
-// ─────────────────────────────────────────────────────────────
-// 7️⃣ CONSULTAR DISPONIBILIDAD EN EL BACKEND
-// ─────────────────────────────────────────────────────────────
+function telefonoValido(texto) {
+  return /^[+0-9\s-]{7,18}$/.test(texto);
+}
+
+
+// 7️⃣ NORMALIZAR TELÉFONO ESPAÑOL
+function normalizarTelefono(texto) {
+  let telefono = texto
+    .replace(/\s/g, "")
+    .replace(/-/g, "");
+
+  if (
+    !telefono.startsWith("+") &&
+    (telefono.startsWith("6") || telefono.startsWith("7"))
+  ) {
+    telefono = `+34${telefono}`;
+  }
+
+  return telefono;
+}
+
+
+// 8️⃣ COMPROBAR DISPONIBILIDAD
 async function comprobarDisponibilidad() {
   agregarMensaje(
     "Un momento, voy a comprobar si hay mesas disponibles...",
@@ -99,7 +120,7 @@ async function comprobarDisponibilidad() {
 
     const data = await respuesta.json();
 
-    console.log("Respuesta del servidor:", data);
+    console.log("Respuesta verificar:", data);
 
     if (!respuesta.ok || data.ok === false) {
       agregarMensaje(
@@ -119,12 +140,13 @@ async function comprobarDisponibilidad() {
         "bot"
       );
 
+      paso = "nombre";
+
       agregarMensaje(
-        "Esta primera prueba ha terminado correctamente.",
+        "¿A nombre de quién hacemos la reserva?",
         "bot"
       );
 
-      paso = "finalizado";
       return;
     }
 
@@ -142,7 +164,10 @@ async function comprobarDisponibilidad() {
     paso = "hora";
 
   } catch (error) {
-    console.error("Error al conectar con /api/chat:", error);
+    console.error(
+      "Error al conectar con /api/chat:",
+      error
+    );
 
     agregarMensaje(
       "No he podido conectar con el servidor. Inténtalo de nuevo.",
@@ -154,18 +179,97 @@ async function comprobarDisponibilidad() {
 }
 
 
-// ─────────────────────────────────────────────────────────────
-// 8️⃣ MOSTRAR FECHA EN FORMATO ESPAÑOL
-// ─────────────────────────────────────────────────────────────
-function mostrarFecha(fechaISO) {
-  const [anio, mes, dia] = fechaISO.split("-");
-  return `${dia}/${mes}/${anio}`;
+// 9️⃣ CREAR LA RESERVA REAL
+async function crearReserva() {
+  agregarMensaje(
+    "Gracias 😊 Estoy creando tu reserva...",
+    "bot"
+  );
+
+  try {
+    const respuesta = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        accion: "reservar",
+        restaurante_id: datosReserva.restaurante_id,
+        personas: datosReserva.personas,
+        fecha: datosReserva.fecha,
+        hora: datosReserva.hora,
+        nombre: datosReserva.nombre,
+        email: datosReserva.email,
+        telefono: datosReserva.telefono,
+        mensaje: ""
+      })
+    });
+
+    const data = await respuesta.json();
+
+    console.log("Respuesta reservar:", data);
+
+    if (!respuesta.ok || data.ok === false) {
+      agregarMensaje(
+        `No se ha podido crear la reserva: ${
+          data.error || "Error desconocido"
+        }`,
+        "bot"
+      );
+
+      paso = "inicio";
+      return;
+    }
+
+    if (data.reservado === false) {
+      agregarMensaje(
+        "Lo siento, mientras completábamos los datos esa mesa ha dejado de estar disponible.",
+        "bot"
+      );
+
+      agregarMensaje(
+        "Puedes volver a empezar escribiendo: quiero reservar.",
+        "bot"
+      );
+
+      paso = "inicio";
+      return;
+    }
+
+    if (data.reservado === true) {
+      agregarMensaje(
+        `✅ Reserva confirmada.\n\nTu localizador es: ${data.id_reserva}\n\nFecha: ${mostrarFecha(datosReserva.fecha)}\nHora: ${datosReserva.hora}\nPersonas: ${datosReserva.personas}\nNombre: ${datosReserva.nombre}`,
+        "bot"
+      );
+
+      paso = "finalizado";
+      return;
+    }
+
+    agregarMensaje(
+      "El servidor respondió, pero no pude confirmar que la reserva se haya creado.",
+      "bot"
+    );
+
+    paso = "inicio";
+
+  } catch (error) {
+    console.error(
+      "Error al crear la reserva:",
+      error
+    );
+
+    agregarMensaje(
+      "No he podido conectar con el servidor para crear la reserva.",
+      "bot"
+    );
+
+    paso = "inicio";
+  }
 }
 
 
-// ─────────────────────────────────────────────────────────────
-// 9️⃣ PROCESAR EL MENSAJE DEL USUARIO
-// ─────────────────────────────────────────────────────────────
+// 🔟 PROCESAR MENSAJES
 async function procesarMensaje(texto) {
   const mensaje = texto.trim();
 
@@ -176,11 +280,10 @@ async function procesarMensaje(texto) {
   agregarMensaje(mensaje, "user");
 
 
-  // ─────────────────────────────────────────────────────────
-  // PASO: INICIO
-  // ─────────────────────────────────────────────────────────
+  // INICIO
   if (paso === "inicio") {
-    const textoMinusculas = mensaje.toLowerCase();
+    const textoMinusculas =
+      mensaje.toLowerCase();
 
     if (
       textoMinusculas.includes("reservar") ||
@@ -198,7 +301,7 @@ async function procesarMensaje(texto) {
     }
 
     agregarMensaje(
-      "Por ahora estoy preparado para comprobar reservas. Puedes escribir: quiero reservar.",
+      "Puedes escribir: quiero reservar.",
       "bot"
     );
 
@@ -206,9 +309,7 @@ async function procesarMensaje(texto) {
   }
 
 
-  // ─────────────────────────────────────────────────────────
-  // PASO: PERSONAS
-  // ─────────────────────────────────────────────────────────
+  // PERSONAS
   if (paso === "personas") {
     const personas = Number(mensaje);
 
@@ -217,7 +318,7 @@ async function procesarMensaje(texto) {
       personas <= 0
     ) {
       agregarMensaje(
-        "Indícame el número de personas, por ejemplo: 2.",
+        "Indícame el número de personas. Por ejemplo: 2.",
         "bot"
       );
 
@@ -236,9 +337,7 @@ async function procesarMensaje(texto) {
   }
 
 
-  // ─────────────────────────────────────────────────────────
-  // PASO: FECHA
-  // ─────────────────────────────────────────────────────────
+  // FECHA
   if (paso === "fecha") {
     if (!fechaValida(mensaje)) {
       agregarMensaje(
@@ -263,9 +362,7 @@ async function procesarMensaje(texto) {
   }
 
 
-  // ─────────────────────────────────────────────────────────
-  // PASO: HORA
-  // ─────────────────────────────────────────────────────────
+  // HORA
   if (paso === "hora") {
     if (!horaValida(mensaje)) {
       agregarMensaje(
@@ -284,12 +381,145 @@ async function procesarMensaje(texto) {
   }
 
 
-  // ─────────────────────────────────────────────────────────
-  // PASO: FINALIZADO
-  // ─────────────────────────────────────────────────────────
+  // NOMBRE
+  if (paso === "nombre") {
+    if (mensaje.length < 2) {
+      agregarMensaje(
+        "Indícame un nombre válido.",
+        "bot"
+      );
+
+      return;
+    }
+
+    datosReserva.nombre = mensaje;
+    paso = "email";
+
+    agregarMensaje(
+      "¿Cuál es tu correo electrónico?",
+      "bot"
+    );
+
+    return;
+  }
+
+
+  // EMAIL
+  if (paso === "email") {
+    if (!emailValido(mensaje)) {
+      agregarMensaje(
+        "Ese correo no parece válido. Por ejemplo: nombre@email.com",
+        "bot"
+      );
+
+      return;
+    }
+
+    datosReserva.email = mensaje;
+    paso = "telefono";
+
+    agregarMensaje(
+      "¿Cuál es tu número de teléfono móvil?",
+      "bot"
+    );
+
+    return;
+  }
+
+
+  // TELÉFONO
+  if (paso === "telefono") {
+    if (!telefonoValido(mensaje)) {
+      agregarMensaje(
+        "Ese número no parece válido. Puedes escribir, por ejemplo: 612345678.",
+        "bot"
+      );
+
+      return;
+    }
+
+    datosReserva.telefono =
+      normalizarTelefono(mensaje);
+
+    paso = "confirmacion";
+
+    agregarMensaje(
+      `Por favor, revisa tu reserva:\n\n` +
+      `📅 Fecha: ${mostrarFecha(datosReserva.fecha)}\n` +
+      `🕒 Hora: ${datosReserva.hora}\n` +
+      `👥 Personas: ${datosReserva.personas}\n` +
+      `🧑 Nombre: ${datosReserva.nombre}\n` +
+      `📧 Email: ${datosReserva.email}\n` +
+      `📱 Teléfono: ${datosReserva.telefono}\n\n` +
+      `¿Confirmas la reserva? Responde Sí o No.`,
+      "bot"
+    );
+
+    return;
+  }
+
+
+  // CONFIRMACIÓN
+  if (paso === "confirmacion") {
+    const respuesta =
+      mensaje
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+    if (
+      respuesta === "si" ||
+      respuesta === "s"
+    ) {
+      paso = "procesando";
+
+      await crearReserva();
+
+      return;
+    }
+
+    if (
+      respuesta === "no" ||
+      respuesta === "n"
+    ) {
+      agregarMensaje(
+        "De acuerdo. No se ha creado ninguna reserva.",
+        "bot"
+      );
+
+      agregarMensaje(
+        "Puedes empezar de nuevo escribiendo: quiero reservar.",
+        "bot"
+      );
+
+      reiniciarReserva();
+      return;
+    }
+
+    agregarMensaje(
+      "Por favor, responde Sí o No.",
+      "bot"
+    );
+
+    return;
+  }
+
+
+  // PROCESANDO
+  if (paso === "procesando") {
+    agregarMensaje(
+      "Estoy procesando tu reserva. Espera un momento.",
+      "bot"
+    );
+
+    return;
+  }
+
+
+  // FINALIZADO
   if (paso === "finalizado") {
     agregarMensaje(
-      "La prueba de disponibilidad ya ha terminado. Recarga la página para hacer otra.",
+      "La reserva ya está confirmada. Puedes recargar la página para hacer otra prueba.",
       "bot"
     );
 
@@ -298,37 +528,56 @@ async function procesarMensaje(texto) {
 }
 
 
-// ─────────────────────────────────────────────────────────────
-// 🔟 BOTÓN ENVIAR
-// ─────────────────────────────────────────────────────────────
-sendButton.addEventListener("click", () => {
-  const texto = input.value;
+// 1️⃣1️⃣ REINICIAR
+function reiniciarReserva() {
+  paso = "inicio";
 
-  input.value = "";
+  datosReserva = {
+    restaurante_id: 1,
+    personas: null,
+    fecha: "",
+    hora: "",
+    nombre: "",
+    email: "",
+    telefono: ""
+  };
+}
 
-  procesarMensaje(texto);
-});
 
+// 1️⃣2️⃣ BOTÓN ENVIAR
+sendButton.addEventListener(
+  "click",
+  () => {
+    const texto = input.value;
 
-// ─────────────────────────────────────────────────────────────
-// 1️⃣1️⃣ ENVIAR CON ENTER
-// ─────────────────────────────────────────────────────────────
-input.addEventListener("keydown", (evento) => {
-  if (evento.key === "Enter") {
-    evento.preventDefault();
-    sendButton.click();
+    input.value = "";
+
+    procesarMensaje(texto);
   }
-});
+);
 
 
-// ─────────────────────────────────────────────────────────────
-// 1️⃣2️⃣ MENSAJE INICIAL
-// ─────────────────────────────────────────────────────────────
-window.addEventListener("load", () => {
-  agregarMensaje(
-    "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar una mesa?",
-    "bot"
-  );
+// 1️⃣3️⃣ ENTER
+input.addEventListener(
+  "keydown",
+  (evento) => {
+    if (evento.key === "Enter") {
+      evento.preventDefault();
+      sendButton.click();
+    }
+  }
+);
 
-  input.focus();
-});
+
+// 1️⃣4️⃣ MENSAJE INICIAL
+window.addEventListener(
+  "load",
+  () => {
+    agregarMensaje(
+      "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar una mesa?",
+      "bot"
+    );
+
+    input.focus();
+  }
+);
