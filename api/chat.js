@@ -73,11 +73,11 @@ async function buscarMesaDisponible(
   hora,
   personas,
   margenCapacidad
-)
+) {
 
 
   // Buscar mesas del restaurante
-  const formulaMesas =
+  const formulaMesas =) {
     `FIND('${String(restaurante_id)}',` +
     `ARRAYJOIN({id (from restaurante)}))`;
 
@@ -272,16 +272,15 @@ module.exports = async (req, res) => {
     const restaurante =
       await buscarRestaurante(restaurante_id);
 
-  const margenCapacidad =
-    Number(restaurante.fields.margen_capacidad || 0);
-
-    if (!restaurante) {
-
+      if (!restaurante) {
       return responder(res, 404, {
         ok: false,
         error: "Restaurante no encontrado."
       });
     }
+
+const margenCapacidad =
+Number(restaurante.fields.margen_capacidad || 0);
 
 
     // ========================================================
