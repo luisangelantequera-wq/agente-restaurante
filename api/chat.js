@@ -1,10 +1,10 @@
-// === CONTACTIA V2 - api/chat.js ===
-// FASE 1: comprobar disponibilidad en Airtable
-// Sin Gmail, sin Twilio, sin cancelaciones y sin crear reservas.
+// ============================================================
+// CONTACTIA V2 - api/chat.js
+// FASE 2: comprobar disponibilidad + crear reserva
+// ============================================================
 
-// ─────────────────────────────────────────────────────────────
-// 1️⃣ UTILIDAD PARA RESPONDER SIEMPRE EN JSON
-// ─────────────────────────────────────────────────────────────
+
+// 1️⃣ RESPONDER SIEMPRE EN JSON
 function responder(res, status, datos) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -12,10 +12,9 @@ function responder(res, status, datos) {
 }
 
 
-// ─────────────────────────────────────────────────────────────
 // 2️⃣ CONSULTA SEGURA A AIRTABLE
-// ─────────────────────────────────────────────────────────────
 async function consultarAirtable(url, opciones = {}) {
+
   const respuesta = await fetch(url, {
     ...opciones,
     headers: {
@@ -37,6 +36,7 @@ async function consultarAirtable(url, opciones = {}) {
   }
 
   if (!respuesta.ok) {
+
     console.error("Error Airtable:", datos);
 
     throw new Error(
@@ -49,268 +49,394 @@ async function consultarAirtable(url, opciones = {}) {
 }
 
 
-// ─────────────────────────────────────────────────────────────
-// 3️⃣ HANDLER PRINCIPAL DE VERCEL
-// ─────────────────────────────────────────────────────────────
+// 3️⃣ BUSCAR RESTAURANTE
+async function buscarRestaurante(restaurante_id) {
+
+  const formula =
+    encodeURIComponent(`{id}=${Number(restaurante_id)}`);
+
+  const url =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/RESTAURANTES` +
+    `?filterByFormula=${formula}`;
+
+  const datos = await consultarAirtable(url);
+
+  return datos.records?.[0] || null;
+}
+
+
+// 4️⃣ BUSCAR MESA DISPONIBLE
+async function buscarMesaDisponible(
+  restaurante_id,
+  fecha,
+  hora,
+  personas
+) {
+
+  // Buscar mesas del restaurante
+  const formulaMesas =
+    `FIND('${String(restaurante_id)}',` +
+    `ARRAYJOIN({id (from restaurante)}))`;
+
+  const urlMesas =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/MESAS` +
+    `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
+
+  const datosMesas = await consultarAirtable(urlMesas);
+
+  const mesas = datosMesas.records || [];
+
+
+  // Descartamos únicamente las mesas fuera de servicio
+  const mesasOperativas = mesas.filter((mesa) => {
+
+    const estado =
+      String(mesa.fields.estado || "")
+        .trim()
+        .toLowerCase();
+
+    return estado !== "fuera de servicio";
+  });
+
+
+  // Buscar reservas ya confirmadas
+  const formulaReservas =
+    `AND(` +
+    `{fecha}='${fecha}',` +
+    `{hora}='${hora}',` +
+    `{estado}='confirmada',` +
+    `FIND('${String(restaurante_id)}',` +
+    `ARRAYJOIN({id (from restaurante)}))` +
+    `)`;
+
+  const urlReservas =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
+    `?filterByFormula=${encodeURIComponent(formulaReservas)}`;
+
+  const datosReservas =
+    await consultarAirtable(urlReservas);
+
+  const reservas = datosReservas.records || [];
+
+
+  // Obtener mesas ocupadas
+  const mesasOcupadas = new Set();
+
+  for (const reserva of reservas) {
+
+    const mesasReserva = reserva.fields.mesa;
+
+    if (Array.isArray(mesasReserva)) {
+
+      for (const mesaId of mesasReserva) {
+        mesasOcupadas.add(mesaId);
+      }
+    }
+  }
+
+
+  // Buscar la mesa adecuada más pequeña
+  const mesasAdecuadas = mesasOperativas
+
+    .filter((mesa) => {
+
+      const capacidad =
+        Number(mesa.fields.capacidad || 0);
+
+      return (
+        capacidad >= Number(personas) &&
+        !mesasOcupadas.has(mesa.id)
+      );
+    })
+
+    .sort(
+      (a, b) =>
+        Number(a.fields.capacidad) -
+        Number(b.fields.capacidad)
+    );
+
+
+  return mesasAdecuadas[0] || null;
+}
+
+
+// 5️⃣ GENERAR LOCALIZADOR
+function generarIdReserva(fecha) {
+
+  const fechaLimpia =
+    fecha.replaceAll("-", "");
+
+  const aleatorio =
+    Math.floor(1000 + Math.random() * 9000);
+
+  return `SOL-${fechaLimpia}-${aleatorio}`;
+}
+
+
+// 6️⃣ HANDLER PRINCIPAL
 module.exports = async (req, res) => {
 
-  // Solo permitimos POST
   if (req.method !== "POST") {
+
     return responder(res, 405, {
       ok: false,
-      error: "Método no permitido"
+      error: "Método no permitido."
     });
   }
 
+
   try {
 
-    // Vercel normalmente ya entrega req.body como objeto.
     const body =
       typeof req.body === "string"
         ? JSON.parse(req.body || "{}")
         : (req.body || {});
+
 
     const {
       accion,
       restaurante_id,
       fecha,
       hora,
-      personas
+      personas,
+      nombre,
+      email,
+      telefono,
+      mensaje
     } = body;
 
 
-    // ─────────────────────────────────────────────────────────
-    // 4️⃣ ESTA VERSIÓN SOLO COMPRUEBA DISPONIBILIDAD
-    // ─────────────────────────────────────────────────────────
-    if (accion !== "verificar") {
+    // 7️⃣ VALIDACIONES GENERALES
+    if (
+      !restaurante_id ||
+      !fecha ||
+      !hora ||
+      !personas
+    ) {
+
       return responder(res, 400, {
         ok: false,
-        error: "Esta versión de prueba solo admite accion='verificar'."
+        error:
+          "Faltan restaurante_id, fecha, hora o personas."
       });
     }
 
-
-    // ─────────────────────────────────────────────────────────
-    // 5️⃣ VALIDAR LOS DATOS RECIBIDOS
-    // ─────────────────────────────────────────────────────────
-    if (!restaurante_id || !fecha || !hora || !personas) {
-      return responder(res, 400, {
-        ok: false,
-        disponible: false,
-        error: "Faltan restaurante_id, fecha, hora o personas."
-      });
-    }
 
     const numeroPersonas = Number(personas);
 
-    if (!Number.isInteger(numeroPersonas) || numeroPersonas <= 0) {
+    if (
+      !Number.isInteger(numeroPersonas) ||
+      numeroPersonas <= 0
+    ) {
+
       return responder(res, 400, {
         ok: false,
-        disponible: false,
-        error: "El número de personas no es válido."
+        error:
+          "El número de personas no es válido."
       });
     }
 
-    console.log("=== CONTACTIA: VERIFICAR ===");
-    console.log({
-      restaurante_id,
-      fecha,
-      hora,
-      personas: numeroPersonas
-    });
 
+    // 8️⃣ COMPROBAR RESTAURANTE
+    const restaurante =
+      await buscarRestaurante(restaurante_id);
 
-    // ─────────────────────────────────────────────────────────
-    // 6️⃣ BUSCAR EL RESTAURANTE
-    // ─────────────────────────────────────────────────────────
-    const filtroRestaurante = encodeURIComponent(
-      `{id}=${Number(restaurante_id)}`
-    );
+    if (!restaurante) {
 
-    const urlRestaurante =
-      `https://api.airtable.com/v0/` +
-      `${process.env.AIRTABLE_BASE_ID}/RESTAURANTES` +
-      `?filterByFormula=${filtroRestaurante}`;
-
-    const datosRestaurante =
-      await consultarAirtable(urlRestaurante);
-
-    if (!datosRestaurante.records?.length) {
       return responder(res, 404, {
         ok: false,
-        disponible: false,
         error: "Restaurante no encontrado."
       });
     }
 
-    const restaurante = datosRestaurante.records[0];
 
-    console.log(
-      "Restaurante encontrado:",
-      restaurante.fields.nombre
-    );
+    // ========================================================
+    // 9️⃣ ACCIÓN: VERIFICAR
+    // ========================================================
+
+    if (accion === "verificar") {
+
+      const mesaLibre =
+        await buscarMesaDisponible(
+          restaurante_id,
+          fecha,
+          hora,
+          numeroPersonas
+        );
 
 
-    // ─────────────────────────────────────────────────────────
-    // 7️⃣ BUSCAR LAS MESAS DEL RESTAURANTE
-    //
-    // En MESAS tenemos:
-    // restaurante
-    // id (from restaurante)
-    //
-    // Como el lookup puede ser una lista, ARRAYJOIN hace
-    // el filtro más robusto.
-    // ─────────────────────────────────────────────────────────
-    const formulaMesas =
-      `FIND('${String(restaurante_id)}',` +
-      `ARRAYJOIN({id (from restaurante)}))`;
+      if (!mesaLibre) {
 
-    const urlMesas =
-      `https://api.airtable.com/v0/` +
-      `${process.env.AIRTABLE_BASE_ID}/MESAS` +
-      `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
+        return responder(res, 200, {
+          ok: true,
+          disponible: false,
+          motivo:
+            "No hay una mesa disponible con capacidad suficiente."
+        });
+      }
 
-    const datosMesas =
-      await consultarAirtable(urlMesas);
 
-    const mesas = datosMesas.records || [];
-
-    console.log("Mesas encontradas:", mesas.length);
-
-    if (mesas.length === 0) {
       return responder(res, 200, {
         ok: true,
-        disponible: false,
-        motivo: "No hay mesas configuradas para este restaurante."
+        disponible: true,
+
+        mesa: {
+          id: mesaLibre.id,
+          nombre: mesaLibre.fields.nombre_mesa,
+          capacidad: mesaLibre.fields.capacidad
+        }
       });
     }
 
 
-    // ─────────────────────────────────────────────────────────
-    // 8️⃣ DESCARTAR MESAS FUERA DE SERVICIO
-    //
-    // IMPORTANTE:
-    // No utilizamos "reservada" para decidir si una mesa está
-    // ocupada en una fecha concreta.
-    //
-    // La ocupación se calculará mirando RESERVAS.
-    // ─────────────────────────────────────────────────────────
-    const mesasOperativas = mesas.filter((mesa) => {
-      const estado =
-        String(mesa.fields.estado || "")
-          .trim()
-          .toLowerCase();
+    // ========================================================
+    // 🔟 ACCIÓN: RESERVAR
+    // ========================================================
 
-      return estado !== "fuera de servicio";
-    });
+    if (accion === "reservar") {
 
+      // Para crear la reserva necesitamos estos datos.
+      if (!nombre || !email || !telefono) {
 
-    // ─────────────────────────────────────────────────────────
-    // 9️⃣ BUSCAR RESERVAS CONFIRMADAS
-    // PARA ESA FECHA Y ESA HORA
-    // ─────────────────────────────────────────────────────────
-    const formulaReservas =
-      `AND(` +
-      `{fecha}='${fecha}',` +
-      `{hora}='${hora}',` +
-      `{estado}='confirmada',` +
-      `FIND('${String(restaurante_id)}',` +
-      `ARRAYJOIN({id (from restaurante)}))` +
-      `)`;
-
-    const urlReservas =
-      `https://api.airtable.com/v0/` +
-      `${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
-      `?filterByFormula=${encodeURIComponent(formulaReservas)}`;
-
-    const datosReservas =
-      await consultarAirtable(urlReservas);
-
-    const reservas = datosReservas.records || [];
-
-    console.log(
-      "Reservas confirmadas en esa fecha/hora:",
-      reservas.length
-    );
-
-
-    // ─────────────────────────────────────────────────────────
-    // 🔟 OBTENER LAS MESAS YA OCUPADAS
-    //
-    // RESERVAS.mesa es un enlace a MESAS.
-    // Airtable devuelve los Record ID de las mesas vinculadas.
-    // ─────────────────────────────────────────────────────────
-    const mesasOcupadas = new Set();
-
-    for (const reserva of reservas) {
-      const mesasReserva = reserva.fields.mesa;
-
-      if (Array.isArray(mesasReserva)) {
-        for (const mesaId of mesasReserva) {
-          mesasOcupadas.add(mesaId);
-        }
+        return responder(res, 400, {
+          ok: false,
+          error:
+            "Faltan nombre, email o teléfono."
+        });
       }
-    }
 
 
-    // ─────────────────────────────────────────────────────────
-    // 1️⃣1️⃣ BUSCAR LA MESA LIBRE MÁS PEQUEÑA
-    // QUE TENGA CAPACIDAD SUFICIENTE
-    //
-    // Así evitamos ocupar una mesa de 8 personas
-    // para una reserva de 2 si existe una de 2 o 4.
-    // ─────────────────────────────────────────────────────────
-    const mesasAdecuadas = mesasOperativas
-      .filter((mesa) => {
-        const capacidad =
-          Number(mesa.fields.capacidad || 0);
+      // IMPORTANTE:
+      // Volvemos a comprobar disponibilidad.
+      //
+      // No confiamos en la comprobación realizada unos
+      // minutos antes en el navegador.
 
-        return (
-          capacidad >= numeroPersonas &&
-          !mesasOcupadas.has(mesa.id)
+      const mesaLibre =
+        await buscarMesaDisponible(
+          restaurante_id,
+          fecha,
+          hora,
+          numeroPersonas
         );
-      })
-      .sort(
-        (a, b) =>
-          Number(a.fields.capacidad) -
-          Number(b.fields.capacidad)
+
+
+      if (!mesaLibre) {
+
+        return responder(res, 200, {
+          ok: true,
+          reservado: false,
+          disponible: false,
+          motivo:
+            "La mesa ya no está disponible."
+        });
+      }
+
+
+      // 1️⃣1️⃣ GENERAR LOCALIZADOR
+
+      const idReserva =
+        generarIdReserva(fecha);
+
+
+      // 1️⃣2️⃣ CREAR REGISTRO EN AIRTABLE
+
+      const urlCrearReserva =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS`;
+
+
+      const nuevaReserva = {
+
+        fields: {
+
+          id_reserva: idReserva,
+
+          restaurante: [
+            restaurante.id
+          ],
+
+          mesa: [
+            mesaLibre.id
+          ],
+
+          fecha: fecha,
+
+          hora: hora,
+
+          personas: numeroPersonas,
+
+          nombre_completo: nombre,
+
+          telefono: telefono,
+
+          email: email,
+
+          mensaje: mensaje || "",
+
+          estado: "confirmada"
+        }
+      };
+
+
+      const reservaCreada =
+        await consultarAirtable(
+          urlCrearReserva,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body:
+              JSON.stringify(nuevaReserva)
+          }
+        );
+
+
+      console.log(
+        "RESERVA CREADA:",
+        idReserva
       );
 
-    const mesaLibre = mesasAdecuadas[0] || null;
 
-
-    // ─────────────────────────────────────────────────────────
-    // 1️⃣2️⃣ RESPUESTA A script.js
-    // ─────────────────────────────────────────────────────────
-    if (!mesaLibre) {
-      console.log("No hay disponibilidad.");
+      // 1️⃣3️⃣ RESPUESTA AL CLIENTE
 
       return responder(res, 200, {
+
         ok: true,
-        disponible: false,
-        motivo: "No hay una mesa disponible con capacidad suficiente."
+
+        reservado: true,
+
+        id_reserva: idReserva,
+
+        airtable_record_id:
+          reservaCreada.id,
+
+        mesa: {
+          id: mesaLibre.id,
+          nombre:
+            mesaLibre.fields.nombre_mesa,
+          capacidad:
+            mesaLibre.fields.capacidad
+        }
       });
     }
 
-    console.log(
-      "Mesa disponible:",
-      mesaLibre.fields.nombre_mesa,
-      "- capacidad:",
-      mesaLibre.fields.capacidad
-    );
 
-    return responder(res, 200, {
-      ok: true,
-      disponible: true,
+    // 1️⃣4️⃣ ACCIÓN DESCONOCIDA
 
-      // Estos datos nos vienen bien para comprobar la prueba.
-      // Todavía NO estamos creando la reserva.
-      mesa: {
-        id: mesaLibre.id,
-        nombre: mesaLibre.fields.nombre_mesa,
-        capacidad: mesaLibre.fields.capacidad
-      }
+    return responder(res, 400, {
+      ok: false,
+      error:
+        "Acción no reconocida."
     });
+
 
   } catch (error) {
 
@@ -321,8 +447,9 @@ module.exports = async (req, res) => {
 
     return responder(res, 500, {
       ok: false,
-      disponible: false,
-      error: error.message || "Error interno del servidor."
+      error:
+        error.message ||
+        "Error interno del servidor."
     });
   }
 };
