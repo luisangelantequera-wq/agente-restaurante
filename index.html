@@ -1,185 +1,70 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
+
+  <!-- Adaptación correcta a móviles -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Restaurante Sol - Asistente de Reservas</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: #f8f8f8;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
 
-    #chat-container {
-      width: 420px;
-      max-height: 600px;
-      background: white;
-      border-radius: 15px;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      border: 1px solid #ddd;
-    }
-
-    #chat-header {
-      background: #f4b400;
-      color: white;
-      padding: 12px;
-      font-size: 18px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    #chat-box {
-      flex: 1;
-      padding: 10px;
-      overflow-y: auto;
-      background: #fafafa;
-    }
-
-    .message {
-      margin: 8px 0;
-      padding: 10px;
-      border-radius: 10px;
-      max-width: 80%;
-      white-space: pre-wrap;
-    }
-
-    .user {
-      background: #e0f7fa;
-      text-align: right;
-      margin-left: auto;
-    }
-
-    .bot {
-      background: #f1f8e9;
-      text-align: left;
-      margin-right: auto;
-    }
-
-    #chat-input {
-      display: flex;
-      padding: 10px;
-      border-top: 1px solid #ddd;
-      background: #fff;
-    }
-
-    #user-input {
-      flex: 1;
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      outline: none;
-    }
-
-    #send-btn {
-      margin-left: 8px;
-      padding: 8px 12px;
-      background: #f4b400;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-
-    #send-btn:hover {
-      background: #d49500;
-    }
-  </style>
+  <!-- Nuestro archivo de estilos -->
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
+
+  <!-- ===================================================== -->
+  <!-- 1️⃣ CONTENEDOR PRINCIPAL DEL CHAT                     -->
+  <!-- ===================================================== -->
+
   <div id="chat-container">
+
+    <!-- Cabecera -->
     <div id="chat-header">
       <span>🍽️ Restaurante Sol</span>
     </div>
+
+
+    <!-- =================================================== -->
+    <!-- 2️⃣ ZONA DONDE APARECEN LOS MENSAJES                -->
+    <!-- =================================================== -->
+
     <div id="chat-box"></div>
+
+
+    <!-- =================================================== -->
+    <!-- 3️⃣ ZONA PARA ESCRIBIR                              -->
+    <!-- =================================================== -->
+
     <div id="chat-input">
-      <input id="user-input" placeholder="Escribe tu mensaje..." />
-      <button id="send-btn">Enviar</button>
+
+      <input
+        id="user-input"
+        type="text"
+        placeholder="Escribe tu mensaje..."
+        autocomplete="off"
+      >
+
+      <button id="send-btn">
+        Enviar
+      </button>
+
     </div>
+
   </div>
 
-  <script>
-    const chatBox = document.getElementById("chat-box");
-    const input = document.getElementById("user-input");
-    const sendBtn = document.getElementById("send-btn");
 
-    // 💾 Aquí se guarda todo el historial de conversación
-    const messages = [
-      {
-        role: "system",
-        content: `
-Eres un asistente virtual del Restaurante Sol.
-Tu tarea es gestionar reservas de mesas.
+  <!-- ===================================================== -->
+  <!-- 4️⃣ LÓGICA DEL CHAT                                   -->
+  <!--                                                       -->
+  <!-- A partir de ahora TODO el JavaScript estará           -->
+  <!-- exclusivamente en script.js                           -->
+  <!-- ===================================================== -->
 
-Reglas:
-- Mantén una conversación natural.
-- Si el cliente ya te ha dado la fecha, hora y número de personas, no los vuelvas a pedir.
-- Si falta algún dato (por ejemplo el nombre o el teléfono), pídeselo educadamente.
-- Cuando tengas toda la información (día, hora, personas y nombre), confirma la reserva diciendo:
-  "Perfecto, he registrado tu reserva para [Nº personas] el [día] a las [hora] a nombre de [nombre]."
-- No repitas preguntas ni confirmaciones innecesarias.
-- No inventes datos que el cliente no haya dicho.
-        `,
-      },
-    ];
+  <script src="script.js"></script>
 
-    // 👋 Mensaje de bienvenida
-    addMessage("Restaurante Sol", "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar una mesa o consultar el horario?", "bot");
-
-    sendBtn.addEventListener("click", sendMessage);
-    input.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") sendMessage();
-    });
-
-    function addMessage(sender, text, type) {
-      const msg = document.createElement("div");
-      msg.classList.add("message", type);
-      msg.textContent = `${sender}: ${text}`;
-      chatBox.appendChild(msg);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    async function sendMessage() {
-      const userMessage = input.value.trim();
-      if (!userMessage) return;
-
-      addMessage("Tú", userMessage, "user");
-      input.value = "";
-
-      // Guardar el mensaje del usuario en el historial
-      messages.push({ role: "user", content: userMessage });
-
-      addMessage("Restaurante Sol", "Escribiendo...", "bot");
-
-      try {
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: userMessage, history: messages }),
-        });
-
-        const data = await response.json();
-        const reply = data.reply || "Error al recibir respuesta.";
-
-        // Guardar respuesta en el historial
-        messages.push({ role: "assistant", content: reply });
-
-        // Mostrar respuesta
-        const lastBotMessage = chatBox.querySelector(".bot:last-child");
-        lastBotMessage.textContent = `Restaurante Sol: ${reply}`;
-      } catch (error) {
-        console.error("Error:", error);
-        const lastBotMessage = chatBox.querySelector(".bot:last-child");
-        lastBotMessage.textContent = "Restaurante Sol: Hubo un problema al conectar con el servidor.";
-      }
-    }
-  </script>
 </body>
+
 </html>
