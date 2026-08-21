@@ -71,8 +71,10 @@ async function buscarMesaDisponible(
   restaurante_id,
   fecha,
   hora,
-  personas
-) {
+  personas,
+  margenCapacidad
+)
+
 
   // Buscar mesas del restaurante
   const formulaMesas =
@@ -162,10 +164,20 @@ reservas.forEach((r) => {
       const capacidad =
         Number(mesa.fields.capacidad || 0);
 
-      return (
-        capacidad >= Number(personas) &&
-        !mesasOcupadas.has(mesa.id)
-      );
+
+
+     
+const personasNum = Number(personas);
+const margenNum = Number(margenCapacidad || 0);
+
+return (
+  capacidad >= personasNum &&
+  capacidad <= personasNum + margenNum &&
+  !mesasOcupadas.has(mesa.id)
+);
+
+
+
     })
 
     .sort(
@@ -260,6 +272,9 @@ module.exports = async (req, res) => {
     const restaurante =
       await buscarRestaurante(restaurante_id);
 
+  const margenCapacidad =
+    Number(restaurante.fields.margen_capacidad || 0);
+
     if (!restaurante) {
 
       return responder(res, 404, {
@@ -276,12 +291,13 @@ module.exports = async (req, res) => {
     if (accion === "verificar") {
 
       const mesaLibre =
-        await buscarMesaDisponible(
-          restaurante_id,
-          fecha,
-          hora,
-          numeroPersonas
-        );
+await buscarMesaDisponible(
+  restaurante_id,
+  fecha,
+  hora,
+  numeroPersonas,
+  margenCapacidad
+);
 
 
       if (!mesaLibre) {
@@ -332,12 +348,13 @@ module.exports = async (req, res) => {
       // minutos antes en el navegador.
 
       const mesaLibre =
-        await buscarMesaDisponible(
-          restaurante_id,
-          fecha,
-          hora,
-          numeroPersonas
-        );
+   await buscarMesaDisponible(
+    restaurante_id,
+    fecha,
+    hora,
+    numeroPersonas,
+    margenCapacidad
+    );
 
 
       if (!mesaLibre) {
