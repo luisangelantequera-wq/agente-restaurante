@@ -1,31 +1,320 @@
-/* === CONTACTIA — style.css ===
-Estilos principales del chat web para Contactia
-Personalizar colores según el restaurante.
-Añadir un logo de Contactia o del local.
-Usar animaciones suaves para el chat.
-   Autor: Luis & ChatGPT — 2025
-*/
+/* =========================================================
+   CONTACTIA V2 - style.css
+   Diseño del asistente de reservas
+   ========================================================= */
 
-/* RESET Y BASE */
+
+/* 1️⃣ RESET BÁSICO */
+
 * {
   box-sizing: border-box;
+}
+
+html,
+body {
   margin: 0;
   padding: 0;
+  width: 100%;
+  min-height: 100%;
 }
 
 body {
-  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-  background: #f6f6f6;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: linear-gradient(135deg, #f4f4f4, #e8e8e8);
+  color: #333;
+
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  color: #333;
+
+  min-height: 100vh;
+  padding: 20px;
 }
 
-/* CONTENEDOR PRINCIPAL DEL CHAT */
+
+/* 2️⃣ CONTENEDOR PRINCIPAL */
+
+#chat-container {
+  width: 100%;
+  max-width: 440px;
+  height: 650px;
+  max-height: calc(100vh - 40px);
+
+  background: #ffffff;
+
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 20px;
+
+  box-shadow:
+    0 15px 35px rgba(0, 0, 0, 0.12),
+    0 3px 8px rgba(0, 0, 0, 0.06);
+
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* 3️⃣ CABECERA */
+
+#chat-header {
+  flex-shrink: 0;
+
+  padding: 18px 20px;
+
+  background: linear-gradient(
+    135deg,
+    #f4b400,
+    #e6a800
+  );
+
+  color: white;
+
+  font-size: 19px;
+  font-weight: 600;
+
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.10);
+}
+
+
+/* 4️⃣ ZONA DE CONVERSACIÓN */
+
 #chat-box {
-  width: 420px;
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 4px 16px rgba(0, 
+  flex: 1;
+
+  width: 100%;
+
+  padding: 18px;
+
+  overflow-y: auto;
+
+  background:
+    linear-gradient(
+      180deg,
+      #fafafa 0%,
+      #f7f7f7 100%
+    );
+
+  scroll-behavior: smooth;
+}
+
+
+/* 5️⃣ MENSAJES */
+
+.message {
+  width: fit-content;
+  max-width: 82%;
+
+  margin-bottom: 12px;
+  padding: 11px 14px;
+
+  border-radius: 16px;
+
+  font-size: 15px;
+  line-height: 1.4;
+
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+
+  animation: aparecer 0.18s ease-out;
+}
+
+
+/* Mensajes del restaurante */
+
+.message.bot {
+  margin-right: auto;
+
+  background: #ffffff;
+
+  border: 1px solid #e8e8e8;
+
+  border-bottom-left-radius: 5px;
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+
+/* Mensajes del cliente */
+
+.message.user {
+  margin-left: auto;
+
+  background: linear-gradient(
+    135deg,
+    #fff3c7,
+    #ffe89a
+  );
+
+  border: 1px solid rgba(220, 165, 0, 0.18);
+
+  border-bottom-right-radius: 5px;
+
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+
+/* 6️⃣ ZONA DE ESCRITURA */
+
+#chat-input {
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+
+  padding: 13px;
+
+  background: #ffffff;
+
+  border-top: 1px solid #e5e5e5;
+}
+
+
+/* 7️⃣ CAMPO DE TEXTO */
+
+#user-input {
+  flex: 1;
+
+  min-width: 0;
+
+  padding: 12px 14px;
+
+  font-family: inherit;
+  font-size: 16px;
+
+  color: #333;
+
+  background: #fafafa;
+
+  border: 1px solid #d8d8d8;
+  border-radius: 12px;
+
+  outline: none;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+#user-input:focus {
+  background: #ffffff;
+
+  border-color: #e0a600;
+
+  box-shadow:
+    0 0 0 3px rgba(244, 180, 0, 0.12);
+}
+
+
+/* 8️⃣ BOTÓN ENVIAR */
+
+#send-btn {
+  flex-shrink: 0;
+
+  padding: 12px 17px;
+
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+
+  color: #ffffff;
+
+  background: linear-gradient(
+    135deg,
+    #f4b400,
+    #dda300
+  );
+
+  border: none;
+  border-radius: 12px;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 3px 7px rgba(0, 0, 0, 0.12);
+
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+#send-btn:hover {
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 5px 10px rgba(0, 0, 0, 0.15);
+}
+
+#send-btn:active {
+  transform: translateY(0);
+}
+
+
+/* 9️⃣ ANIMACIÓN SUAVE */
+
+@keyframes aparecer {
+
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* 🔟 ADAPTACIÓN A MÓVILES */
+
+@media (max-width: 600px) {
+
+  body {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  #chat-container {
+    max-width: none;
+
+    width: 100%;
+    height: 100vh;
+    max-height: none;
+
+    border-radius: 0;
+    border: none;
+
+    box-shadow: none;
+  }
+
+  #chat-header {
+    padding: 16px;
+  }
+
+  #chat-box {
+    padding: 14px;
+  }
+
+  .message {
+    max-width: 88%;
+  }
+
+  #chat-input {
+    padding: 10px;
+  }
+
+  #send-btn {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
