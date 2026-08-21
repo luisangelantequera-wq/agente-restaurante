@@ -77,7 +77,7 @@ async function buscarMesaDisponible(
 
 
   // Buscar mesas del restaurante
-  const formulaMesas =) {
+  const formulaMesas =
     `FIND('${String(restaurante_id)}',` +
     `ARRAYJOIN({id (from restaurante)}))`;
 
