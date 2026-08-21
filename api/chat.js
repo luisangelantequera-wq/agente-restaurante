@@ -102,14 +102,16 @@ async function buscarMesaDisponible(
 
 
   // Buscar reservas ya confirmadas
-  const formulaReservas =
-    `AND(` +
-    `{fecha}='${fecha}',` +
-    `{hora}='${hora}',` +
-    `{estado}='confirmada',` +
-    `FIND('${String(restaurante_id)}',` +
-    `ARRAYJOIN({id (from restaurante)}))` +
-    `)`;
+
+const formulaReservas =
+  `AND(` +
+  `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
+  `TRIM({hora})='${hora}',` +
+  `LOWER(TRIM({estado}))='confirmada',` +
+  `FIND('${String(restaurante_id)}',` +
+  `ARRAYJOIN({id (from restaurante)}))` +
+  `)`;
+
 
   const urlReservas =
     `https://api.airtable.com/v0/` +
@@ -120,6 +122,20 @@ async function buscarMesaDisponible(
     await consultarAirtable(urlReservas);
 
   const reservas = datosReservas.records || [];
+
+//AÑADIDO PROVISIONAL
+console.log("Reservas encontradas para esa fecha/hora:", reservas.length);
+
+reservas.forEach((r) => {
+  console.log("Reserva encontrada:", {
+    id_reserva: r.fields.id_reserva,
+    fecha: r.fields.fecha,
+    hora: r.fields.hora,
+    estado: r.fields.estado,
+    mesa: r.fields.mesa
+  });
+});
+
 
 
   // Obtener mesas ocupadas
