@@ -168,7 +168,7 @@ async function comprobarDisponibilidad() {
 
     if (alternativas.length > 0) {
       agregarMensaje(
-        `Pero tengo disponibilidad a:\n${alternativas
+        `Pero tengo disponibilidad a las:\n${alternativas
           .map((horaAlternativa) => `• ${horaAlternativa}`)
           .join("\n")}\n\n¿Te viene bien alguna de estas horas?`,
         "bot"
