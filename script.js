@@ -466,6 +466,7 @@ async function consultarReserva(localizador, paraCancelar = false) {
   }
 
   agregarMensaje(`He encontrado esta reserva:\n\n${mostrarResumenReserva(data.reserva)}`, "bot");
+  localizadorGestion = localizador;
 
   if (paraCancelar) {
     if (normalizarTexto(data.reserva.estado) !== "confirmada") {
@@ -482,7 +483,7 @@ async function consultarReserva(localizador, paraCancelar = false) {
 
   paso = "inicio";
   agregarMensaje(
-    "Puedes hacer una nueva reserva o cancelar la reserva consultada indicando su localizador.",
+    "Puedes hacer una nueva reserva o cancelar esta escribiendo: cancelarla.",
     "bot"
   );
 }
@@ -551,6 +552,8 @@ async function procesarMensaje(texto) {
 
       if (localizador) {
         await consultarReserva(localizador, true);
+      } else if (localizadorGestion) {
+        await consultarReserva(localizadorGestion, true);
       } else {
         paso = "localizador_cancelacion";
         agregarMensaje("Indícame el localizador de la reserva que quieres cancelar.", "bot");
