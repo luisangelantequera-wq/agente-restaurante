@@ -481,7 +481,10 @@ async function consultarReserva(localizador, paraCancelar = false) {
   }
 
   paso = "inicio";
-  agregarMensaje("Puedes pedirme otra reserva o cancelar esta indicando su localizador.", "bot");
+  agregarMensaje(
+    "Puedes hacer una nueva reserva o cancelar la reserva consultada indicando su localizador.",
+    "bot"
+  );
 }
 
 
