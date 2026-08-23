@@ -1,4 +1,6 @@
 // ============================================================
+
+const crypto = require("crypto");
 // CONTACTIA V2 - api/chat.js
 // FASE 2: comprobar disponibilidad + crear reserva
 // ============================================================
@@ -283,6 +285,44 @@ async function buscarReservaPorLocalizador(restaurante_id, localizador) {
   const datos = await consultarAirtable(url);
 
   return datos.records?.[0] || null;
+}
+
+
+async function buscarReservaPorToken(restaurante_id, tokenGestion) {
+  const formula =
+    `AND(` +
+    `TRIM({token_gestion})='${tokenGestion}',` +
+    `FIND('${String(restaurante_id)}',` +
+    `ARRAYJOIN({id (from restaurante)}))` +
+    `)`;
+  const url =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
+    `?filterByFormula=${encodeURIComponent(formula)}`;
+  const datos = await consultarAirtable(url);
+
+  return datos.records?.[0] || null;
+}
+
+
+async function buscarReservaGestion(restaurante_id, localizador, tokenGestion) {
+  if (tokenGestion) {
+    const tokenNormalizado = String(tokenGestion).trim().toLowerCase();
+
+    if (!/^[a-f0-9]{48}$/.test(tokenNormalizado)) {
+      throw new Error("El token de gestión no tiene un formato válido.");
+    }
+
+    return buscarReservaPorToken(restaurante_id, tokenNormalizado);
+  }
+
+  const localizadorNormalizado = String(localizador || "").trim().toUpperCase();
+
+  if (!/^[A-Z0-9-]{8,40}$/.test(localizadorNormalizado)) {
+    throw new Error("El localizador no tiene un formato válido.");
+  }
+
+  return buscarReservaPorLocalizador(restaurante_id, localizadorNormalizado);
 }
 
 
@@ -637,6 +677,23 @@ function generarIdReserva(fecha) {
 }
 
 
+function generarTokenGestion() {
+  return crypto.randomBytes(24).toString("hex");
+}
+
+
+function generarEnlaceGestion(req, tokenGestion) {
+  const protocolo = String(req.headers?.["x-forwarded-proto"] || "https")
+    .split(",")[0]
+    .trim();
+  const host = String(req.headers?.host || "").trim();
+
+  return host
+    ? `${protocolo}://${host}/?gestion=${tokenGestion}`
+    : `/?gestion=${tokenGestion}`;
+}
+
+
 // 7️⃣ HANDLER PRINCIPAL
 module.exports = async (req, res) => {
 
@@ -667,30 +724,37 @@ module.exports = async (req, res) => {
       email,
       telefono,
       mensaje,
-      localizador
+      localizador,
+      token_gestion
     } = body;
 
     // Consulta y cancelación no necesitan fecha, hora ni comensales.
     if (accion === "consultar" || accion === "cancelar") {
-      if (!restaurante_id || !localizador) {
+      if (!restaurante_id || (!localizador && !token_gestion)) {
         return responder(res, 400, {
           ok: false,
-          error: "Faltan restaurante_id o localizador."
+          error: "Faltan restaurante_id y el identificador de la reserva."
         });
       }
 
-      const localizadorNormalizado = String(localizador).trim().toUpperCase();
+      if (token_gestion && !/^[a-f0-9]{48}$/i.test(String(token_gestion).trim())) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El token de gestión no tiene un formato válido."
+        });
+      }
 
-      if (!/^[A-Z0-9-]{8,40}$/.test(localizadorNormalizado)) {
+      if (localizador && !/^[A-Z0-9-]{8,40}$/i.test(String(localizador).trim())) {
         return responder(res, 400, {
           ok: false,
           error: "El localizador no tiene un formato válido."
         });
       }
 
-      const reserva = await buscarReservaPorLocalizador(
+      const reserva = await buscarReservaGestion(
         restaurante_id,
-        localizadorNormalizado
+        localizador,
+        token_gestion
       );
 
       if (!reserva) {
@@ -888,25 +952,31 @@ await buscarAsignacionDisponible(
     // ========================================================
 
     if (accion === "modificar") {
-      if (!localizador) {
+      if (!localizador && !token_gestion) {
         return responder(res, 400, {
           ok: false,
-          error: "Falta el localizador de la reserva."
+          error: "Falta el identificador de la reserva."
         });
       }
 
-      const localizadorNormalizado = String(localizador).trim().toUpperCase();
+      if (token_gestion && !/^[a-f0-9]{48}$/i.test(String(token_gestion).trim())) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El token de gestión no tiene un formato válido."
+        });
+      }
 
-      if (!/^[A-Z0-9-]{8,40}$/.test(localizadorNormalizado)) {
+      if (localizador && !/^[A-Z0-9-]{8,40}$/i.test(String(localizador).trim())) {
         return responder(res, 400, {
           ok: false,
           error: "El localizador no tiene un formato válido."
         });
       }
 
-      const reservaActual = await buscarReservaPorLocalizador(
+      const reservaActual = await buscarReservaGestion(
         restaurante_id,
-        localizadorNormalizado
+        localizador,
+        token_gestion
       );
 
       if (!reservaActual) {
@@ -1039,6 +1109,7 @@ await buscarAsignacionDisponible(
 
       const idReserva =
         generarIdReserva(fecha);
+      const tokenGestion = generarTokenGestion();
 
 
       // 1️⃣2️⃣ CREAR REGISTRO EN AIRTABLE
@@ -1053,6 +1124,8 @@ await buscarAsignacionDisponible(
         fields: {
 
           id_reserva: idReserva,
+
+          token_gestion: tokenGestion,
 
           restaurante: [
             restaurante.id
@@ -1111,6 +1184,10 @@ await buscarAsignacionDisponible(
         reservado: true,
 
         id_reserva: idReserva,
+
+        token_gestion: tokenGestion,
+
+        enlace_gestion: generarEnlaceGestion(req, tokenGestion),
 
         airtable_record_id:
           reservaCreada.id,
