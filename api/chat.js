@@ -264,6 +264,35 @@ return (
 }
 
 
+async function buscarReservaPorLocalizador(restaurante_id, localizador) {
+  const formula =
+    `AND(` +
+    `UPPER(TRIM({id_reserva}))='${localizador}',` +
+    `FIND('${String(restaurante_id)}',` +
+    `ARRAYJOIN({id (from restaurante)}))` +
+    `)`;
+  const url =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
+    `?filterByFormula=${encodeURIComponent(formula)}`;
+  const datos = await consultarAirtable(url);
+
+  return datos.records?.[0] || null;
+}
+
+
+function resumirReserva(reserva) {
+  return {
+    localizador: reserva.fields.id_reserva,
+    fecha: reserva.fields.fecha,
+    hora: reserva.fields.hora,
+    personas: reserva.fields.personas,
+    nombre: reserva.fields.nombre_completo,
+    estado: reserva.fields.estado
+  };
+}
+
+
 // 5️⃣ BUSCAR HORARIOS ALTERNATIVOS
 function horaAMinutos(hora) {
   const partes = String(hora).match(/^(\d{1,2}):(\d{2})$/);
@@ -630,8 +659,84 @@ module.exports = async (req, res) => {
       nombre,
       email,
       telefono,
-      mensaje
+      mensaje,
+      localizador
     } = body;
+
+    // Consulta y cancelación no necesitan fecha, hora ni comensales.
+    if (accion === "consultar" || accion === "cancelar") {
+      if (!restaurante_id || !localizador) {
+        return responder(res, 400, {
+          ok: false,
+          error: "Faltan restaurante_id o localizador."
+        });
+      }
+
+      const localizadorNormalizado = String(localizador).trim().toUpperCase();
+
+      if (!/^[A-Z0-9-]{8,40}$/.test(localizadorNormalizado)) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El localizador no tiene un formato válido."
+        });
+      }
+
+      const reserva = await buscarReservaPorLocalizador(
+        restaurante_id,
+        localizadorNormalizado
+      );
+
+      if (!reserva) {
+        return responder(res, 404, {
+          ok: false,
+          error: "No se ha encontrado una reserva con ese localizador."
+        });
+      }
+
+      if (accion === "consultar") {
+        return responder(res, 200, {
+          ok: true,
+          reserva: resumirReserva(reserva)
+        });
+      }
+
+      const estadoActual = String(reserva.fields.estado || "")
+        .trim()
+        .toLowerCase();
+
+      if (estadoActual === "cancelada") {
+        return responder(res, 200, {
+          ok: true,
+          cancelada: false,
+          ya_cancelada: true,
+          reserva: resumirReserva(reserva)
+        });
+      }
+
+      if (estadoActual !== "confirmada") {
+        return responder(res, 200, {
+          ok: true,
+          cancelada: false,
+          motivo: "La reserva no está confirmada y no se puede cancelar.",
+          reserva: resumirReserva(reserva)
+        });
+      }
+
+      const urlReserva =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reserva.id}`;
+      const reservaActualizada = await consultarAirtable(urlReserva, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { estado: "cancelada" } })
+      });
+
+      return responder(res, 200, {
+        ok: true,
+        cancelada: true,
+        reserva: resumirReserva(reservaActualizada)
+      });
+    }
 
 
     // 7️⃣ VALIDACIONES GENERALES
