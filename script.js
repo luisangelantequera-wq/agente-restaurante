@@ -66,8 +66,15 @@ function fechaValida(texto) {
   return /^\d{2}\/\d{2}\/\d{4}$/.test(texto);
 }
 
-function horaValida(texto) {
-  return /^\d{1,2}:\d{2}$/.test(texto);
+function extraerHora(texto) {
+  const coincidencia =
+    texto.match(/(?:^|\D)([01]?\d|2[0-3]):([0-5]\d)(?!\d)/);
+
+  if (!coincidencia) {
+    return null;
+  }
+
+  return `${coincidencia[1].padStart(2, "0")}:${coincidencia[2]}`;
 }
 
 function emailValido(texto) {
@@ -377,16 +384,18 @@ async function procesarMensaje(texto) {
 
   // HORA
   if (paso === "hora") {
-    if (!horaValida(mensaje)) {
+    const horaExtraida = extraerHora(mensaje);
+
+    if (!horaExtraida) {
       agregarMensaje(
-        "La hora debe escribirse en formato HH:MM. Por ejemplo: 14:00.",
+        "No he podido identificar la hora. Puedes escribir, por ejemplo: 14:00 o Sí, me viene bien a las 14:00.",
         "bot"
       );
 
       return;
     }
 
-    datosReserva.hora = mensaje;
+    datosReserva.hora = horaExtraida;
 
     await comprobarDisponibilidad();
 
