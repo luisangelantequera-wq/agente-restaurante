@@ -421,6 +421,7 @@ async function procesarMensaje(texto) {
     if (
       textoMinusculas === "si" ||
       textoMinusculas === "s" ||
+      /^si\b/.test(textoMinusculas) ||
       textoMinusculas.includes("reservar") ||
       textoMinusculas.includes("reserva") ||
       textoMinusculas.includes("mesa")
