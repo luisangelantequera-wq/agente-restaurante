@@ -23,6 +23,8 @@ let datosReserva = {
   telefono: ""
 };
 
+let localizadorGestion = "";
+
 
 // 3️⃣ MOSTRAR MENSAJES
 function agregarMensaje(texto, tipo) {
@@ -175,6 +177,14 @@ function extraerDatosIniciales(texto) {
     fecha: extraerFecha(texto),
     hora: extraerHora(texto)
   };
+}
+
+function extraerLocalizador(texto) {
+  const coincidencia = String(texto)
+    .toUpperCase()
+    .match(/\b[A-Z]{2,10}-\d{8}-\d{4}\b/);
+
+  return coincidencia ? coincidencia[0] : null;
 }
 
 function emailValido(texto) {
@@ -409,6 +419,72 @@ async function crearReserva() {
 }
 
 
+async function solicitarGestionReserva(accion, localizador) {
+  try {
+    const respuesta = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accion,
+        restaurante_id: datosReserva.restaurante_id,
+        localizador
+      })
+    });
+    const data = await respuesta.json();
+
+    if (!respuesta.ok || data.ok === false) {
+      agregarMensaje(data.error || "No he podido localizar esa reserva.", "bot");
+      paso = "inicio";
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error al gestionar la reserva:", error);
+    agregarMensaje("No he podido conectar con el servidor. Inténtalo de nuevo.", "bot");
+    paso = "inicio";
+    return null;
+  }
+}
+
+
+function mostrarResumenReserva(reserva) {
+  return `Localizador: ${reserva.localizador}\n` +
+    `Fecha: ${mostrarFecha(reserva.fecha)}\n` +
+    `Hora: ${reserva.hora}\n` +
+    `Personas: ${reserva.personas}\n` +
+    `Nombre: ${reserva.nombre}\n` +
+    `Estado: ${reserva.estado}`;
+}
+
+
+async function consultarReserva(localizador, paraCancelar = false) {
+  const data = await solicitarGestionReserva("consultar", localizador);
+
+  if (!data) {
+    return;
+  }
+
+  agregarMensaje(`He encontrado esta reserva:\n\n${mostrarResumenReserva(data.reserva)}`, "bot");
+
+  if (paraCancelar) {
+    if (normalizarTexto(data.reserva.estado) !== "confirmada") {
+      agregarMensaje("Esta reserva no está confirmada y no se puede cancelar.", "bot");
+      paso = "inicio";
+      return;
+    }
+
+    localizadorGestion = localizador;
+    paso = "confirmacion_cancelacion";
+    agregarMensaje("¿Confirmas que quieres cancelar esta reserva? Responde Sí o No.", "bot");
+    return;
+  }
+
+  paso = "inicio";
+  agregarMensaje("Puedes pedirme otra reserva o cancelar esta indicando su localizador.", "bot");
+}
+
+
 // 🔟 PROCESAR MENSAJES
 async function procesarMensaje(texto) {
   const mensaje = texto.trim();
@@ -419,11 +495,79 @@ async function procesarMensaje(texto) {
 
   agregarMensaje(mensaje, "user");
 
+  if (paso === "localizador_consulta" || paso === "localizador_cancelacion") {
+    const localizador = extraerLocalizador(mensaje);
+
+    if (!localizador) {
+      agregarMensaje("No he reconocido el localizador. Por ejemplo: SOL-20260825-8863.", "bot");
+      return;
+    }
+
+    await consultarReserva(localizador, paso === "localizador_cancelacion");
+    return;
+  }
+
+  if (paso === "confirmacion_cancelacion") {
+    const respuesta = normalizarTexto(mensaje);
+
+    if (respuesta === "si" || respuesta === "s") {
+      paso = "procesando_cancelacion";
+      agregarMensaje("Un momento, estoy cancelando tu reserva...", "bot");
+      const data = await solicitarGestionReserva("cancelar", localizadorGestion);
+
+      if (data?.cancelada) {
+        agregarMensaje(`✅ Reserva ${localizadorGestion} cancelada correctamente.`, "bot");
+      } else if (data?.ya_cancelada) {
+        agregarMensaje("Esa reserva ya estaba cancelada.", "bot");
+      } else if (data) {
+        agregarMensaje(data.motivo || "No se ha podido cancelar la reserva.", "bot");
+      }
+
+      reiniciarReserva();
+      return;
+    }
+
+    if (respuesta === "no" || respuesta === "n") {
+      agregarMensaje("De acuerdo. La reserva sigue confirmada.", "bot");
+      reiniciarReserva();
+      return;
+    }
+
+    agregarMensaje("Por favor, responde Sí o No.", "bot");
+    return;
+  }
+
 
   // INICIO
   if (paso === "inicio") {
     const textoMinusculas =
       normalizarTexto(mensaje);
+
+    if (textoMinusculas.includes("cancel")) {
+      const localizador = extraerLocalizador(mensaje);
+
+      if (localizador) {
+        await consultarReserva(localizador, true);
+      } else {
+        paso = "localizador_cancelacion";
+        agregarMensaje("Indícame el localizador de la reserva que quieres cancelar.", "bot");
+      }
+
+      return;
+    }
+
+    if (textoMinusculas.includes("consult") || textoMinusculas.includes("buscar")) {
+      const localizador = extraerLocalizador(mensaje);
+
+      if (localizador) {
+        await consultarReserva(localizador);
+      } else {
+        paso = "localizador_consulta";
+        agregarMensaje("Indícame el localizador de tu reserva.", "bot");
+      }
+
+      return;
+    }
 
     if (
       textoMinusculas === "si" ||
@@ -480,7 +624,7 @@ async function procesarMensaje(texto) {
     }
 
     agregarMensaje(
-      "Puedes escribir: quiero reservar.",
+      "Puedes escribir: quiero reservar, consultar una reserva o cancelar una reserva.",
       "bot"
     );
 
@@ -713,6 +857,7 @@ async function procesarMensaje(texto) {
 // 1️⃣1️⃣ REINICIAR
 function reiniciarReserva() {
   paso = "inicio";
+  localizadorGestion = "";
 
   datosReserva = {
     restaurante_id: 1,
@@ -756,7 +901,7 @@ window.addEventListener(
   "load",
   () => {
     agregarMensaje(
-      "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar una mesa?",
+      "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar, consultar o cancelar una reserva?",
       "bot"
     );
 
