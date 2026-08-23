@@ -591,8 +591,20 @@ async function procesarMensaje(texto) {
 
   if (paso === "seleccion_modificacion") {
     const respuesta = normalizarTexto(mensaje);
+    const fechaDirecta = extraerFecha(mensaje);
+    const horaDirecta = extraerHora(mensaje);
+    const personasDirectas = extraerPersonas(mensaje);
 
-    if (respuesta.includes("fecha") || respuesta.includes("dia")) {
+    if (fechaDirecta) {
+      reservaGestion.fecha = fechaDirecta;
+      confirmarModificacion();
+    } else if (horaDirecta) {
+      reservaGestion.hora = horaDirecta;
+      confirmarModificacion();
+    } else if (personasDirectas) {
+      reservaGestion.personas = personasDirectas;
+      confirmarModificacion();
+    } else if (respuesta.includes("fecha") || respuesta.includes("dia")) {
       paso = "modificar_fecha";
       agregarMensaje("¿Qué nueva fecha quieres? Puedes decir, por ejemplo, el martes o 25/08/2026.", "bot");
     } else if (respuesta.includes("hora")) {
