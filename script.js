@@ -40,20 +40,6 @@ function agregarMensaje(texto, tipo) {
 }
 
 
-// 4️⃣ FECHA DD/MM/AAAA → AAAA-MM-DD
-function convertirFechaAEstandar(fecha) {
-  const partes = fecha.split("/");
-
-  if (partes.length !== 3) {
-    return null;
-  }
-
-  const [dia, mes, anio] = partes;
-
-  return `${anio}-${mes}-${dia}`;
-}
-
-
 // 5️⃣ MOSTRAR FECHA EN ESPAÑOL
 function mostrarFecha(fechaISO) {
   const [anio, mes, dia] = fechaISO.split("-");
@@ -62,10 +48,6 @@ function mostrarFecha(fechaISO) {
 
 
 // 6️⃣ VALIDACIONES
-function fechaValida(texto) {
-  return /^\d{2}\/\d{2}\/\d{4}$/.test(texto);
-}
-
 function extraerHora(texto) {
   const coincidencia =
     texto.match(/(?:^|\D)([01]?\d|2[0-3]):([0-5]\d)(?!\d)/);
@@ -75,6 +57,124 @@ function extraerHora(texto) {
   }
 
   return `${coincidencia[1].padStart(2, "0")}:${coincidencia[2]}`;
+}
+
+function normalizarTexto(texto) {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function extraerPersonas(texto) {
+  const normalizado = normalizarTexto(texto);
+  const numerosEnPalabras = {
+    una: 1,
+    uno: 1,
+    dos: 2,
+    tres: 3,
+    cuatro: 4,
+    cinco: 5,
+    seis: 6,
+    siete: 7,
+    ocho: 8,
+    nueve: 9,
+    diez: 10,
+    once: 11,
+    doce: 12
+  };
+  const patronNumero =
+    "(\\d{1,2}|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)";
+  const patrones = [
+    new RegExp(`\\b${patronNumero}\\s+personas?\\b`),
+    new RegExp(`\\bsomos\\s+${patronNumero}\\b`),
+    new RegExp(`\\bmesa\\s+para\\s+${patronNumero}\\b`)
+  ];
+
+  for (const patron of patrones) {
+    const coincidencia = normalizado.match(patron);
+
+    if (coincidencia) {
+      const valor = numerosEnPalabras[coincidencia[1]] || Number(coincidencia[1]);
+
+      if (Number.isInteger(valor) && valor > 0) {
+        return valor;
+      }
+    }
+  }
+
+  return null;
+}
+
+function fechaAISO(fecha) {
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+  const dia = String(fecha.getDate()).padStart(2, "0");
+
+  return `${anio}-${mes}-${dia}`;
+}
+
+function extraerFecha(texto) {
+  const normalizado = normalizarTexto(texto);
+  const fechaEscrita = texto.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
+
+  if (fechaEscrita) {
+    return `${fechaEscrita[3]}-${fechaEscrita[2]}-${fechaEscrita[1]}`;
+  }
+
+  const hoy = new Date();
+  hoy.setHours(12, 0, 0, 0);
+
+  if (/\bpasado manana\b/.test(normalizado)) {
+    hoy.setDate(hoy.getDate() + 2);
+    return fechaAISO(hoy);
+  }
+
+  if (/\bmanana\b/.test(normalizado)) {
+    hoy.setDate(hoy.getDate() + 1);
+    return fechaAISO(hoy);
+  }
+
+  if (/\bhoy\b/.test(normalizado)) {
+    return fechaAISO(hoy);
+  }
+
+  const diasSemana = {
+    domingo: 0,
+    lunes: 1,
+    martes: 2,
+    miercoles: 3,
+    jueves: 4,
+    viernes: 5,
+    sabado: 6
+  };
+  const coincidenciaDia = normalizado.match(
+    /\b(?:(proximo|este)\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/
+  );
+
+  if (!coincidenciaDia) {
+    return null;
+  }
+
+  const modificador = coincidenciaDia[1] || "";
+  const diaObjetivo = diasSemana[coincidenciaDia[2]];
+  let diasHastaFecha = (diaObjetivo - hoy.getDay() + 7) % 7;
+
+  // "Próximo martes" siempre se interpreta como una fecha futura.
+  if (modificador === "proximo" && diasHastaFecha === 0) {
+    diasHastaFecha = 7;
+  }
+
+  hoy.setDate(hoy.getDate() + diasHastaFecha);
+  return fechaAISO(hoy);
+}
+
+function extraerDatosIniciales(texto) {
+  return {
+    personas: extraerPersonas(texto),
+    fecha: extraerFecha(texto),
+    hora: extraerHora(texto)
+  };
 }
 
 function emailValido(texto) {
@@ -316,10 +416,7 @@ async function procesarMensaje(texto) {
   // INICIO
   if (paso === "inicio") {
     const textoMinusculas =
-      mensaje
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
+      normalizarTexto(mensaje);
 
     if (
       textoMinusculas === "si" ||
@@ -328,12 +425,48 @@ async function procesarMensaje(texto) {
       textoMinusculas.includes("reserva") ||
       textoMinusculas.includes("mesa")
     ) {
-      paso = "personas";
+      const datosIniciales = extraerDatosIniciales(mensaje);
 
-      agregarMensaje(
-        "Perfecto 😊 ¿Para cuántas personas deseas reservar?",
-        "bot"
-      );
+      datosReserva.personas = datosIniciales.personas;
+      datosReserva.fecha = datosIniciales.fecha || "";
+      datosReserva.hora = datosIniciales.hora || "";
+
+      if (!datosReserva.personas) {
+        paso = "personas";
+
+        agregarMensaje(
+          "Perfecto 😊 ¿Para cuántas personas deseas reservar?",
+          "bot"
+        );
+
+        return;
+      }
+
+      if (!datosReserva.fecha) {
+        paso = "fecha";
+
+        agregarMensaje(
+          "¿Qué día deseas reservar? Indícalo en formato DD/MM/AAAA.",
+          "bot"
+        );
+
+        return;
+      }
+
+      if (!datosReserva.hora) {
+        paso = "hora";
+
+        agregarMensaje(
+          "¿A qué hora deseas reservar? Por ejemplo: 14:00.",
+          "bot"
+        );
+
+        return;
+      }
+
+      paso = "comprobando";
+
+      await comprobarDisponibilidad();
 
       return;
     }
@@ -349,7 +482,7 @@ async function procesarMensaje(texto) {
 
   // PERSONAS
   if (paso === "personas") {
-    const personas = Number(mensaje);
+    const personas = extraerPersonas(`${mensaje} personas`);
 
     if (
       !Number.isInteger(personas) ||
@@ -377,17 +510,18 @@ async function procesarMensaje(texto) {
 
   // FECHA
   if (paso === "fecha") {
-    if (!fechaValida(mensaje)) {
+    const fechaExtraida = extraerFecha(mensaje);
+
+    if (!fechaExtraida) {
       agregarMensaje(
-        "La fecha debe escribirse en formato DD/MM/AAAA. Por ejemplo: 22/08/2026.",
+        "No he podido identificar la fecha. Puedes escribir, por ejemplo: 22/08/2026, mañana o el próximo martes.",
         "bot"
       );
 
       return;
     }
 
-    datosReserva.fecha =
-      convertirFechaAEstandar(mensaje);
+    datosReserva.fecha = fechaExtraida;
 
     paso = "hora";
 
