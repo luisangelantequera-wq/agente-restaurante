@@ -328,7 +328,7 @@ function validarHorarioRestaurante(campos, fecha, hora) {
     return {
       valido: false,
       motivo:
-        `El ${diaSemana} es el día de cierre semanal del restaurante.`,
+        `El ${diaSemana} es nuestro día de cierre.`,
       cambioRequerido: "fecha"
     };
   }
