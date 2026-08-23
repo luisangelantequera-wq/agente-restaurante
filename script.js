@@ -169,11 +169,13 @@ async function comprobarDisponibilidad() {
 
     if (data.cambio_requerido === "fecha") {
       agregarMensaje(
-        "Puedes volver a intentarlo con otra fecha escribiendo: quiero reservar.",
+        "¿Qué otra fecha te viene bien? Indícala en formato DD/MM/AAAA.",
         "bot"
       );
 
-      reiniciarReserva();
+      datosReserva.fecha = "";
+      datosReserva.hora = "";
+      paso = "fecha";
       return;
     }
 
@@ -314,9 +316,14 @@ async function procesarMensaje(texto) {
   // INICIO
   if (paso === "inicio") {
     const textoMinusculas =
-      mensaje.toLowerCase();
+      mensaje
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
 
     if (
+      textoMinusculas === "si" ||
+      textoMinusculas === "s" ||
       textoMinusculas.includes("reservar") ||
       textoMinusculas.includes("reserva") ||
       textoMinusculas.includes("mesa")
