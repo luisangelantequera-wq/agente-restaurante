@@ -271,6 +271,77 @@ return (
 }
 
 
+async function confirmarReservaSinConflictos(
+  reservaCreada,
+  restaurante_id,
+  fecha,
+  hora,
+  duracionReservaMinutos,
+  mesasAsignadas
+) {
+  const formula =
+    `AND(` +
+    `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
+    `OR(` +
+    `LOWER(TRIM({estado}))='confirmada',` +
+    `LOWER(TRIM({estado}))='pendiente'` +
+    `),` +
+    `FIND('${String(restaurante_id)}',` +
+    `ARRAYJOIN({id (from restaurante)}))` +
+    `)`;
+  const url =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
+    `?filterByFormula=${encodeURIComponent(formula)}`;
+  const datos = await consultarAirtable(url);
+  const inicioActual = horaAMinutos(hora);
+  const finActual = inicioActual + Number(duracionReservaMinutos);
+  const idsMesas = new Set(mesasAsignadas);
+
+  const conflictos = (datos.records || []).filter((reserva) => {
+    if (reserva.id === reservaCreada.id) {
+      return true;
+    }
+
+    const inicio = horaAMinutos(reserva.fields.hora);
+    const mesas = Array.isArray(reserva.fields.mesa) ? reserva.fields.mesa : [];
+
+    if (inicio === null || !mesas.some((id) => idsMesas.has(id))) {
+      return false;
+    }
+
+    const fin = inicio + Number(duracionReservaMinutos);
+    return inicioActual < fin && finActual > inicio;
+  });
+
+  const hayConfirmadaAnterior = conflictos.some((reserva) =>
+    reserva.id !== reservaCreada.id &&
+    String(reserva.fields.estado || "").trim().toLowerCase() === "confirmada"
+  );
+  const pendientes = conflictos
+    .filter((reserva) =>
+      String(reserva.fields.estado || "").trim().toLowerCase() === "pendiente"
+    )
+    .sort((a, b) =>
+      String(a.createdTime || "").localeCompare(String(b.createdTime || "")) ||
+      a.id.localeCompare(b.id)
+    );
+  const esGanadora =
+    !hayConfirmadaAnterior && pendientes[0]?.id === reservaCreada.id;
+  const estadoFinal = esGanadora ? "confirmada" : "rechazada_conflicto";
+  const urlReserva =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaCreada.id}`;
+  const actualizada = await consultarAirtable(urlReserva, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: { estado: estadoFinal } })
+  });
+
+  return { confirmada: esGanadora, reserva: actualizada };
+}
+
+
 async function buscarReservaPorLocalizador(restaurante_id, localizador) {
   const formula =
     `AND(` +
@@ -1147,7 +1218,7 @@ await buscarAsignacionDisponible(
 
           mensaje: mensaje || "",
 
-          estado: "confirmada"
+          estado: "pendiente"
         }
       };
 
@@ -1167,6 +1238,25 @@ await buscarAsignacionDisponible(
               JSON.stringify(nuevaReserva)
           }
         );
+
+      const resultadoConfirmacion = await confirmarReservaSinConflictos(
+        reservaCreada,
+        restaurante_id,
+        fecha,
+        hora,
+        duracionReservaMinutos,
+        mesaLibre.ids
+      );
+
+      if (!resultadoConfirmacion.confirmada) {
+        return responder(res, 200, {
+          ok: true,
+          reservado: false,
+          disponible: false,
+          motivo:
+            "Otra solicitud acaba de reservar esas mesas. Vuelve a comprobar la disponibilidad."
+        });
+      }
 
 
       console.log(
