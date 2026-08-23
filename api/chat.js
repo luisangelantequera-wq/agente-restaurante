@@ -66,9 +66,10 @@ async function buscarRestaurante(restaurante_id) {
 }
 
 
-// 4️⃣ BUSCAR MESA DISPONIBLE
-async function buscarMesaDisponible(
+// 4️⃣ BUSCAR MESA O COMBINACIÓN DISPONIBLE
+async function buscarAsignacionDisponible(
   restaurante_id,
+  restauranteRecordId,
   fecha,
   hora,
   personas,
@@ -187,7 +188,71 @@ return (
     );
 
 
-  return mesasAdecuadas[0] || null;
+  if (mesasAdecuadas[0]) {
+    const mesa = mesasAdecuadas[0];
+    return {
+      ids: [mesa.id],
+      nombre: mesa.fields.nombre_mesa,
+      capacidad: Number(mesa.fields.capacidad || 0),
+      tipo: "mesa"
+    };
+  }
+
+  const urlCombinaciones =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/COMBINACIONES_MESAS`;
+  const datosCombinaciones = await consultarAirtable(urlCombinaciones);
+  const mesasPorId = new Map(mesasOperativas.map((mesa) => [mesa.id, mesa]));
+  const personasNum = Number(personas);
+  const margenNum = Number(margenCapacidad || 0);
+
+  const combinacionesAdecuadas = (datosCombinaciones.records || [])
+    .filter((combinacion) => {
+      const estado = String(combinacion.fields.estado || "").trim().toLowerCase();
+      const restaurantes = combinacion.fields.restaurante;
+      const idsMesas = combinacion.fields.mesas;
+      return estado === "activa" &&
+        Array.isArray(restaurantes) &&
+        restaurantes.includes(restauranteRecordId) &&
+        Array.isArray(idsMesas) && idsMesas.length >= 2;
+    })
+    .map((combinacion) => {
+      const idsMesas = combinacion.fields.mesas;
+      const mesasCombinacion = idsMesas.map((id) => mesasPorId.get(id));
+
+      if (mesasCombinacion.some((mesa) => !mesa) ||
+          idsMesas.some((id) => mesasOcupadas.has(id))) {
+        return null;
+      }
+
+      const zonas = mesasCombinacion.map((mesa) => {
+        const zona = mesa.fields.zona;
+        return Array.isArray(zona) && zona.length === 1 ? zona[0] : null;
+      });
+      if (!zonas[0] || zonas.some((zona) => zona !== zonas[0])) {
+        return null;
+      }
+
+      const capacidad = mesasCombinacion.reduce(
+        (total, mesa) => total + Number(mesa.fields.capacidad || 0), 0
+      );
+      if (capacidad < personasNum || capacidad > personasNum + margenNum) {
+        return null;
+      }
+
+      return {
+        ids: idsMesas,
+        nombre: combinacion.fields.nombre ||
+          mesasCombinacion.map((mesa) => mesa.fields.nombre_mesa).join(" + "),
+        capacidad,
+        prioridad: Number(combinacion.fields.prioridad || 999999),
+        tipo: "combinacion"
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.capacidad - b.capacidad || a.prioridad - b.prioridad);
+
+  return combinacionesAdecuadas[0] || null;
 }
 
 
@@ -413,6 +478,7 @@ function validarHorarioRestaurante(campos, fecha, hora) {
 
 async function buscarHorariosAlternativos(
   restaurante_id,
+  restauranteRecordId,
   fecha,
   hora,
   personas,
@@ -461,8 +527,9 @@ async function buscarHorariosAlternativos(
       continue;
     }
 
-    const mesaLibre = await buscarMesaDisponible(
+    const mesaLibre = await buscarAsignacionDisponible(
       restaurante_id,
+      restauranteRecordId,
       fecha,
       horaCandidata,
       personas,
@@ -611,8 +678,9 @@ Number(restaurante.fields.intervalo_minutos);
     if (accion === "verificar") {
 
       const mesaLibre =
-await buscarMesaDisponible(
+await buscarAsignacionDisponible(
   restaurante_id,
+  restaurante.id,
   fecha,
   hora,
   numeroPersonas,
@@ -625,6 +693,7 @@ await buscarMesaDisponible(
         const alternativas =
           await buscarHorariosAlternativos(
             restaurante_id,
+            restaurante.id,
             fecha,
             hora,
             numeroPersonas,
@@ -648,9 +717,11 @@ await buscarMesaDisponible(
         disponible: true,
 
         mesa: {
-          id: mesaLibre.id,
-          nombre: mesaLibre.fields.nombre_mesa,
-          capacidad: mesaLibre.fields.capacidad
+          id: mesaLibre.ids[0],
+          ids: mesaLibre.ids,
+          nombre: mesaLibre.nombre,
+          capacidad: mesaLibre.capacidad,
+          tipo: mesaLibre.tipo
         }
       });
     }
@@ -680,8 +751,9 @@ await buscarMesaDisponible(
       // minutos antes en el navegador.
 
       const mesaLibre =
-   await buscarMesaDisponible(
+   await buscarAsignacionDisponible(
     restaurante_id,
+    restaurante.id,
     fecha,
     hora,
     numeroPersonas,
@@ -724,9 +796,7 @@ await buscarMesaDisponible(
             restaurante.id
           ],
 
-          mesa: [
-            mesaLibre.id
-          ],
+          mesa: mesaLibre.ids,
 
           fecha: fecha,
 
@@ -784,11 +854,11 @@ await buscarMesaDisponible(
           reservaCreada.id,
 
         mesa: {
-          id: mesaLibre.id,
-          nombre:
-            mesaLibre.fields.nombre_mesa,
-          capacidad:
-            mesaLibre.fields.capacidad
+          id: mesaLibre.ids[0],
+          ids: mesaLibre.ids,
+          nombre: mesaLibre.nombre,
+          capacidad: mesaLibre.capacidad,
+          tipo: mesaLibre.tipo
         }
       });
     }
