@@ -155,10 +155,23 @@ async function comprobarDisponibilidad() {
       "bot"
     );
 
-    agregarMensaje(
-      "Puedes indicarme otra hora.",
-      "bot"
-    );
+    const alternativas = Array.isArray(data.alternativas)
+      ? data.alternativas
+      : [];
+
+    if (alternativas.length > 0) {
+      agregarMensaje(
+        `Pero tengo disponibilidad a:\n${alternativas
+          .map((horaAlternativa) => `• ${horaAlternativa}`)
+          .join("\n")}\n\n¿Te viene bien alguna de estas horas?`,
+        "bot"
+      );
+    } else {
+      agregarMensaje(
+        "No hay otros horarios disponibles en la hora anterior o posterior. Puedes indicarme otra hora.",
+        "bot"
+      );
+    }
 
     datosReserva.hora = "";
     paso = "hora";
@@ -581,3 +594,4 @@ window.addEventListener(
     input.focus();
   }
 );
+
