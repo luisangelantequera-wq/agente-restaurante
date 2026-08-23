@@ -25,6 +25,7 @@ let datosReserva = {
 
 let localizadorGestion = "";
 let reservaGestion = null;
+let reservaGestionOriginal = null;
 
 
 // 3️⃣ MOSTRAR MENSAJES
@@ -55,11 +56,31 @@ function extraerHora(texto) {
   const coincidencia =
     texto.match(/(?:^|\D)([01]?\d|2[0-3]):([0-5]\d)(?!\d)/);
 
-  if (!coincidencia) {
+  if (coincidencia) {
+    return `${coincidencia[1].padStart(2, "0")}:${coincidencia[2]}`;
+  }
+
+  const horaNatural = normalizarTexto(texto).match(
+    /\ba\s+las?\s+(\d{1,2})(?![:\d])/i
+  );
+
+  if (!horaNatural) {
     return null;
   }
 
-  return `${coincidencia[1].padStart(2, "0")}:${coincidencia[2]}`;
+  let horas = Number(horaNatural[1]);
+
+  if (horas < 1 || horas > 23) {
+    return null;
+  }
+
+  // En el contexto de un restaurante, "a la 1" se entiende como 13:00
+  // y "a las 9" como 21:00. El formato HH:MM sigue siendo inequívoco.
+  if (horas <= 11) {
+    horas += 12;
+  }
+
+  return `${String(horas).padStart(2, "0")}:00`;
 }
 
 function normalizarTexto(texto) {
@@ -506,6 +527,7 @@ async function prepararModificacion(localizador) {
 
   localizadorGestion = localizador;
   reservaGestion = data.reserva;
+  reservaGestionOriginal = { ...data.reserva };
   agregarMensaje(`He encontrado esta reserva:\n\n${mostrarResumenReserva(data.reserva)}`, "bot");
   paso = "seleccion_modificacion";
   agregarMensaje("¿Qué quieres cambiar: la fecha, la hora o el número de personas?", "bot");
@@ -530,6 +552,7 @@ async function modificarReserva() {
 
   if (data.modificada) {
     reservaGestion = data.reserva;
+    reservaGestionOriginal = { ...data.reserva };
     agregarMensaje(
       `✅ Reserva modificada correctamente.\n\n${mostrarResumenReserva(data.reserva)}`,
       "bot"
@@ -543,6 +566,14 @@ async function modificarReserva() {
         "bot"
       );
     }
+
+    reservaGestion = { ...reservaGestionOriginal };
+    paso = "seleccion_modificacion";
+    agregarMensaje(
+      "La reserva original no se ha modificado. Puedes indicarme otra fecha, otra hora o un número diferente de personas.",
+      "bot"
+    );
+    return;
   }
 
   reiniciarReserva();
@@ -1037,6 +1068,7 @@ function reiniciarReserva() {
   paso = "inicio";
   localizadorGestion = "";
   reservaGestion = null;
+  reservaGestionOriginal = null;
 
   datosReserva = {
     restaurante_id: 1,
