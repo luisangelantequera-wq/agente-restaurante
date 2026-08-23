@@ -24,6 +24,7 @@ let datosReserva = {
 };
 
 let localizadorGestion = "";
+let reservaGestion = null;
 
 
 // 3️⃣ MOSTRAR MENSAJES
@@ -419,7 +420,7 @@ async function crearReserva() {
 }
 
 
-async function solicitarGestionReserva(accion, localizador) {
+async function solicitarGestionReserva(accion, localizador, datosAdicionales = {}) {
   try {
     const respuesta = await fetch("/api/chat", {
       method: "POST",
@@ -427,7 +428,8 @@ async function solicitarGestionReserva(accion, localizador) {
       body: JSON.stringify({
         accion,
         restaurante_id: datosReserva.restaurante_id,
-        localizador
+        localizador,
+        ...datosAdicionales
       })
     });
     const data = await respuesta.json();
@@ -483,7 +485,75 @@ async function consultarReserva(localizador, paraCancelar = false) {
 
   paso = "inicio";
   agregarMensaje(
-    "Puedes hacer una nueva reserva o cancelar esta escribiendo: cancelarla.",
+    "Puedes hacer una nueva reserva, modificar esta o cancelarla.",
+    "bot"
+  );
+}
+
+
+async function prepararModificacion(localizador) {
+  const data = await solicitarGestionReserva("consultar", localizador);
+
+  if (!data) {
+    return;
+  }
+
+  if (normalizarTexto(data.reserva.estado) !== "confirmada") {
+    agregarMensaje("Solo se pueden modificar reservas confirmadas.", "bot");
+    paso = "inicio";
+    return;
+  }
+
+  localizadorGestion = localizador;
+  reservaGestion = data.reserva;
+  agregarMensaje(`He encontrado esta reserva:\n\n${mostrarResumenReserva(data.reserva)}`, "bot");
+  paso = "seleccion_modificacion";
+  agregarMensaje("¿Qué quieres cambiar: la fecha, la hora o el número de personas?", "bot");
+}
+
+
+async function modificarReserva() {
+  agregarMensaje("Un momento, voy a comprobar la nueva disponibilidad...", "bot");
+  const data = await solicitarGestionReserva(
+    "modificar",
+    localizadorGestion,
+    {
+      fecha: reservaGestion.fecha,
+      hora: reservaGestion.hora,
+      personas: reservaGestion.personas
+    }
+  );
+
+  if (!data) {
+    return;
+  }
+
+  if (data.modificada) {
+    reservaGestion = data.reserva;
+    agregarMensaje(
+      `✅ Reserva modificada correctamente.\n\n${mostrarResumenReserva(data.reserva)}`,
+      "bot"
+    );
+  } else {
+    agregarMensaje(data.motivo || "No se ha podido modificar la reserva.", "bot");
+
+    if (Array.isArray(data.alternativas) && data.alternativas.length > 0) {
+      agregarMensaje(
+        `Horarios disponibles en el mismo servicio: ${data.alternativas.join(", ")}.`,
+        "bot"
+      );
+    }
+  }
+
+  reiniciarReserva();
+}
+
+
+function confirmarModificacion() {
+  paso = "confirmacion_modificacion";
+  agregarMensaje(
+    `La reserva quedaría así:\n\n${mostrarResumenReserva(reservaGestion)}\n\n` +
+    "¿Confirmas el cambio? Responde Sí o No.",
     "bot"
   );
 }
@@ -499,7 +569,11 @@ async function procesarMensaje(texto) {
 
   agregarMensaje(mensaje, "user");
 
-  if (paso === "localizador_consulta" || paso === "localizador_cancelacion") {
+  if (
+    paso === "localizador_consulta" ||
+    paso === "localizador_cancelacion" ||
+    paso === "localizador_modificacion"
+  ) {
     const localizador = extraerLocalizador(mensaje);
 
     if (!localizador) {
@@ -507,7 +581,78 @@ async function procesarMensaje(texto) {
       return;
     }
 
-    await consultarReserva(localizador, paso === "localizador_cancelacion");
+    if (paso === "localizador_modificacion") {
+      await prepararModificacion(localizador);
+    } else {
+      await consultarReserva(localizador, paso === "localizador_cancelacion");
+    }
+    return;
+  }
+
+  if (paso === "seleccion_modificacion") {
+    const respuesta = normalizarTexto(mensaje);
+
+    if (respuesta.includes("fecha") || respuesta.includes("dia")) {
+      paso = "modificar_fecha";
+      agregarMensaje("¿Qué nueva fecha quieres? Puedes decir, por ejemplo, el martes o 25/08/2026.", "bot");
+    } else if (respuesta.includes("hora")) {
+      paso = "modificar_hora";
+      agregarMensaje("¿A qué nueva hora quieres reservar?", "bot");
+    } else if (respuesta.includes("persona") || respuesta.includes("comensal")) {
+      paso = "modificar_personas";
+      agregarMensaje("¿Para cuántas personas será finalmente?", "bot");
+    } else {
+      agregarMensaje("Indícame si quieres cambiar la fecha, la hora o el número de personas.", "bot");
+    }
+    return;
+  }
+
+  if (paso === "modificar_fecha") {
+    const fecha = extraerFecha(mensaje);
+    if (!fecha) {
+      agregarMensaje("No he podido identificar la nueva fecha.", "bot");
+      return;
+    }
+    reservaGestion.fecha = fecha;
+    confirmarModificacion();
+    return;
+  }
+
+  if (paso === "modificar_hora") {
+    const hora = extraerHora(mensaje);
+    if (!hora) {
+      agregarMensaje("No he podido identificar la nueva hora.", "bot");
+      return;
+    }
+    reservaGestion.hora = hora;
+    confirmarModificacion();
+    return;
+  }
+
+  if (paso === "modificar_personas") {
+    const personas = extraerPersonas(`${mensaje} personas`);
+    if (!Number.isInteger(personas) || personas <= 0) {
+      agregarMensaje("Indícame un número válido de personas.", "bot");
+      return;
+    }
+    reservaGestion.personas = personas;
+    confirmarModificacion();
+    return;
+  }
+
+  if (paso === "confirmacion_modificacion") {
+    const respuesta = normalizarTexto(mensaje);
+    if (respuesta === "si" || respuesta === "s") {
+      paso = "procesando_modificacion";
+      await modificarReserva();
+      return;
+    }
+    if (respuesta === "no" || respuesta === "n") {
+      agregarMensaje("De acuerdo. No se ha modificado la reserva.", "bot");
+      reiniciarReserva();
+      return;
+    }
+    agregarMensaje("Por favor, responde Sí o No.", "bot");
     return;
   }
 
@@ -546,6 +691,21 @@ async function procesarMensaje(texto) {
   if (paso === "inicio") {
     const textoMinusculas =
       normalizarTexto(mensaje);
+
+    if (textoMinusculas.includes("modific") || textoMinusculas.includes("cambiar")) {
+      const localizador = extraerLocalizador(mensaje);
+
+      if (localizador) {
+        await prepararModificacion(localizador);
+      } else if (localizadorGestion) {
+        await prepararModificacion(localizadorGestion);
+      } else {
+        paso = "localizador_modificacion";
+        agregarMensaje("Indícame el localizador de la reserva que quieres modificar.", "bot");
+      }
+
+      return;
+    }
 
     if (textoMinusculas.includes("cancel")) {
       const localizador = extraerLocalizador(mensaje);
@@ -630,7 +790,7 @@ async function procesarMensaje(texto) {
     }
 
     agregarMensaje(
-      "Puedes escribir: quiero reservar, consultar una reserva o cancelar una reserva.",
+      "Puedes escribir: quiero reservar, consultar, modificar o cancelar una reserva.",
       "bot"
     );
 
@@ -864,6 +1024,7 @@ async function procesarMensaje(texto) {
 function reiniciarReserva() {
   paso = "inicio";
   localizadorGestion = "";
+  reservaGestion = null;
 
   datosReserva = {
     restaurante_id: 1,
@@ -907,7 +1068,7 @@ window.addEventListener(
   "load",
   () => {
     agregarMensaje(
-      "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar, consultar o cancelar una reserva?",
+      "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar, consultar, modificar o cancelar una reserva?",
       "bot"
     );
 
