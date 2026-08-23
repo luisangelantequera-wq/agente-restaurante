@@ -61,14 +61,19 @@ function extraerHora(texto) {
   }
 
   const horaNatural = normalizarTexto(texto).match(
-    /\ba\s+las?\s+(\d{1,2})(?![:\d])/i
+    /\ba\s+las?\s+(\d{1,2}|una)(?![:\d])(?:\s+y\s+(media|cuarto))?/i
   );
 
   if (!horaNatural) {
     return null;
   }
 
-  let horas = Number(horaNatural[1]);
+  let horas = horaNatural[1] === "una" ? 1 : Number(horaNatural[1]);
+  const minutos = horaNatural[2] === "media"
+    ? 30
+    : horaNatural[2] === "cuarto"
+      ? 15
+      : 0;
 
   if (horas < 1 || horas > 23) {
     return null;
@@ -80,7 +85,7 @@ function extraerHora(texto) {
     horas += 12;
   }
 
-  return `${String(horas).padStart(2, "0")}:00`;
+  return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(2, "0")}`;
 }
 
 function normalizarTexto(texto) {
