@@ -158,13 +158,24 @@ async function comprobarDisponibilidad() {
     }
 
     agregarMensaje(
-      "Lo siento, no hay disponibilidad para ese día y hora.",
+      data.motivo ||
+        "Lo siento, no hay disponibilidad para ese día y hora.",
       "bot"
     );
 
     const alternativas = Array.isArray(data.alternativas)
       ? data.alternativas
       : [];
+
+    if (data.cambio_requerido === "fecha") {
+      agregarMensaje(
+        "Puedes volver a intentarlo con otra fecha escribiendo: quiero reservar.",
+        "bot"
+      );
+
+      reiniciarReserva();
+      return;
+    }
 
     if (alternativas.length > 0) {
       agregarMensaje(
