@@ -191,7 +191,94 @@ return (
 }
 
 
-// 5️⃣ GENERAR LOCALIZADOR
+// 5️⃣ BUSCAR HORARIOS ALTERNATIVOS
+function horaAMinutos(hora) {
+  const partes = String(hora).match(/^(\d{1,2}):(\d{2})$/);
+
+  if (!partes) {
+    return null;
+  }
+
+  const horas = Number(partes[1]);
+  const minutos = Number(partes[2]);
+
+  if (horas > 23 || minutos > 59) {
+    return null;
+  }
+
+  return horas * 60 + minutos;
+}
+
+
+function minutosAHora(minutosTotales) {
+  const horas = Math.floor(minutosTotales / 60);
+  const minutos = minutosTotales % 60;
+
+  return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(2, "0")}`;
+}
+
+
+async function buscarHorariosAlternativos(
+  restaurante_id,
+  fecha,
+  hora,
+  personas,
+  margenCapacidad,
+  intervaloMinutos
+) {
+  const horaSolicitada = horaAMinutos(hora);
+  const intervalo = Number(intervaloMinutos);
+
+  if (
+    horaSolicitada === null ||
+    !Number.isInteger(intervalo) ||
+    intervalo <= 0
+  ) {
+    return [];
+  }
+
+  const candidatos = [];
+
+  // Se alterna antes/después para mantener el orden por cercanía.
+  // En caso de empate se ofrece primero la hora anterior.
+  for (let distancia = intervalo; distancia <= 60; distancia += intervalo) {
+    for (const desplazamiento of [-distancia, distancia]) {
+      const minutosCandidatos = horaSolicitada + desplazamiento;
+
+      // Las alternativas pertenecen siempre a la misma fecha solicitada.
+      if (minutosCandidatos < 0 || minutosCandidatos >= 24 * 60) {
+        continue;
+      }
+
+      candidatos.push(minutosAHora(minutosCandidatos));
+    }
+  }
+
+  const alternativas = [];
+
+  for (const horaCandidata of candidatos) {
+    const mesaLibre = await buscarMesaDisponible(
+      restaurante_id,
+      fecha,
+      horaCandidata,
+      personas,
+      margenCapacidad
+    );
+
+    if (mesaLibre) {
+      alternativas.push(horaCandidata);
+    }
+
+    if (alternativas.length === 4) {
+      break;
+    }
+  }
+
+  return alternativas;
+}
+
+
+// 6️⃣ GENERAR LOCALIZADOR
 function generarIdReserva(fecha) {
 
   const fechaLimpia =
@@ -204,7 +291,7 @@ function generarIdReserva(fecha) {
 }
 
 
-// 6️⃣ HANDLER PRINCIPAL
+// 7️⃣ HANDLER PRINCIPAL
 module.exports = async (req, res) => {
 
   if (req.method !== "POST") {
@@ -282,6 +369,9 @@ module.exports = async (req, res) => {
 const margenCapacidad =
 Number(restaurante.fields.margen_capacidad || 0);
 
+const intervaloMinutos =
+Number(restaurante.fields.intervalo_minutos);
+
 
     // ========================================================
     // 9️⃣ ACCIÓN: VERIFICAR
@@ -301,9 +391,20 @@ await buscarMesaDisponible(
 
       if (!mesaLibre) {
 
+        const alternativas =
+          await buscarHorariosAlternativos(
+            restaurante_id,
+            fecha,
+            hora,
+            numeroPersonas,
+            margenCapacidad,
+            intervaloMinutos
+          );
+
         return responder(res, 200, {
           ok: true,
           disponible: false,
+          alternativas,
           motivo:
             "No hay una mesa disponible con capacidad suficiente."
         });
@@ -485,3 +586,4 @@ await buscarMesaDisponible(
     });
   }
 };
+
