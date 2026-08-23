@@ -269,7 +269,7 @@ async function comprobarDisponibilidad() {
 
     if (data.cambio_requerido === "fecha") {
       agregarMensaje(
-        "¿Qué otra fecha te viene bien? Indícala en formato DD/MM/AAAA.",
+        "¿Qué otro día te viene bien? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
         "bot"
       );
 
