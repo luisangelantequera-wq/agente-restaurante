@@ -506,6 +506,32 @@ async function buscarHorariosAlternativos(
     return [];
   }
 
+  // Las alternativas deben pertenecer al mismo servicio que la hora pedida.
+  // Así una petición para comer nunca ofrece horas del turno de cena.
+  const diaSemana = obtenerDiaSemana(fecha);
+  const horario = leerJSONCampo(
+    camposRestaurante.horario_reservas,
+    {},
+    "horario_reservas"
+  );
+  const rangosDelDia = Array.isArray(horario[diaSemana])
+    ? horario[diaSemana]
+    : [];
+  const rangoSolicitado = rangosDelDia
+    .map((rango) => String(rango).split("-").map((parte) =>
+      horaAMinutos(parte.trim())
+    ))
+    .find(([inicio, fin]) =>
+      inicio !== null && fin !== null &&
+      horaSolicitada >= inicio && horaSolicitada < fin
+    );
+
+  if (!rangoSolicitado) {
+    return [];
+  }
+
+  const [inicioServicio, finServicio] = rangoSolicitado;
+
   const candidatos = [];
 
   // Se alterna antes/después para mantener el orden por cercanía.
@@ -515,7 +541,10 @@ async function buscarHorariosAlternativos(
       const minutosCandidatos = horaSolicitada + desplazamiento;
 
       // Las alternativas pertenecen siempre a la misma fecha solicitada.
-      if (minutosCandidatos < 0 || minutosCandidatos >= 24 * 60) {
+      if (
+        minutosCandidatos < inicioServicio ||
+        minutosCandidatos >= finServicio
+      ) {
         continue;
       }
 
