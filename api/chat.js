@@ -74,7 +74,8 @@ async function buscarAsignacionDisponible(
   hora,
   personas,
   margenCapacidad,
-  duracionReservaMinutos
+  duracionReservaMinutos,
+  reservaExcluirId = null
 ) {
 
 
@@ -140,6 +141,10 @@ const formulaReservas =
   const finSolicitado = inicioSolicitado + duracion;
 
   for (const reserva of reservas) {
+    if (reserva.id === reservaExcluirId) {
+      continue;
+    }
+
     const inicioReserva = horaAMinutos(reserva.fields.hora);
 
     if (inicioReserva === null) {
@@ -522,7 +527,8 @@ async function buscarHorariosAlternativos(
   margenCapacidad,
   duracionReservaMinutos,
   intervaloMinutos,
-  camposRestaurante
+  camposRestaurante,
+  reservaExcluirId = null
 ) {
   const horaSolicitada = horaAMinutos(hora);
   const intervalo = Number(intervaloMinutos);
@@ -601,7 +607,8 @@ async function buscarHorariosAlternativos(
       horaCandidata,
       personas,
       margenCapacidad,
-      duracionReservaMinutos
+      duracionReservaMinutos,
+      reservaExcluirId
     );
 
     if (mesaLibre) {
@@ -871,6 +878,111 @@ await buscarAsignacionDisponible(
           nombre: mesaLibre.nombre,
           capacidad: mesaLibre.capacidad,
           tipo: mesaLibre.tipo
+        }
+      });
+    }
+
+
+    // ========================================================
+    // ACCIÓN: MODIFICAR UNA RESERVA EXISTENTE
+    // ========================================================
+
+    if (accion === "modificar") {
+      if (!localizador) {
+        return responder(res, 400, {
+          ok: false,
+          error: "Falta el localizador de la reserva."
+        });
+      }
+
+      const localizadorNormalizado = String(localizador).trim().toUpperCase();
+
+      if (!/^[A-Z0-9-]{8,40}$/.test(localizadorNormalizado)) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El localizador no tiene un formato válido."
+        });
+      }
+
+      const reservaActual = await buscarReservaPorLocalizador(
+        restaurante_id,
+        localizadorNormalizado
+      );
+
+      if (!reservaActual) {
+        return responder(res, 404, {
+          ok: false,
+          error: "No se ha encontrado una reserva con ese localizador."
+        });
+      }
+
+      if (String(reservaActual.fields.estado || "").trim().toLowerCase() !== "confirmada") {
+        return responder(res, 200, {
+          ok: true,
+          modificada: false,
+          motivo: "Solo se pueden modificar reservas confirmadas."
+        });
+      }
+
+      const asignacion = await buscarAsignacionDisponible(
+        restaurante_id,
+        restaurante.id,
+        fecha,
+        hora,
+        numeroPersonas,
+        margenCapacidad,
+        duracionReservaMinutos,
+        reservaActual.id
+      );
+
+      if (!asignacion) {
+        const alternativas = await buscarHorariosAlternativos(
+          restaurante_id,
+          restaurante.id,
+          fecha,
+          hora,
+          numeroPersonas,
+          margenCapacidad,
+          duracionReservaMinutos,
+          intervaloMinutos,
+          restaurante.fields,
+          reservaActual.id
+        );
+
+        return responder(res, 200, {
+          ok: true,
+          modificada: false,
+          disponible: false,
+          alternativas,
+          motivo: "No hay disponibilidad para modificar la reserva con esos datos."
+        });
+      }
+
+      const urlReserva =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaActual.id}`;
+      const reservaModificada = await consultarAirtable(urlReserva, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            fecha,
+            hora,
+            personas: numeroPersonas,
+            mesa: asignacion.ids
+          }
+        })
+      });
+
+      return responder(res, 200, {
+        ok: true,
+        modificada: true,
+        reserva: resumirReserva(reservaModificada),
+        mesa: {
+          ids: asignacion.ids,
+          nombre: asignacion.nombre,
+          capacidad: asignacion.capacidad,
+          tipo: asignacion.tipo
         }
       });
     }
