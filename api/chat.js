@@ -73,7 +73,8 @@ async function buscarAsignacionDisponible(
   fecha,
   hora,
   personas,
-  margenCapacidad
+  margenCapacidad,
+  duracionReservaMinutos
 ) {
 
 
@@ -109,7 +110,6 @@ async function buscarAsignacionDisponible(
 const formulaReservas =
   `AND(` +
   `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
-  `TRIM({hora})='${hora}',` +
   `LOWER(TRIM({estado}))='confirmada',` +
   `FIND('${String(restaurante_id)}',` +
   `ARRAYJOIN({id (from restaurante)}))` +
@@ -126,25 +126,33 @@ const formulaReservas =
 
   const reservas = datosReservas.records || [];
 
-//AÑADIDO PROVISIONAL
-console.log("Reservas encontradas para esa fecha/hora:", reservas.length);
-
-reservas.forEach((r) => {
-  console.log("Reserva encontrada:", {
-    id_reserva: r.fields.id_reserva,
-    fecha: r.fields.fecha,
-    hora: r.fields.hora,
-    estado: r.fields.estado,
-    mesa: r.fields.mesa
-  });
-});
-
-
-
-  // Obtener mesas ocupadas
+  // Obtener las mesas de cualquier reserva cuya franja se solape.
   const mesasOcupadas = new Set();
+  const inicioSolicitado = horaAMinutos(hora);
+  const duracion = Number(duracionReservaMinutos);
+
+  if (inicioSolicitado === null || !Number.isInteger(duracion) || duracion <= 0) {
+    throw new Error(
+      "El campo duracion_reserva_minutos del restaurante no es válido."
+    );
+  }
+
+  const finSolicitado = inicioSolicitado + duracion;
 
   for (const reserva of reservas) {
+    const inicioReserva = horaAMinutos(reserva.fields.hora);
+
+    if (inicioReserva === null) {
+      continue;
+    }
+
+    const finReserva = inicioReserva + duracion;
+    const seSolapan =
+      inicioSolicitado < finReserva && finSolicitado > inicioReserva;
+
+    if (!seSolapan) {
+      continue;
+    }
 
     const mesasReserva = reserva.fields.mesa;
 
@@ -483,6 +491,7 @@ async function buscarHorariosAlternativos(
   hora,
   personas,
   margenCapacidad,
+  duracionReservaMinutos,
   intervaloMinutos,
   camposRestaurante
 ) {
@@ -501,7 +510,7 @@ async function buscarHorariosAlternativos(
 
   // Se alterna antes/después para mantener el orden por cercanía.
   // En caso de empate se ofrece primero la hora anterior.
-  for (let distancia = intervalo; distancia <= 60; distancia += intervalo) {
+  for (let distancia = intervalo; distancia < 24 * 60; distancia += intervalo) {
     for (const desplazamiento of [-distancia, distancia]) {
       const minutosCandidatos = horaSolicitada + desplazamiento;
 
@@ -533,7 +542,8 @@ async function buscarHorariosAlternativos(
       fecha,
       horaCandidata,
       personas,
-      margenCapacidad
+      margenCapacidad,
+      duracionReservaMinutos
     );
 
     if (mesaLibre) {
@@ -643,6 +653,9 @@ Number(restaurante.fields.margen_capacidad || 0);
 const intervaloMinutos =
 Number(restaurante.fields.intervalo_minutos);
 
+const duracionReservaMinutos =
+Number(restaurante.fields.duracion_reserva_minutos);
+
     const validacionHorario =
       validarHorarioRestaurante(
         restaurante.fields,
@@ -684,7 +697,8 @@ await buscarAsignacionDisponible(
   fecha,
   hora,
   numeroPersonas,
-  margenCapacidad
+  margenCapacidad,
+  duracionReservaMinutos
 );
 
 
@@ -698,6 +712,7 @@ await buscarAsignacionDisponible(
             hora,
             numeroPersonas,
             margenCapacidad,
+            duracionReservaMinutos,
             intervaloMinutos,
             restaurante.fields
           );
@@ -757,7 +772,8 @@ await buscarAsignacionDisponible(
     fecha,
     hora,
     numeroPersonas,
-    margenCapacidad
+    margenCapacidad,
+    duracionReservaMinutos
     );
 
 
