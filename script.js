@@ -26,6 +26,8 @@ let datosReserva = {
 let localizadorGestion = "";
 let reservaGestion = null;
 let reservaGestionOriginal = null;
+let tokenGestionActivo = new URLSearchParams(window.location.search)
+  .get("gestion") || "";
 
 
 // 3️⃣ MOSTRAR MENSAJES
@@ -414,8 +416,13 @@ async function crearReserva() {
     }
 
     if (data.reservado === true) {
+      tokenGestionActivo = data.token_gestion || "";
+      localizadorGestion = data.id_reserva;
       agregarMensaje(
-        `✅ Reserva confirmada.\n\nTu localizador es: ${data.id_reserva}\n\nFecha: ${mostrarFecha(datosReserva.fecha)}\nHora: ${datosReserva.hora}\nPersonas: ${datosReserva.personas}\nNombre: ${datosReserva.nombre}`,
+        `✅ Reserva confirmada.\n\nTu localizador es: ${data.id_reserva}\n\nFecha: ${mostrarFecha(datosReserva.fecha)}\nHora: ${datosReserva.hora}\nPersonas: ${datosReserva.personas}\nNombre: ${datosReserva.nombre}` +
+        (data.enlace_gestion
+          ? `\n\nEnlace para consultar, modificar o cancelar:\n${data.enlace_gestion}`
+          : ""),
         "bot"
       );
 
@@ -455,6 +462,10 @@ async function solicitarGestionReserva(accion, localizador, datosAdicionales = {
         accion,
         restaurante_id: datosReserva.restaurante_id,
         localizador,
+        token_gestion:
+          tokenGestionActivo && (!localizador || localizador === localizadorGestion)
+            ? tokenGestionActivo
+            : undefined,
         ...datosAdicionales
       })
     });
@@ -494,7 +505,7 @@ async function consultarReserva(localizador, paraCancelar = false) {
   }
 
   agregarMensaje(`He encontrado esta reserva:\n\n${mostrarResumenReserva(data.reserva)}`, "bot");
-  localizadorGestion = localizador;
+  localizadorGestion = data.reserva.localizador;
 
   if (paraCancelar) {
     if (normalizarTexto(data.reserva.estado) !== "confirmada") {
@@ -530,7 +541,7 @@ async function prepararModificacion(localizador) {
     return;
   }
 
-  localizadorGestion = localizador;
+  localizadorGestion = data.reserva.localizador;
   reservaGestion = data.reserva;
   reservaGestionOriginal = { ...data.reserva };
   agregarMensaje(`He encontrado esta reserva:\n\n${mostrarResumenReserva(data.reserva)}`, "bot");
@@ -1115,13 +1126,18 @@ input.addEventListener(
 // 1️⃣4️⃣ MENSAJE INICIAL
 window.addEventListener(
   "load",
-  () => {
+  async () => {
     agregarMensaje(
       "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar, consultar, modificar o cancelar una reserva?",
       "bot"
     );
 
     input.focus();
+
+    if (tokenGestionActivo) {
+      agregarMensaje("Estoy recuperando la reserva asociada a este enlace...", "bot");
+      await consultarReserva("");
+    }
   }
 );
 
