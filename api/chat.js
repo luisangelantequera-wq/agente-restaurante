@@ -218,13 +218,206 @@ function minutosAHora(minutosTotales) {
 }
 
 
+function leerJSONCampo(valor, valorPredeterminado, nombreCampo) {
+  if (valor === undefined || valor === null || valor === "") {
+    return valorPredeterminado;
+  }
+
+  if (typeof valor === "object") {
+    return valor;
+  }
+
+  try {
+    return JSON.parse(valor);
+  } catch {
+    throw new Error(
+      `El campo ${nombreCampo} del restaurante no contiene un JSON válido.`
+    );
+  }
+}
+
+
+function obtenerDiaSemana(fecha) {
+  const partes = String(fecha).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!partes) {
+    return null;
+  }
+
+  const anio = Number(partes[1]);
+  const mes = Number(partes[2]);
+  const dia = Number(partes[3]);
+  const fechaUTC = new Date(Date.UTC(anio, mes - 1, dia));
+
+  if (
+    fechaUTC.getUTCFullYear() !== anio ||
+    fechaUTC.getUTCMonth() !== mes - 1 ||
+    fechaUTC.getUTCDate() !== dia
+  ) {
+    return null;
+  }
+
+  return [
+    "domingo",
+    "lunes",
+    "martes",
+    "miércoles",
+    "jueves",
+    "viernes",
+    "sábado"
+  ][fechaUTC.getUTCDay()];
+}
+
+
+function validarHorarioRestaurante(campos, fecha, hora) {
+  const estado = String(campos.estado || "activo")
+    .trim()
+    .toLowerCase();
+
+  if (estado !== "activo") {
+    return {
+      valido: false,
+      motivo: "El restaurante no está aceptando reservas en este momento.",
+      cambioRequerido: "fecha"
+    };
+  }
+
+  const diaSemana = obtenerDiaSemana(fecha);
+  const minutosSolicitados = horaAMinutos(hora);
+
+  if (!diaSemana || minutosSolicitados === null) {
+    return {
+      valido: false,
+      motivo: "La fecha o la hora solicitada no es válida.",
+      cambioRequerido: "fecha"
+    };
+  }
+
+  const horario = leerJSONCampo(
+    campos.horario_reservas,
+    {},
+    "horario_reservas"
+  );
+  const diasCierre = leerJSONCampo(
+    campos.dias_cierre,
+    [],
+    "dias_cierre"
+  );
+  const cierresEspeciales = leerJSONCampo(
+    campos.cierres_especiales,
+    [],
+    "cierres_especiales"
+  );
+
+  if (
+    typeof horario !== "object" ||
+    Array.isArray(horario) ||
+    !Array.isArray(diasCierre) ||
+    !Array.isArray(cierresEspeciales)
+  ) {
+    throw new Error(
+      "La configuración de horarios o cierres del restaurante no es válida."
+    );
+  }
+
+  const cierresSemanales = diasCierre.map((dia) =>
+    String(dia).trim().toLowerCase()
+  );
+
+  if (cierresSemanales.includes(diaSemana)) {
+    return {
+      valido: false,
+      motivo: `El restaurante está cerrado ese día (${diaSemana}).`,
+      cambioRequerido: "fecha"
+    };
+  }
+
+  if (cierresEspeciales.map(String).includes(fecha)) {
+    return {
+      valido: false,
+      motivo: "El restaurante está cerrado en esa fecha.",
+      cambioRequerido: "fecha"
+    };
+  }
+
+  const rangos = horario[diaSemana];
+
+  if (!Array.isArray(rangos) || rangos.length === 0) {
+    return {
+      valido: false,
+      motivo: `El restaurante no admite reservas ese día (${diaSemana}).`,
+      cambioRequerido: "fecha"
+    };
+  }
+
+  const intervalo = Number(campos.intervalo_minutos);
+
+  if (!Number.isInteger(intervalo) || intervalo <= 0) {
+    throw new Error(
+      "El campo intervalo_minutos del restaurante no es válido."
+    );
+  }
+
+  let dentroDeUnTurno = false;
+  let coincideConIntervalo = false;
+
+  for (const rango of rangos) {
+    const partesRango = String(rango).split("-").map((parte) => parte.trim());
+
+    if (partesRango.length !== 2) {
+      throw new Error(
+        `El rango ${rango} de horario_reservas no es válido.`
+      );
+    }
+
+    const inicio = horaAMinutos(partesRango[0]);
+    const fin = horaAMinutos(partesRango[1]);
+
+    if (inicio === null || fin === null || inicio >= fin) {
+      throw new Error(
+        `El rango ${rango} de horario_reservas no es válido.`
+      );
+    }
+
+    if (minutosSolicitados >= inicio && minutosSolicitados < fin) {
+      dentroDeUnTurno = true;
+      coincideConIntervalo =
+        (minutosSolicitados - inicio) % intervalo === 0;
+      break;
+    }
+  }
+
+  if (!dentroDeUnTurno) {
+    return {
+      valido: false,
+      motivo:
+        `El horario de reservas para el ${diaSemana} es ` +
+        `${rangos.join(" y ")}.`,
+      cambioRequerido: "hora"
+    };
+  }
+
+  if (!coincideConIntervalo) {
+    return {
+      valido: false,
+      motivo:
+        `Las reservas se admiten en intervalos de ${intervalo} minutos.`,
+      cambioRequerido: "hora"
+    };
+  }
+
+  return { valido: true };
+}
+
+
 async function buscarHorariosAlternativos(
   restaurante_id,
   fecha,
   hora,
   personas,
   margenCapacidad,
-  intervaloMinutos
+  intervaloMinutos,
+  camposRestaurante
 ) {
   const horaSolicitada = horaAMinutos(hora);
   const intervalo = Number(intervaloMinutos);
@@ -257,6 +450,16 @@ async function buscarHorariosAlternativos(
   const alternativas = [];
 
   for (const horaCandidata of candidatos) {
+    const validacionHorario = validarHorarioRestaurante(
+      camposRestaurante,
+      fecha,
+      horaCandidata
+    );
+
+    if (!validacionHorario.valido) {
+      continue;
+    }
+
     const mesaLibre = await buscarMesaDisponible(
       restaurante_id,
       fecha,
@@ -372,6 +575,33 @@ Number(restaurante.fields.margen_capacidad || 0);
 const intervaloMinutos =
 Number(restaurante.fields.intervalo_minutos);
 
+    const validacionHorario =
+      validarHorarioRestaurante(
+        restaurante.fields,
+        fecha,
+        hora
+      );
+
+    if (!validacionHorario.valido) {
+      if (accion === "reservar") {
+        return responder(res, 200, {
+          ok: true,
+          reservado: false,
+          disponible: false,
+          motivo: validacionHorario.motivo,
+          cambio_requerido: validacionHorario.cambioRequerido
+        });
+      }
+
+      return responder(res, 200, {
+        ok: true,
+        disponible: false,
+        alternativas: [],
+        motivo: validacionHorario.motivo,
+        cambio_requerido: validacionHorario.cambioRequerido
+      });
+    }
+
 
     // ========================================================
     // 9️⃣ ACCIÓN: VERIFICAR
@@ -398,7 +628,8 @@ await buscarMesaDisponible(
             hora,
             numeroPersonas,
             margenCapacidad,
-            intervaloMinutos
+            intervaloMinutos,
+            restaurante.fields
           );
 
         return responder(res, 200, {
