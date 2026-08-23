@@ -280,12 +280,19 @@ async function comprobarDisponibilidad() {
     }
 
     if (alternativas.length > 0) {
-      agregarMensaje(
-        `Pero tengo disponibilidad a las:\n${alternativas
-          .map((horaAlternativa) => `• ${horaAlternativa}`)
-          .join("\n")}\n\n¿Te viene bien alguna de estas horas?`,
-        "bot"
-      );
+      if (alternativas.length === 1) {
+        agregarMensaje(
+          `Pero tengo disponibilidad a las ${alternativas[0]}. ¿Te viene bien esa hora?`,
+          "bot"
+        );
+      } else {
+        agregarMensaje(
+          `Pero tengo disponibilidad a las:\n${alternativas
+            .map((horaAlternativa) => `• ${horaAlternativa}`)
+            .join("\n")}\n\n¿Te viene bien alguna de estas horas?`,
+          "bot"
+        );
+      }
     } else {
       agregarMensaje(
         "No hay otros horarios disponibles en la hora anterior o posterior. Puedes indicarme otra hora.",
