@@ -823,7 +823,7 @@ async function procesarMensaje(texto) {
         paso = "fecha";
 
         agregarMensaje(
-          "¿Qué día deseas reservar? Indícalo en formato DD/MM/AAAA.",
+          "¿Qué día deseas reservar? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
           "bot"
         );
 
@@ -859,7 +859,10 @@ async function procesarMensaje(texto) {
 
   // PERSONAS
   if (paso === "personas") {
-    const personas = extraerPersonas(`${mensaje} personas`);
+    const datosAdelantados = extraerDatosIniciales(mensaje);
+    const personas =
+      datosAdelantados.personas ||
+      extraerPersonas(`${mensaje} personas`);
 
     if (
       !Number.isInteger(personas) ||
@@ -874,12 +877,39 @@ async function procesarMensaje(texto) {
     }
 
     datosReserva.personas = personas;
-    paso = "fecha";
 
-    agregarMensaje(
-      "¿Qué día deseas reservar? Indícalo en formato DD/MM/AAAA.",
-      "bot"
-    );
+    if (datosAdelantados.fecha) {
+      datosReserva.fecha = datosAdelantados.fecha;
+    }
+
+    if (datosAdelantados.hora) {
+      datosReserva.hora = datosAdelantados.hora;
+    }
+
+    if (!datosReserva.fecha) {
+      paso = "fecha";
+
+      agregarMensaje(
+        "¿Qué día deseas reservar? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
+        "bot"
+      );
+
+      return;
+    }
+
+    if (!datosReserva.hora) {
+      paso = "hora";
+
+      agregarMensaje(
+        "¿A qué hora deseas reservar? Por ejemplo: 14:00.",
+        "bot"
+      );
+
+      return;
+    }
+
+    paso = "comprobando";
+    await comprobarDisponibilidad();
 
     return;
   }
