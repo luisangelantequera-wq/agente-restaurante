@@ -860,7 +860,7 @@ async function enviarCorreoConfirmacionReserva({
   const texto =
     `Hola ${nombre},\n\n` +
     `Tu reserva está confirmada.\n\n` +
-    `Restaurante: ${nombreRestaurante}\n` +
+    `${nombreRestaurante}\n` +
     `Localizador: ${localizador}\n` +
     `Fecha: ${fechaLarga}\n` +
     `Hora: ${hora}\n` +
@@ -868,9 +868,9 @@ async function enviarCorreoConfirmacionReserva({
     `Puedes consultar, modificar o cancelar tu reserva aquí:\n${enlaceGestion}\n`;
   const html = `
     <p>Hola ${escaparHtml(nombre)},</p>
+    <h2>${escaparHtml(nombreRestaurante)}</h2>
     <p>Tu reserva está confirmada.</p>
     <ul>
-      <li><strong>Restaurante:</strong> ${escaparHtml(nombreRestaurante)}</li>
       <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
       <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
       <li><strong>Hora:</strong> ${escaparHtml(hora)}</li>
