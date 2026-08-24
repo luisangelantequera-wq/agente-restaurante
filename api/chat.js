@@ -816,9 +816,29 @@ function escaparHtml(valor) {
 }
 
 
+function formatearFechaLarga(fecha) {
+  const [anio, mes, dia] = String(fecha || "").split("-").map(Number);
+
+  if (!anio || !mes || !dia) {
+    return String(fecha || "");
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  })
+    .format(new Date(Date.UTC(anio, mes - 1, dia)))
+    .replace(",", "");
+}
+
+
 async function enviarCorreoConfirmacionReserva({
   destinatario,
   nombre,
+  nombreRestaurante,
   fecha,
   hora,
   personas,
@@ -833,12 +853,16 @@ async function enviarCorreoConfirmacionReserva({
   const remitente =
     process.env.EMAIL_FROM ||
     "Contactia <reservas@contactia.net>";
-  const asunto = `Reserva confirmada · ${localizador}`;
+  const fechaLarga = formatearFechaLarga(fecha);
+  const asunto =
+    `Reserva confirmada en ${nombreRestaurante} el ${fechaLarga} ` +
+    `a las ${hora}.`;
   const texto =
     `Hola ${nombre},\n\n` +
     `Tu reserva está confirmada.\n\n` +
+    `Restaurante: ${nombreRestaurante}\n` +
     `Localizador: ${localizador}\n` +
-    `Fecha: ${fecha}\n` +
+    `Fecha: ${fechaLarga}\n` +
     `Hora: ${hora}\n` +
     `Personas: ${personas}\n\n` +
     `Puedes consultar, modificar o cancelar tu reserva aquí:\n${enlaceGestion}\n`;
@@ -846,8 +870,9 @@ async function enviarCorreoConfirmacionReserva({
     <p>Hola ${escaparHtml(nombre)},</p>
     <p>Tu reserva está confirmada.</p>
     <ul>
+      <li><strong>Restaurante:</strong> ${escaparHtml(nombreRestaurante)}</li>
       <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
-      <li><strong>Fecha:</strong> ${escaparHtml(fecha)}</li>
+      <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
       <li><strong>Hora:</strong> ${escaparHtml(hora)}</li>
       <li><strong>Personas:</strong> ${escaparHtml(personas)}</li>
     </ul>
@@ -1454,6 +1479,10 @@ await buscarAsignacionDisponible(
       const correoEnviado = await enviarCorreoConfirmacionReserva({
         destinatario: email,
         nombre,
+        nombreRestaurante:
+          restaurante.fields.nombre_restaurante ||
+          restaurante.fields.nombre ||
+          "Restaurante Sol",
         fecha,
         hora,
         personas: numeroPersonas,
