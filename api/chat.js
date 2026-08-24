@@ -815,15 +815,12 @@ function generarTokenGestion() {
 }
 
 
-function generarEnlaceGestion(req, tokenGestion) {
-  const protocolo = String(req.headers?.["x-forwarded-proto"] || "https")
-    .split(",")[0]
-    .trim();
-  const host = String(req.headers?.host || "").trim();
+function generarEnlaceGestion(tokenGestion) {
+  const urlPublica = String(
+    process.env.PUBLIC_BASE_URL || "https://contactia.net"
+  ).trim().replace(/\/+$/, "");
 
-  return host
-    ? `${protocolo}://${host}/?gestion=${tokenGestion}`
-    : `/?gestion=${tokenGestion}`;
+  return `${urlPublica}/?gestion=${tokenGestion}`;
 }
 
 
@@ -1511,7 +1508,7 @@ await buscarAsignacionDisponible(
         idReserva
       );
 
-      const enlaceGestion = generarEnlaceGestion(req, tokenGestion);
+      const enlaceGestion = generarEnlaceGestion(tokenGestion);
       const correoEnviado = await enviarCorreoConfirmacionReserva({
         destinatario: email,
         nombre,
