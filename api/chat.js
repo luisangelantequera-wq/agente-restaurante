@@ -704,14 +704,32 @@ async function buscarHorariosAlternativos(
   const rangosDelDia = Array.isArray(horario[diaSemana])
     ? horario[diaSemana]
     : [];
-  const rangoSolicitado = rangosDelDia
+  const rangosValidos = rangosDelDia
     .map((rango) => String(rango).split("-").map((parte) =>
       horaAMinutos(parte.trim())
     ))
-    .find(([inicio, fin]) =>
-      inicio !== null && fin !== null &&
-      horaSolicitada >= inicio && horaSolicitada < fin
+    .filter(([inicio, fin]) =>
+      inicio !== null && fin !== null && inicio < fin
     );
+  let rangoSolicitado = rangosValidos.find(([inicio, fin]) =>
+    horaSolicitada >= inicio && horaSolicitada < fin
+  );
+
+  // Si la hora queda justo fuera de un servicio, se utiliza el servicio
+  // más cercano dentro del margen de una hora. Por ejemplo, una petición
+  // a las 13:00 puede ofrecer las 13:30 si el turno comienza entonces.
+  if (!rangoSolicitado) {
+    rangoSolicitado = rangosValidos
+      .map((rango) => {
+        const [inicio, fin] = rango;
+        const distancia = horaSolicitada < inicio
+          ? inicio - horaSolicitada
+          : horaSolicitada - fin;
+        return { rango, distancia };
+      })
+      .filter(({ distancia }) => distancia <= 60)
+      .sort((a, b) => a.distancia - b.distancia)[0]?.rango;
+  }
 
   if (!rangoSolicitado) {
     return [];
@@ -721,27 +739,30 @@ async function buscarHorariosAlternativos(
 
   const candidatos = [];
 
-  // Se alterna antes/después para mantener el orden por cercanía.
-  // En caso de empate se ofrece primero la hora anterior.
-  for (let distancia = intervalo; distancia < 24 * 60; distancia += intervalo) {
-    for (const desplazamiento of [-distancia, distancia]) {
-      const minutosCandidatos = horaSolicitada + desplazamiento;
+  for (
+    let minutosCandidatos = inicioServicio;
+    minutosCandidatos < finServicio;
+    minutosCandidatos += intervalo
+  ) {
+    const distancia = Math.abs(minutosCandidatos - horaSolicitada);
 
-      // Las alternativas pertenecen siempre a la misma fecha solicitada.
-      if (
-        minutosCandidatos < inicioServicio ||
-        minutosCandidatos >= finServicio
-      ) {
-        continue;
-      }
-
-      candidatos.push(minutosAHora(minutosCandidatos));
+    if (distancia > 0 && distancia <= 60) {
+      candidatos.push({
+        hora: minutosAHora(minutosCandidatos),
+        minutos: minutosCandidatos,
+        distancia
+      });
     }
   }
 
+  candidatos.sort((a, b) =>
+    a.distancia - b.distancia || a.minutos - b.minutos
+  );
+
   const alternativas = [];
 
-  for (const horaCandidata of candidatos) {
+  for (const candidato of candidatos) {
+    const horaCandidata = candidato.hora;
     const validacionHorario = validarHorarioRestaurante(
       camposRestaurante,
       fecha,
@@ -1091,11 +1112,26 @@ Number(restaurante.fields.duracion_reserva_minutos);
       );
 
     if (!validacionHorario.valido) {
+      const alternativas = validacionHorario.cambioRequerido === "hora"
+        ? await buscarHorariosAlternativos(
+          restaurante_id,
+          restaurante.id,
+          fecha,
+          hora,
+          numeroPersonas,
+          margenCapacidad,
+          duracionReservaMinutos,
+          intervaloMinutos,
+          restaurante.fields
+        )
+        : [];
+
       if (accion === "reservar") {
         return responder(res, 200, {
           ok: true,
           reservado: false,
           disponible: false,
+          alternativas,
           motivo: validacionHorario.motivo,
           cambio_requerido: validacionHorario.cambioRequerido
         });
@@ -1104,7 +1140,7 @@ Number(restaurante.fields.duracion_reserva_minutos);
       return responder(res, 200, {
         ok: true,
         disponible: false,
-        alternativas: [],
+        alternativas,
         motivo: validacionHorario.motivo,
         cambio_requerido: validacionHorario.cambioRequerido
       });
