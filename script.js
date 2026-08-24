@@ -35,11 +35,33 @@ function agregarMensaje(texto, tipo) {
   const mensaje = document.createElement("div");
 
   mensaje.classList.add("message", tipo);
+  const contenido = tipo === "user"
+    ? `Tú: ${texto}`
+    : `Restaurante Sol: ${texto}`;
 
-  mensaje.textContent =
-    tipo === "user"
-      ? `Tú: ${texto}`
-      : `Restaurante Sol: ${texto}`;
+  if (tipo === "bot") {
+    const patronEnlace = /https?:\/\/[^\s]+/g;
+    let posicion = 0;
+    let coincidencia;
+
+    while ((coincidencia = patronEnlace.exec(contenido)) !== null) {
+      mensaje.appendChild(
+        document.createTextNode(contenido.slice(posicion, coincidencia.index))
+      );
+
+      const enlace = document.createElement("a");
+      enlace.href = coincidencia[0];
+      enlace.textContent = coincidencia[0];
+      enlace.target = "_blank";
+      enlace.rel = "noopener noreferrer";
+      mensaje.appendChild(enlace);
+      posicion = coincidencia.index + coincidencia[0].length;
+    }
+
+    mensaje.appendChild(document.createTextNode(contenido.slice(posicion)));
+  } else {
+    mensaje.textContent = contenido;
+  }
 
   chatBox.appendChild(mensaje);
   chatBox.scrollTop = chatBox.scrollHeight;
