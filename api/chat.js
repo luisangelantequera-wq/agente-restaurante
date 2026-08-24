@@ -806,6 +806,91 @@ function generarEnlaceGestion(req, tokenGestion) {
 }
 
 
+function escaparHtml(valor) {
+  return String(valor ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+
+async function enviarCorreoConfirmacionReserva({
+  destinatario,
+  nombre,
+  fecha,
+  hora,
+  personas,
+  localizador,
+  enlaceGestion
+}) {
+  if (!process.env.RESEND_API_KEY || !destinatario) {
+    console.warn("Correo de confirmación omitido: falta RESEND_API_KEY o destinatario.");
+    return false;
+  }
+
+  const remitente =
+    process.env.EMAIL_FROM ||
+    "Contactia <reservas@contactia.net>";
+  const asunto = `Reserva confirmada · ${localizador}`;
+  const texto =
+    `Hola ${nombre},\n\n` +
+    `Tu reserva está confirmada.\n\n` +
+    `Localizador: ${localizador}\n` +
+    `Fecha: ${fecha}\n` +
+    `Hora: ${hora}\n` +
+    `Personas: ${personas}\n\n` +
+    `Puedes consultar, modificar o cancelar tu reserva aquí:\n${enlaceGestion}\n`;
+  const html = `
+    <p>Hola ${escaparHtml(nombre)},</p>
+    <p>Tu reserva está confirmada.</p>
+    <ul>
+      <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
+      <li><strong>Fecha:</strong> ${escaparHtml(fecha)}</li>
+      <li><strong>Hora:</strong> ${escaparHtml(hora)}</li>
+      <li><strong>Personas:</strong> ${escaparHtml(personas)}</li>
+    </ul>
+    <p>
+      <a href="${escaparHtml(enlaceGestion)}">
+        Consultar, modificar o cancelar la reserva
+      </a>
+    </p>
+  `;
+
+  try {
+    const respuesta = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: remitente,
+        to: [destinatario],
+        subject: asunto,
+        text: texto,
+        html
+      })
+    });
+
+    if (!respuesta.ok) {
+      console.error(
+        "Error Resend al enviar la confirmación:",
+        respuesta.status,
+        await respuesta.text()
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("No se pudo enviar el correo de confirmación:", error);
+    return false;
+  }
+}
+
+
 // 7️⃣ HANDLER PRINCIPAL
 module.exports = async (req, res) => {
 
@@ -1365,6 +1450,17 @@ await buscarAsignacionDisponible(
         idReserva
       );
 
+      const enlaceGestion = generarEnlaceGestion(req, tokenGestion);
+      const correoEnviado = await enviarCorreoConfirmacionReserva({
+        destinatario: email,
+        nombre,
+        fecha,
+        hora,
+        personas: numeroPersonas,
+        localizador: idReserva,
+        enlaceGestion
+      });
+
 
       // 1️⃣3️⃣ RESPUESTA AL CLIENTE
 
@@ -1378,7 +1474,9 @@ await buscarAsignacionDisponible(
 
         token_gestion: tokenGestion,
 
-        enlace_gestion: generarEnlaceGestion(req, tokenGestion),
+        enlace_gestion: enlaceGestion,
+
+        correo_enviado: correoEnviado,
 
         airtable_record_id:
           reservaCreada.id,
