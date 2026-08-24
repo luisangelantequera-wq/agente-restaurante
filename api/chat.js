@@ -1,6 +1,7 @@
 // ============================================================
 
 const crypto = require("crypto");
+const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
 // CONTACTIA V2 - api/chat.js
 // FASE 2: comprobar disponibilidad + crear reserva
 // ============================================================
@@ -297,8 +298,41 @@ async function confirmarReservaSinConflictos(
   const inicioActual = horaAMinutos(hora);
   const finActual = inicioActual + Number(duracionReservaMinutos);
   const idsMesas = new Set(mesasAsignadas);
+  const ahora = Date.now();
+  const pendientesExpiradas = (datos.records || []).filter((reserva) => {
+    if (reserva.id === reservaCreada.id) {
+      return false;
+    }
+
+    const estado = String(reserva.fields.estado || "").trim().toLowerCase();
+    const creadaEn = Date.parse(reserva.createdTime || "");
+
+    return estado === "pendiente" &&
+      Number.isFinite(creadaEn) &&
+      ahora - creadaEn > CADUCIDAD_RESERVA_PENDIENTE_MS;
+  });
+
+  await Promise.all(pendientesExpiradas.map((reserva) => {
+    const urlPendiente =
+      `https://api.airtable.com/v0/` +
+      `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reserva.id}`;
+
+    return consultarAirtable(urlPendiente, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: { estado: "expirada" } })
+    });
+  }));
+
+  const idsExpiradas = new Set(
+    pendientesExpiradas.map((reserva) => reserva.id)
+  );
 
   const conflictos = (datos.records || []).filter((reserva) => {
+    if (idsExpiradas.has(reserva.id)) {
+      return false;
+    }
+
     if (reserva.id === reservaCreada.id) {
       return true;
     }
