@@ -278,7 +278,9 @@ async function confirmarReservaSinConflictos(
   fecha,
   hora,
   duracionReservaMinutos,
-  mesasAsignadas
+  mesasAsignadas,
+  reservasExcluirIds = [],
+  estadoGanador = "confirmada"
 ) {
   const formula =
     `AND(` +
@@ -298,6 +300,7 @@ async function confirmarReservaSinConflictos(
   const inicioActual = horaAMinutos(hora);
   const finActual = inicioActual + Number(duracionReservaMinutos);
   const idsMesas = new Set(mesasAsignadas);
+  const idsReservasExcluidas = new Set(reservasExcluirIds);
   const ahora = Date.now();
   const pendientesExpiradas = (datos.records || []).filter((reserva) => {
     if (reserva.id === reservaCreada.id) {
@@ -333,6 +336,10 @@ async function confirmarReservaSinConflictos(
       return false;
     }
 
+    if (idsReservasExcluidas.has(reserva.id)) {
+      return false;
+    }
+
     if (reserva.id === reservaCreada.id) {
       return true;
     }
@@ -362,7 +369,7 @@ async function confirmarReservaSinConflictos(
     );
   const esGanadora =
     !hayConfirmadaAnterior && pendientes[0]?.id === reservaCreada.id;
-  const estadoFinal = esGanadora ? "confirmada" : "rechazada_conflicto";
+  const estadoFinal = esGanadora ? estadoGanador : "rechazada_conflicto";
   const urlReserva =
     `https://api.airtable.com/v0/` +
     `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaCreada.id}`;
@@ -1133,6 +1140,52 @@ await buscarAsignacionDisponible(
         });
       }
 
+      const idBloqueo =
+        `MOD-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+      const urlReservas =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS`;
+      const bloqueo = await consultarAirtable(urlReservas, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            id_reserva: idBloqueo,
+            restaurante: [restaurante.id],
+            mesa: asignacion.ids,
+            fecha,
+            hora,
+            personas: numeroPersonas,
+            nombre_completo: reservaActual.fields.nombre_completo,
+            telefono: reservaActual.fields.telefono,
+            email: reservaActual.fields.email,
+            mensaje: `Bloqueo temporal para modificar ${reservaActual.fields.id_reserva}`,
+            estado: "pendiente"
+          }
+        })
+      });
+
+      const resultadoBloqueo = await confirmarReservaSinConflictos(
+        bloqueo,
+        restaurante_id,
+        fecha,
+        hora,
+        duracionReservaMinutos,
+        asignacion.ids,
+        [reservaActual.id],
+        "pendiente"
+      );
+
+      if (!resultadoBloqueo.confirmada) {
+        return responder(res, 200, {
+          ok: true,
+          modificada: false,
+          disponible: false,
+          motivo:
+            "Otra solicitud acaba de ocupar esas mesas. La reserva original no se ha modificado."
+        });
+      }
+
       const urlReserva =
         `https://api.airtable.com/v0/` +
         `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaActual.id}`;
@@ -1148,6 +1201,20 @@ await buscarAsignacionDisponible(
           }
         })
       });
+
+      const urlBloqueo =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${bloqueo.id}`;
+
+      try {
+        await consultarAirtable(urlBloqueo, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { estado: "aplicada_modificacion" } })
+        });
+      } catch (errorLimpieza) {
+        console.error("No se pudo cerrar el bloqueo de modificación:", errorLimpieza);
+      }
 
       return responder(res, 200, {
         ok: true,
