@@ -23,9 +23,17 @@ const nuevasPersonas = document.getElementById("nuevas-personas");
 const errorModificar = document.getElementById("error-modificar");
 const guardarModificacion = document.getElementById("guardar-modificacion");
 const tituloDialogo = document.getElementById("titulo-dialogo");
+const dialogoMesas = document.getElementById("dialogo-mesas");
+const formularioMesas = document.getElementById("form-mesas");
+const referenciaMesas = document.getElementById("reserva-mesas");
+const opcionesMesas = document.getElementById("opciones-mesas");
+const errorMesas = document.getElementById("error-mesas");
+const guardarMesas = document.getElementById("guardar-mesas");
 let reservasActuales = [];
 let localizadorEnEdicion = "";
 let accionEnEdicion = "modificar";
+let reservaMesasEnEdicion = null;
+let opcionesMesasActuales = [];
 
 
 function fechaLocalISO() {
@@ -118,6 +126,12 @@ function renderizarReservas(reservas) {
     const acciones = reserva.estado === "confirmada"
       ? `
         <div class="acciones-reserva">
+          <button
+            class="accion mesas"
+            type="button"
+            data-accion="mesas"
+            data-localizador="${escaparHtml(reserva.localizador)}"
+          >Mesas</button>
           <button
             class="accion modificar"
             type="button"
@@ -220,6 +234,82 @@ function cerrarModificacion() {
   dialogoModificar.close();
   localizadorEnEdicion = "";
   errorModificar.textContent = "";
+}
+
+
+function cerrarCambioMesas() {
+  dialogoMesas.close();
+  reservaMesasEnEdicion = null;
+  opcionesMesasActuales = [];
+  opcionesMesas.innerHTML = "";
+  errorMesas.textContent = "";
+}
+
+
+function renderizarOpcionesMesas(opciones) {
+  if (!opciones.length) {
+    opcionesMesas.innerHTML = `
+      <p class="sin-opciones-mesas">
+        No hay otra asignación compatible disponible en este momento.
+      </p>
+    `;
+    guardarMesas.disabled = true;
+    return;
+  }
+
+  const hayActual = opciones.some((opcion) => opcion.actual);
+  opcionesMesas.innerHTML = opciones.map((opcion, indice) => {
+    const seleccionada = opcion.actual || (!hayActual && indice === 0);
+    const tipo = opcion.tipo === "combinacion"
+      ? "Combinación autorizada"
+      : "Mesa individual";
+
+    return `
+      <label class="opcion-mesa ${opcion.actual ? "actual" : ""}">
+        <input
+          type="radio"
+          name="opcion_mesa"
+          value="${indice}"
+          ${seleccionada ? "checked" : ""}
+        >
+        <span>
+          <strong>${escaparHtml(opcion.nombre)}</strong>
+          <small>
+            ${escaparHtml(opcion.zona)} · Capacidad ${escaparHtml(opcion.capacidad)}
+            · ${escaparHtml(tipo)}${opcion.actual ? " · Asignación actual" : ""}
+          </small>
+        </span>
+      </label>
+    `;
+  }).join("");
+  guardarMesas.disabled = false;
+}
+
+
+async function abrirCambioMesas(reserva) {
+  reservaMesasEnEdicion = reserva;
+  opcionesMesasActuales = [];
+  referenciaMesas.textContent =
+    `${reserva.localizador} · ${reserva.nombre} · ${reserva.personas} personas`;
+  opcionesMesas.innerHTML = '<p class="cargando-mesas">Buscando mesas libres…</p>';
+  errorMesas.textContent = "";
+  guardarMesas.disabled = true;
+  dialogoMesas.showModal();
+
+  try {
+    const resultado = await ejecutarAccionReserva({
+      accion: "opciones_mesas",
+      localizador: reserva.localizador,
+      fecha: reserva.fecha,
+      hora: reserva.hora,
+      personas: reserva.personas
+    });
+    opcionesMesasActuales = resultado.opciones_mesas || [];
+    renderizarOpcionesMesas(opcionesMesasActuales);
+  } catch (error) {
+    opcionesMesas.innerHTML = "";
+    errorMesas.textContent = error.message;
+  }
 }
 
 
@@ -328,6 +418,11 @@ reservasContenedor.addEventListener("click", async (evento) => {
     return;
   }
 
+  if (boton.dataset.accion === "mesas") {
+    await abrirCambioMesas(reserva);
+    return;
+  }
+
   if (boton.dataset.accion === "reactivar") {
     abrirModificacion(reserva, "reactivar");
     return;
@@ -407,6 +502,50 @@ formularioModificar.addEventListener("submit", async (evento) => {
 });
 
 
+formularioMesas.addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+  errorMesas.textContent = "";
+
+  const indiceSeleccionado = Number(
+    new FormData(formularioMesas).get("opcion_mesa")
+  );
+  const opcionSeleccionada = opcionesMesasActuales[indiceSeleccionado];
+
+  if (!reservaMesasEnEdicion || !opcionSeleccionada) {
+    errorMesas.textContent = "Selecciona una mesa o combinación válida.";
+    return;
+  }
+
+  guardarMesas.disabled = true;
+  guardarMesas.textContent = "Comprobando…";
+
+  try {
+    const resultado = await ejecutarAccionReserva({
+      accion: "cambiar_mesas",
+      localizador: reservaMesasEnEdicion.localizador,
+      fecha: reservaMesasEnEdicion.fecha,
+      hora: reservaMesasEnEdicion.hora,
+      personas: reservaMesasEnEdicion.personas,
+      mesa_ids: opcionSeleccionada.ids
+    });
+
+    if (!resultado.mesas_cambiadas) {
+      throw new Error(
+        resultado.motivo || "No se pudo cambiar la asignación de mesas."
+      );
+    }
+
+    cerrarCambioMesas();
+    await cargarReservas(sessionStorage.getItem(claveSesion));
+  } catch (error) {
+    errorMesas.textContent = error.message;
+  } finally {
+    guardarMesas.disabled = false;
+    guardarMesas.textContent = "Guardar mesas";
+  }
+});
+
+
 document.getElementById("cerrar-dialogo").addEventListener(
   "click",
   cerrarModificacion
@@ -414,6 +553,14 @@ document.getElementById("cerrar-dialogo").addEventListener(
 document.getElementById("cancelar-dialogo").addEventListener(
   "click",
   cerrarModificacion
+);
+document.getElementById("cerrar-dialogo-mesas").addEventListener(
+  "click",
+  cerrarCambioMesas
+);
+document.getElementById("cancelar-dialogo-mesas").addEventListener(
+  "click",
+  cerrarCambioMesas
 );
 
 
