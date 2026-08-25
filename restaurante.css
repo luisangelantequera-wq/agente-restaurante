@@ -214,9 +214,9 @@ input:focus {
 .reserva {
   display: grid;
   grid-template-columns:
-    70px minmax(130px, 1fr) minmax(130px, 0.9fr)
-    minmax(125px, 0.9fr) minmax(170px, 1.2fr) 105px 155px;
-  gap: 16px;
+    65px minmax(105px, 0.9fr) minmax(105px, 0.8fr) 78px
+    minmax(105px, 0.8fr) minmax(155px, 1.1fr) 98px 145px;
+  gap: 12px;
 }
 
 .tabla-cabecera {
@@ -263,6 +263,7 @@ input:focus {
 
 .cliente span,
 .mesas,
+.capacidad,
 .contacto,
 .localizador {
   color: var(--suave);
@@ -272,6 +273,19 @@ input:focus {
 .mesas {
   color: var(--texto);
   font-weight: 700;
+}
+
+.capacidad {
+  text-align: center;
+}
+
+.capacidad strong {
+  color: var(--texto);
+  font-size: 15px;
+}
+
+.solo-movil {
+  display: none;
 }
 
 .contacto a {
@@ -324,6 +338,15 @@ input:focus {
 
 .accion.cancelar:hover {
   background: #efcaca;
+}
+
+.accion.reactivar {
+  background: #e7f3e7;
+  color: #346734;
+}
+
+.accion.reactivar:hover {
+  background: #d4e9d4;
 }
 
 .sin-acciones {
@@ -440,20 +463,30 @@ input:focus {
     grid-row: 2;
   }
 
-  .localizador {
+  .capacidad {
     grid-column: 2 / -1;
     grid-row: 3;
+    text-align: left;
+  }
+
+  .solo-movil {
+    display: inline;
+  }
+
+  .localizador {
+    grid-column: 2 / -1;
+    grid-row: 4;
   }
 
   .contacto {
     grid-column: 2 / -1;
-    grid-row: 4;
+    grid-row: 5;
   }
 
   .acciones-reserva,
   .sin-acciones {
     grid-column: 2 / -1;
-    grid-row: 5;
+    grid-row: 6;
     justify-self: start;
   }
 
