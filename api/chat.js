@@ -815,6 +815,22 @@ function generarTokenGestion() {
 }
 
 
+function clavesRestauranteCoinciden(recibida, configurada) {
+  const claveRecibida = Buffer.from(String(recibida || "").trim());
+  const claveConfigurada = Buffer.from(String(configurada || "").trim());
+
+  if (
+    claveRecibida.length === 0 ||
+    claveConfigurada.length === 0 ||
+    claveRecibida.length !== claveConfigurada.length
+  ) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(claveRecibida, claveConfigurada);
+}
+
+
 function generarEnlaceGestion(tokenGestion) {
   const urlPublica = String(
     process.env.PUBLIC_BASE_URL || "https://contactia.net"
@@ -1028,16 +1044,18 @@ async function enviarCorreoModificacionReserva({
   hora,
   personas,
   localizador,
-  enlaceGestion
+  enlaceGestion,
+  reactivada = false
 }) {
   nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
   const fechaLarga = formatearFechaLarga(fecha);
+  const estadoTexto = reactivada ? "reactivada" : "modificada";
   const asunto =
-    `Reserva modificada en ${nombreRestaurante} para el ${fechaLarga} ` +
+    `Reserva ${estadoTexto} en ${nombreRestaurante} para el ${fechaLarga} ` +
     `a las ${hora}.`;
   const texto =
     `Hola ${nombre},\n\n` +
-    `Tu reserva ha sido modificada. Estos son los datos actualizados:\n\n` +
+    `Tu reserva ha sido ${estadoTexto}. Estos son los datos actualizados:\n\n` +
     `${nombreRestaurante}\n` +
     `Localizador: ${localizador}\n` +
     `Fecha: ${fechaLarga}\n` +
@@ -1046,7 +1064,7 @@ async function enviarCorreoModificacionReserva({
     `Puedes consultar, modificar o cancelar tu reserva aquí:\n${enlaceGestion}\n`;
   const html = `
     <p>Hola ${escaparHtml(nombre)},</p>
-    <p>Tu reserva ha sido modificada. Estos son los datos actualizados:</p>
+    <p>Tu reserva ha sido ${escaparHtml(estadoTexto)}. Estos son los datos actualizados:</p>
     <h2>${escaparHtml(nombreRestaurante)}</h2>
     <ul>
       <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
@@ -1066,7 +1084,7 @@ async function enviarCorreoModificacionReserva({
     asunto,
     texto,
     html,
-    contexto: "modificación"
+    contexto: reactivada ? "reactivación" : "modificación"
   });
 }
 
@@ -1141,6 +1159,7 @@ async function enviarAvisoRestaurante({
   const titulos = {
     nueva: "Nueva reserva",
     modificada: "Reserva modificada",
+    reactivada: "Reserva reactivada",
     cancelada: "Reserva cancelada"
   };
   const titulo = titulos[tipo] || "Actualización de reserva";
@@ -1221,7 +1240,8 @@ module.exports = async (req, res) => {
       telefono,
       mensaje,
       localizador,
-      token_gestion
+      token_gestion,
+      clave_restaurante
     } = body;
 
     // Consulta y cancelación no necesitan fecha, hora ni comensales.
@@ -1245,6 +1265,23 @@ module.exports = async (req, res) => {
           ok: false,
           error: "El localizador no tiene un formato válido."
         });
+      }
+
+      if (clave_restaurante) {
+        const restauranteAutorizado = await buscarRestaurante(restaurante_id);
+
+        if (
+          !restauranteAutorizado ||
+          !clavesRestauranteCoinciden(
+            clave_restaurante,
+            restauranteAutorizado.fields.api_key_restaurante
+          )
+        ) {
+          return responder(res, 401, {
+            ok: false,
+            error: "La clave del restaurante no es correcta."
+          });
+        }
       }
 
       const reserva = await buscarReservaGestion(
@@ -1443,6 +1480,26 @@ Number(restaurante.fields.duracion_reserva_minutos);
       });
     }
 
+    if (
+      clave_restaurante &&
+      !clavesRestauranteCoinciden(
+        clave_restaurante,
+        restaurante.fields.api_key_restaurante
+      )
+    ) {
+      return responder(res, 401, {
+        ok: false,
+        error: "La clave del restaurante no es correcta."
+      });
+    }
+
+    if (accion === "reactivar" && !clave_restaurante) {
+      return responder(res, 401, {
+        ok: false,
+        error: "La reactivación requiere la clave del restaurante."
+      });
+    }
+
 
     // ========================================================
     // 9️⃣ ACCIÓN: VERIFICAR
@@ -1503,10 +1560,12 @@ await buscarAsignacionDisponible(
 
 
     // ========================================================
-    // ACCIÓN: MODIFICAR UNA RESERVA EXISTENTE
+    // ACCIÓN: MODIFICAR O REACTIVAR UNA RESERVA EXISTENTE
     // ========================================================
 
-    if (accion === "modificar") {
+    if (accion === "modificar" || accion === "reactivar") {
+      const esReactivacion = accion === "reactivar";
+
       if (!localizador && !token_gestion) {
         return responder(res, 400, {
           ok: false,
@@ -1541,11 +1600,19 @@ await buscarAsignacionDisponible(
         });
       }
 
-      if (String(reservaActual.fields.estado || "").trim().toLowerCase() !== "confirmada") {
+      const estadoReservaActual = String(reservaActual.fields.estado || "")
+        .trim()
+        .toLowerCase();
+      const estadoEsperado = esReactivacion ? "cancelada" : "confirmada";
+
+      if (estadoReservaActual !== estadoEsperado) {
         return responder(res, 200, {
           ok: true,
           modificada: false,
-          motivo: "Solo se pueden modificar reservas confirmadas."
+          reactivada: false,
+          motivo: esReactivacion
+            ? "Solo se pueden reactivar reservas canceladas."
+            : "Solo se pueden modificar reservas confirmadas."
         });
       }
 
@@ -1577,14 +1644,18 @@ await buscarAsignacionDisponible(
         return responder(res, 200, {
           ok: true,
           modificada: false,
+          reactivada: false,
           disponible: false,
           alternativas,
-          motivo: "No hay disponibilidad para modificar la reserva con esos datos."
+          motivo: esReactivacion
+            ? "No hay disponibilidad para reactivar la reserva con esos datos."
+            : "No hay disponibilidad para modificar la reserva con esos datos."
         });
       }
 
       const idBloqueo =
-        `MOD-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+        `${esReactivacion ? "REA" : "MOD"}-${Date.now()}-` +
+        crypto.randomBytes(4).toString("hex");
       const urlReservas =
         `https://api.airtable.com/v0/` +
         `${process.env.AIRTABLE_BASE_ID}/RESERVAS`;
@@ -1602,7 +1673,9 @@ await buscarAsignacionDisponible(
             nombre_completo: reservaActual.fields.nombre_completo,
             telefono: reservaActual.fields.telefono,
             email: reservaActual.fields.email,
-            mensaje: `Bloqueo temporal para modificar ${reservaActual.fields.id_reserva}`,
+            mensaje:
+              `Bloqueo temporal para ${esReactivacion ? "reactivar" : "modificar"} ` +
+              reservaActual.fields.id_reserva,
             estado: "pendiente"
           }
         })
@@ -1623,9 +1696,13 @@ await buscarAsignacionDisponible(
         return responder(res, 200, {
           ok: true,
           modificada: false,
+          reactivada: false,
           disponible: false,
           motivo:
-            "Otra solicitud acaba de ocupar esas mesas. La reserva original no se ha modificado."
+            "Otra solicitud acaba de ocupar esas mesas. " +
+            (esReactivacion
+              ? "La reserva continúa cancelada."
+              : "La reserva original no se ha modificado.")
         });
       }
 
@@ -1640,7 +1717,8 @@ await buscarAsignacionDisponible(
             fecha,
             hora,
             personas: numeroPersonas,
-            mesa: asignacion.ids
+            mesa: asignacion.ids,
+            ...(esReactivacion ? { estado: "confirmada" } : {})
           }
         })
       });
@@ -1653,10 +1731,19 @@ await buscarAsignacionDisponible(
         await consultarAirtable(urlBloqueo, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fields: { estado: "aplicada_modificacion" } })
+          body: JSON.stringify({
+            fields: {
+              estado: "aplicada_modificacion"
+            }
+          })
         });
       } catch (errorLimpieza) {
-        console.error("No se pudo cerrar el bloqueo de modificación:", errorLimpieza);
+        console.error(
+          `No se pudo cerrar el bloqueo de ${
+            esReactivacion ? "reactivación" : "modificación"
+          }:`,
+          errorLimpieza
+        );
       }
 
       const nombreRestauranteModificacion = obtenerNombreRestaurante(restaurante);
@@ -1673,14 +1760,12 @@ await buscarAsignacionDisponible(
           hora: reservaModificada.fields.hora,
           personas: reservaModificada.fields.personas,
           localizador: reservaModificada.fields.id_reserva,
-          enlaceGestion: generarEnlacePanelRestaurante(
-            reservaModificada.fields.fecha,
-            restaurante_id
-          )
+          enlaceGestion: enlaceGestionModificacion,
+          reactivada: esReactivacion
         }),
         enviarAvisoRestaurante({
           destinatario: restaurante.fields.email,
-          tipo: "modificada",
+          tipo: esReactivacion ? "reactivada" : "modificada",
           nombreRestaurante: nombreRestauranteModificacion,
           fecha: reservaModificada.fields.fecha,
           hora: reservaModificada.fields.hora,
@@ -1689,13 +1774,17 @@ await buscarAsignacionDisponible(
           nombreCliente: reservaModificada.fields.nombre_completo,
           emailCliente: reservaModificada.fields.email,
           telefonoCliente: reservaModificada.fields.telefono,
-          enlaceGestion: enlaceGestionModificacion
+          enlaceGestion: generarEnlacePanelRestaurante(
+            reservaModificada.fields.fecha,
+            restaurante_id
+          )
         })
       ]);
 
       return responder(res, 200, {
         ok: true,
         modificada: true,
+        reactivada: esReactivacion,
         correo_enviado: correoEnviado,
         correo_restaurante_enviado: correoRestauranteEnviado,
         reserva: resumirReserva(reservaModificada),
