@@ -826,6 +826,19 @@ function generarEnlaceGestion(tokenGestion) {
 }
 
 
+function generarEnlacePanelRestaurante(fecha, restauranteId) {
+  const urlPublica = String(
+    process.env.PUBLIC_BASE_URL || "https://contactia.net"
+  ).trim().replace(/\/+$/, "");
+  const parametros = new URLSearchParams({
+    fecha: String(fecha),
+    restaurante: String(restauranteId)
+  });
+
+  return `${urlPublica}/restaurante.html?${parametros.toString()}`;
+}
+
+
 function escaparHtml(valor) {
   return String(valor ?? "")
     .replaceAll("&", "&amp;")
@@ -1133,13 +1146,13 @@ async function enviarAvisoRestaurante({
   const titulo = titulos[tipo] || "Actualización de reserva";
   const asunto =
     `${titulo} · ${fechaLarga} a las ${hora} · ${personas} personas`;
-  const textoEnlace = tipo !== "cancelada" && enlaceGestion
-    ? `\nGestionar reserva:\n${enlaceGestion}\n`
+  const textoEnlace = enlaceGestion
+    ? `\nGestionar reservas del día:\n${enlaceGestion}\n`
     : "";
-  const htmlEnlace = tipo !== "cancelada" && enlaceGestion
+  const htmlEnlace = enlaceGestion
     ? `
       <p>
-        <a href="${escaparHtml(enlaceGestion)}">Gestionar reserva</a>
+        <a href="${escaparHtml(enlaceGestion)}">Gestionar reservas del día</a>
       </p>
     `
     : "";
@@ -1319,7 +1332,11 @@ module.exports = async (req, res) => {
           localizador: reservaActualizada.fields.id_reserva,
           nombreCliente: reservaActualizada.fields.nombre_completo,
           emailCliente: reservaActualizada.fields.email,
-          telefonoCliente: reservaActualizada.fields.telefono
+          telefonoCliente: reservaActualizada.fields.telefono,
+          enlaceGestion: generarEnlacePanelRestaurante(
+            reservaActualizada.fields.fecha,
+            restaurante_id
+          )
         })
       ]);
 
@@ -1656,7 +1673,10 @@ await buscarAsignacionDisponible(
           hora: reservaModificada.fields.hora,
           personas: reservaModificada.fields.personas,
           localizador: reservaModificada.fields.id_reserva,
-          enlaceGestion: enlaceGestionModificacion
+          enlaceGestion: generarEnlacePanelRestaurante(
+            reservaModificada.fields.fecha,
+            restaurante_id
+          )
         }),
         enviarAvisoRestaurante({
           destinatario: restaurante.fields.email,
@@ -1848,7 +1868,7 @@ await buscarAsignacionDisponible(
           nombreCliente: nombre,
           emailCliente: email,
           telefonoCliente: telefono,
-          enlaceGestion
+          enlaceGestion: generarEnlacePanelRestaurante(fecha, restaurante_id)
         })
       ]);
 
