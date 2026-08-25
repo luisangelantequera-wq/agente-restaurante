@@ -205,10 +205,32 @@ input:focus {
   display: grid;
 }
 
+.tabla-cabecera,
 .reserva {
   display: grid;
-  grid-template-columns: 85px minmax(140px, 1fr) 110px minmax(190px, 1.2fr) 120px;
-  gap: 18px;
+  grid-template-columns:
+    70px minmax(130px, 1fr) minmax(130px, 0.9fr)
+    minmax(125px, 0.9fr) minmax(180px, 1.2fr) 115px;
+  gap: 16px;
+}
+
+.tabla-cabecera {
+  align-items: center;
+  padding: 11px 24px;
+  border-bottom: 1px solid var(--borde);
+  background: #faf8f3;
+  color: var(--suave);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tabla-cabecera span:last-child {
+  justify-self: end;
+}
+
+.reserva {
   align-items: center;
   padding: 18px 24px;
   border-bottom: 1px solid var(--borde);
@@ -235,10 +257,16 @@ input:focus {
 }
 
 .cliente span,
+.mesas,
 .contacto,
 .localizador {
   color: var(--suave);
   font-size: 13px;
+}
+
+.mesas {
+  color: var(--texto);
+  font-weight: 700;
 }
 
 .contacto a {
@@ -301,9 +329,23 @@ input:focus {
     padding: 17px;
   }
 
-  .contacto,
+  .tabla-cabecera {
+    display: none;
+  }
+
+  .mesas {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+
   .localizador {
     grid-column: 2 / -1;
+    grid-row: 3;
+  }
+
+  .contacto {
+    grid-column: 2 / -1;
+    grid-row: 4;
   }
 
   .estado {
