@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Reservas del restaurante · Contactia</title>
+  <link rel="stylesheet" href="restaurante.css">
+</head>
+
+<body>
+  <main class="panel">
+    <header class="panel-header">
+      <div>
+        <p class="marca">CONTACTIA</p>
+        <h1 id="nombre-restaurante">Panel de reservas</h1>
+      </div>
+      <button id="cerrar-sesion" class="boton-secundario" type="button" hidden>
+        Cerrar sesión
+      </button>
+    </header>
+
+    <section id="acceso" class="tarjeta acceso">
+      <h2>Acceso del restaurante</h2>
+      <p>Introduce la clave privada del restaurante para consultar sus reservas.</p>
+      <form id="form-acceso">
+        <label for="clave">Clave del restaurante</label>
+        <input
+          id="clave"
+          name="clave"
+          type="password"
+          autocomplete="current-password"
+          required
+        >
+        <button type="submit">Entrar</button>
+      </form>
+      <p id="error-acceso" class="mensaje-error" role="alert"></p>
+    </section>
+
+    <section id="contenido" hidden>
+      <div class="barra-fecha tarjeta">
+        <label for="fecha">Reservas del día</label>
+        <input id="fecha" type="date">
+        <button id="actualizar" type="button">Actualizar</button>
+      </div>
+
+      <section class="resumen" aria-label="Resumen del día">
+        <article class="tarjeta resumen-item">
+          <span>Confirmadas</span>
+          <strong id="total-confirmadas">0</strong>
+        </article>
+        <article class="tarjeta resumen-item">
+          <span>Personas</span>
+          <strong id="total-personas">0</strong>
+        </article>
+        <article class="tarjeta resumen-item canceladas">
+          <span>Canceladas</span>
+          <strong id="total-canceladas">0</strong>
+        </article>
+      </section>
+
+      <section class="tarjeta listado">
+        <div class="listado-cabecera">
+          <div>
+            <p class="etiqueta">AGENDA</p>
+            <h2 id="titulo-fecha">Reservas</h2>
+          </div>
+          <p id="estado-carga" class="estado-carga" aria-live="polite"></p>
+        </div>
+
+        <div id="reservas" class="reservas"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="restaurante.js"></script>
+</body>
+
+</html>
+
