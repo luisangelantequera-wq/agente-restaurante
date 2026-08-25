@@ -408,6 +408,13 @@ input:focus {
   gap: 14px;
 }
 
+.ayuda-campo {
+  display: block;
+  margin-top: 6px;
+  color: var(--suave);
+  font-size: 12px;
+}
+
 .dialogo-acciones {
   display: flex;
   justify-content: flex-end;
