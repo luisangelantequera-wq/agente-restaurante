@@ -1021,7 +1021,7 @@ async function enviarCorreoCancelacionReserva({
   hora,
   personas,
   localizador,
-  enlaceGestion
+  enlaceNuevaReserva
 }) {
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto =
@@ -1035,7 +1035,7 @@ async function enviarCorreoCancelacionReserva({
     `Fecha: ${fechaLarga}\n` +
     `Hora: ${hora}\n` +
     `Personas: ${personas}\n\n` +
-    `Puedes consultar el estado de la reserva aquí:\n${enlaceGestion}\n`;
+    `Realice una nueva reserva:\n${enlaceNuevaReserva}\n`;
   const html = `
     <p>Hola ${escaparHtml(nombre)},</p>
     <h2>${escaparHtml(nombreRestaurante)}</h2>
@@ -1047,8 +1047,8 @@ async function enviarCorreoCancelacionReserva({
       <li><strong>Personas:</strong> ${escaparHtml(personas)}</li>
     </ul>
     <p>
-      <a href="${escaparHtml(enlaceGestion)}">
-        Consultar el estado de la reserva
+      <a href="${escaparHtml(enlaceNuevaReserva)}">
+        Realice una nueva reserva
       </a>
     </p>
   `;
@@ -1190,9 +1190,7 @@ module.exports = async (req, res) => {
         hora: reservaActualizada.fields.hora,
         personas: reservaActualizada.fields.personas,
         localizador: reservaActualizada.fields.id_reserva,
-        enlaceGestion: generarEnlaceGestion(
-          reservaActualizada.fields.token_gestion || reserva.fields.token_gestion
-        )
+        enlaceNuevaReserva: generarEnlaceGestion(null)
       });
 
       return responder(res, 200, {
