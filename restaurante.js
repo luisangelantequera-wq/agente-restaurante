@@ -20,8 +20,10 @@ const nuevaHora = document.getElementById("nueva-hora");
 const nuevasPersonas = document.getElementById("nuevas-personas");
 const errorModificar = document.getElementById("error-modificar");
 const guardarModificacion = document.getElementById("guardar-modificacion");
+const tituloDialogo = document.getElementById("titulo-dialogo");
 let reservasActuales = [];
 let localizadorEnEdicion = "";
+let accionEnEdicion = "modificar";
 
 
 function fechaLocalISO() {
@@ -106,18 +108,33 @@ function renderizarReservas(reservas) {
           >Cancelar</button>
         </div>
       `
-      : '<span class="sin-acciones">—</span>';
+      : `
+        <div class="acciones-reserva">
+          <button
+            class="accion reactivar"
+            type="button"
+            data-accion="reactivar"
+            data-localizador="${escaparHtml(reserva.localizador)}"
+          >Reactivar</button>
+        </div>
+      `;
 
     return `
     <article class="reserva ${reserva.estado === "cancelada" ? "cancelada" : ""}">
       <div class="hora">${escaparHtml(reserva.hora)}</div>
       <div class="cliente">
         <strong>${escaparHtml(reserva.nombre)}</strong>
-        <span>${escaparHtml(reserva.personas)} personas</span>
+        <span><b>${escaparHtml(reserva.personas)}</b> personas</span>
       </div>
       <div class="mesas">${escaparHtml(
         reserva.mesas?.length ? reserva.mesas.join(" + ") : "Sin asignar"
       )}</div>
+      <div class="capacidad">
+        <span class="solo-movil">Capacidad: </span>
+        <strong>${reserva.capacidad_mesas > 0
+          ? escaparHtml(reserva.capacidad_mesas)
+          : "—"}</strong>
+      </div>
       <div class="localizador">${escaparHtml(reserva.localizador)}</div>
       <div class="contacto">
         <a href="mailto:${encodeURIComponent(reserva.email)}">${escaparHtml(reserva.email)}</a>
@@ -132,16 +149,20 @@ function renderizarReservas(reservas) {
 
 
 async function ejecutarAccionReserva(datos) {
-  const respuesta = await fetch("/api/restaurante", {
+  const respuesta = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       restaurante_id: restauranteId,
-      clave: sessionStorage.getItem(claveSesion),
+      clave_restaurante: sessionStorage.getItem(claveSesion),
       ...datos
     })
   });
   const resultado = await respuesta.json();
+
+  if (respuesta.status === 401) {
+    sessionStorage.removeItem(claveSesion);
+  }
 
   if (!respuesta.ok || !resultado.ok) {
     throw new Error(resultado.error || "No se pudo actualizar la reserva.");
@@ -151,8 +172,16 @@ async function ejecutarAccionReserva(datos) {
 }
 
 
-function abrirModificacion(reserva) {
+function abrirModificacion(reserva, accion = "modificar") {
+  accionEnEdicion = accion;
   localizadorEnEdicion = reserva.localizador;
+  const esReactivacion = accion === "reactivar";
+  tituloDialogo.textContent = esReactivacion
+    ? "Reactivar reserva"
+    : "Modificar reserva";
+  guardarModificacion.textContent = esReactivacion
+    ? "Reactivar reserva"
+    : "Guardar cambios";
   referenciaModificar.textContent =
     `${reserva.localizador} · ${reserva.nombre}`;
   nuevaFecha.value = campoFecha.value;
@@ -271,6 +300,11 @@ reservasContenedor.addEventListener("click", async (evento) => {
     return;
   }
 
+  if (boton.dataset.accion === "reactivar") {
+    abrirModificacion(reserva, "reactivar");
+    return;
+  }
+
   const confirmada = window.confirm(
     `¿Confirmas la cancelación de la reserva ${reserva.localizador} ` +
     `de ${reserva.nombre}?`
@@ -305,18 +339,21 @@ formularioModificar.addEventListener("submit", async (evento) => {
   evento.preventDefault();
   errorModificar.textContent = "";
   guardarModificacion.disabled = true;
-  guardarModificacion.textContent = "Comprobando…";
+  const esReactivacion = accionEnEdicion === "reactivar";
+  guardarModificacion.textContent = esReactivacion
+    ? "Comprobando disponibilidad…"
+    : "Comprobando…";
 
   try {
     const resultado = await ejecutarAccionReserva({
-      accion: "modificar",
+      accion: accionEnEdicion,
       localizador: localizadorEnEdicion,
       fecha: nuevaFecha.value,
       hora: nuevaHora.value,
       personas: Number(nuevasPersonas.value)
     });
 
-    if (!resultado.modificada) {
+    if (esReactivacion ? !resultado.reactivada : !resultado.modificada) {
       const alternativas = resultado.alternativas?.length
         ? ` Horarios disponibles: ${resultado.alternativas.join(", ")}.`
         : "";
@@ -334,7 +371,9 @@ formularioModificar.addEventListener("submit", async (evento) => {
     errorModificar.textContent = error.message;
   } finally {
     guardarModificacion.disabled = false;
-    guardarModificacion.textContent = "Guardar cambios";
+    guardarModificacion.textContent = esReactivacion
+      ? "Reactivar reserva"
+      : "Guardar cambios";
   }
 });
 
