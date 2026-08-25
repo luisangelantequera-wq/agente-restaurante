@@ -83,6 +83,43 @@ function normalizarEstado(valor) {
 }
 
 
+async function ejecutarAccionReserva(body) {
+  const urlPublica = String(
+    process.env.PUBLIC_BASE_URL || "https://contactia.net"
+  ).trim().replace(/\/+$/, "");
+  const datosAccion = {
+    accion: body.accion,
+    restaurante_id: Number(body.restaurante_id),
+    localizador: body.localizador
+  };
+
+  if (body.accion === "modificar") {
+    datosAccion.fecha = body.fecha;
+    datosAccion.hora = body.hora;
+    datosAccion.personas = body.personas;
+  }
+
+  const respuesta = await fetch(`${urlPublica}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(datosAccion)
+  });
+  const texto = await respuesta.text();
+  let datos;
+
+  try {
+    datos = texto ? JSON.parse(texto) : {};
+  } catch {
+    throw new Error("La operación sobre la reserva devolvió una respuesta no válida.");
+  }
+
+  return {
+    status: respuesta.status,
+    datos
+  };
+}
+
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     return responder(res, 405, {
@@ -99,7 +136,11 @@ module.exports = async (req, res) => {
     const fecha = String(body.fecha || "").trim();
     const clave = body.clave;
 
-    if (!Number.isInteger(restauranteId) || restauranteId <= 0 || !fechaValida(fecha)) {
+    if (
+      !Number.isInteger(restauranteId) ||
+      restauranteId <= 0 ||
+      (!body.accion && !fechaValida(fecha))
+    ) {
       return responder(res, 400, {
         ok: false,
         error: "El restaurante o la fecha no son válidos."
@@ -120,6 +161,25 @@ module.exports = async (req, res) => {
         ok: false,
         error: "La clave del restaurante no es correcta."
       });
+    }
+
+    if (body.accion) {
+      if (!["modificar", "cancelar"].includes(body.accion)) {
+        return responder(res, 400, {
+          ok: false,
+          error: "La acción solicitada no es válida."
+        });
+      }
+
+      if (!/^[A-Z0-9-]{8,40}$/i.test(String(body.localizador || "").trim())) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El localizador no es válido."
+        });
+      }
+
+      const resultadoAccion = await ejecutarAccionReserva(body);
+      return responder(res, resultadoAccion.status, resultadoAccion.datos);
     }
 
     const formula =
