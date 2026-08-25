@@ -78,7 +78,8 @@ async function buscarAsignacionDisponible(
   personas,
   margenCapacidad,
   duracionReservaMinutos,
-  reservaExcluirId = null
+  reservaExcluirId = null,
+  devolverTodas = false
 ) {
 
 
@@ -189,7 +190,7 @@ const margenNum = Number(margenCapacidad || 0);
 
 return (
   capacidad >= personasNum &&
-  capacidad <= personasNum + margenNum &&
+  (devolverTodas || capacidad <= personasNum + margenNum) &&
   !mesasOcupadas.has(mesa.id)
 );
 
@@ -204,14 +205,18 @@ return (
     );
 
 
-  if (mesasAdecuadas[0]) {
-    const mesa = mesasAdecuadas[0];
-    return {
+  const asignacionesMesas = mesasAdecuadas.map((mesa) => ({
       ids: [mesa.id],
       nombre: mesa.fields.nombre_mesa,
       capacidad: Number(mesa.fields.capacidad || 0),
-      tipo: "mesa"
-    };
+      tipo: "mesa",
+      zona_id: Array.isArray(mesa.fields.zona) && mesa.fields.zona.length === 1
+        ? mesa.fields.zona[0]
+        : null
+    }));
+
+  if (!devolverTodas && asignacionesMesas[0]) {
+    return asignacionesMesas[0];
   }
 
   const urlCombinaciones =
@@ -252,7 +257,10 @@ return (
       const capacidad = mesasCombinacion.reduce(
         (total, mesa) => total + Number(mesa.fields.capacidad || 0), 0
       );
-      if (capacidad < personasNum || capacidad > personasNum + margenNum) {
+      if (
+        capacidad < personasNum ||
+        (!devolverTodas && capacidad > personasNum + margenNum)
+      ) {
         return null;
       }
 
@@ -262,13 +270,38 @@ return (
           mesasCombinacion.map((mesa) => mesa.fields.nombre_mesa).join(" + "),
         capacidad,
         prioridad: Number(combinacion.fields.prioridad || 999999),
-        tipo: "combinacion"
+        tipo: "combinacion",
+        zona_id: zonas[0]
       };
     })
     .filter(Boolean)
     .sort((a, b) => a.capacidad - b.capacidad || a.prioridad - b.prioridad);
 
-  return combinacionesAdecuadas[0] || null;
+  if (!devolverTodas) {
+    return combinacionesAdecuadas[0] || null;
+  }
+
+  const urlZonas =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/ZONA`;
+  const datosZonas = await consultarAirtable(urlZonas);
+  const nombresZonas = new Map(
+    (datosZonas.records || []).map((zona) => [
+      zona.id,
+      zona.fields.nombre || zona.fields.zona || zona.fields.id_zona || "Sin zona"
+    ])
+  );
+
+  return [...asignacionesMesas, ...combinacionesAdecuadas]
+    .map((asignacion) => ({
+      ...asignacion,
+      zona: nombresZonas.get(asignacion.zona_id) || "Sin zona"
+    }))
+    .sort((a, b) =>
+      a.capacidad - b.capacidad ||
+      a.zona.localeCompare(b.zona, "es") ||
+      a.nombre.localeCompare(b.nombre, "es")
+    );
 }
 
 
@@ -447,6 +480,17 @@ function resumirReserva(reserva) {
     nombre: reserva.fields.nombre_completo,
     estado: reserva.fields.estado
   };
+}
+
+
+function mismosIdsMesa(idsA, idsB) {
+  if (!Array.isArray(idsA) || !Array.isArray(idsB) || idsA.length !== idsB.length) {
+    return false;
+  }
+
+  const ordenadosA = [...idsA].map(String).sort();
+  const ordenadosB = [...idsB].map(String).sort();
+  return ordenadosA.every((id, indice) => id === ordenadosB[indice]);
 }
 
 
@@ -1241,7 +1285,8 @@ module.exports = async (req, res) => {
       mensaje,
       localizador,
       token_gestion,
-      clave_restaurante
+      clave_restaurante,
+      mesa_ids
     } = body;
 
     // Consulta y cancelación no necesitan fecha, hora ni comensales.
@@ -1493,10 +1538,13 @@ Number(restaurante.fields.duracion_reserva_minutos);
       });
     }
 
-    if (accion === "reactivar" && !clave_restaurante) {
+    if (
+      ["reactivar", "opciones_mesas", "cambiar_mesas"].includes(accion) &&
+      !clave_restaurante
+    ) {
       return responder(res, 401, {
         ok: false,
-        error: "La reactivación requiere la clave del restaurante."
+        error: "Esta operación requiere la clave del restaurante."
       });
     }
 
@@ -1794,6 +1842,200 @@ await buscarAsignacionDisponible(
           capacidad: asignacion.capacidad,
           tipo: asignacion.tipo
         }
+      });
+    }
+
+    // ========================================================
+    // ACCIÓN: CONSULTAR O CAMBIAR LAS MESAS DE UNA RESERVA
+    // ========================================================
+
+    if (accion === "opciones_mesas" || accion === "cambiar_mesas") {
+      const localizadorNormalizado = String(localizador || "")
+        .trim()
+        .toUpperCase();
+
+      if (!/^[A-Z0-9-]{8,40}$/.test(localizadorNormalizado)) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El localizador no tiene un formato válido."
+        });
+      }
+
+      const reservaActual = await buscarReservaGestion(
+        restaurante_id,
+        localizadorNormalizado,
+        null
+      );
+
+      if (!reservaActual) {
+        return responder(res, 404, {
+          ok: false,
+          error: "No se ha encontrado una reserva con ese localizador."
+        });
+      }
+
+      if (
+        String(reservaActual.fields.estado || "").trim().toLowerCase() !==
+        "confirmada"
+      ) {
+        return responder(res, 200, {
+          ok: true,
+          mesas_cambiadas: false,
+          motivo: "Solo se pueden reorganizar reservas confirmadas."
+        });
+      }
+
+      const fechaReserva = reservaActual.fields.fecha;
+      const horaReserva = reservaActual.fields.hora;
+      const personasReserva = Number(reservaActual.fields.personas || 0);
+      const asignaciones = await buscarAsignacionDisponible(
+        restaurante_id,
+        restaurante.id,
+        fechaReserva,
+        horaReserva,
+        personasReserva,
+        margenCapacidad,
+        duracionReservaMinutos,
+        reservaActual.id,
+        true
+      );
+      const mesasActuales = Array.isArray(reservaActual.fields.mesa)
+        ? reservaActual.fields.mesa
+        : [];
+
+      if (accion === "opciones_mesas") {
+        return responder(res, 200, {
+          ok: true,
+          mesas_actuales: mesasActuales,
+          opciones_mesas: asignaciones.map((asignacion) => ({
+            ids: asignacion.ids,
+            nombre: asignacion.nombre,
+            capacidad: asignacion.capacidad,
+            zona: asignacion.zona,
+            tipo: asignacion.tipo,
+            actual: mismosIdsMesa(asignacion.ids, mesasActuales)
+          }))
+        });
+      }
+
+      const idsSolicitados = Array.isArray(mesa_ids)
+        ? mesa_ids.map((id) => String(id).trim()).filter(Boolean)
+        : [];
+
+      if (
+        idsSolicitados.length === 0 ||
+        idsSolicitados.some((id) => !/^rec[a-zA-Z0-9]{14}$/.test(id))
+      ) {
+        return responder(res, 400, {
+          ok: false,
+          error: "La selección de mesas no es válida."
+        });
+      }
+
+      const asignacionElegida = asignaciones.find((asignacion) =>
+        mismosIdsMesa(asignacion.ids, idsSolicitados)
+      );
+
+      if (!asignacionElegida) {
+        return responder(res, 200, {
+          ok: true,
+          mesas_cambiadas: false,
+          disponible: false,
+          motivo:
+            "Esa mesa o combinación ya no está disponible para toda la reserva."
+        });
+      }
+
+      if (mismosIdsMesa(asignacionElegida.ids, mesasActuales)) {
+        return responder(res, 200, {
+          ok: true,
+          mesas_cambiadas: true,
+          sin_cambios: true,
+          mesa: asignacionElegida
+        });
+      }
+
+      const urlReservas =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS`;
+      const bloqueo = await consultarAirtable(urlReservas, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            id_reserva:
+              `MES-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+            restaurante: [restaurante.id],
+            mesa: asignacionElegida.ids,
+            fecha: fechaReserva,
+            hora: horaReserva,
+            personas: personasReserva,
+            nombre_completo: reservaActual.fields.nombre_completo,
+            telefono: reservaActual.fields.telefono,
+            email: reservaActual.fields.email,
+            mensaje:
+              `Bloqueo temporal para reorganizar ${
+                reservaActual.fields.id_reserva
+              }`,
+            estado: "pendiente"
+          }
+        })
+      });
+      const resultadoBloqueo = await confirmarReservaSinConflictos(
+        bloqueo,
+        restaurante_id,
+        fechaReserva,
+        horaReserva,
+        duracionReservaMinutos,
+        asignacionElegida.ids,
+        [reservaActual.id],
+        "pendiente"
+      );
+
+      if (!resultadoBloqueo.confirmada) {
+        return responder(res, 200, {
+          ok: true,
+          mesas_cambiadas: false,
+          disponible: false,
+          motivo:
+            "Otra reserva acaba de ocupar esas mesas. No se ha cambiado la asignación."
+        });
+      }
+
+      const urlReserva =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaActual.id}`;
+      const reservaActualizada = await consultarAirtable(urlReserva, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: { mesa: asignacionElegida.ids }
+        })
+      });
+      const urlBloqueo =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${bloqueo.id}`;
+
+      try {
+        await consultarAirtable(urlBloqueo, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fields: { estado: "aplicada_modificacion" }
+          })
+        });
+      } catch (errorLimpieza) {
+        console.error(
+          "No se pudo cerrar el bloqueo del cambio de mesas:",
+          errorLimpieza
+        );
+      }
+
+      return responder(res, 200, {
+        ok: true,
+        mesas_cambiadas: true,
+        reserva: resumirReserva(reservaActualizada),
+        mesa: asignacionElegida
       });
     }
 
