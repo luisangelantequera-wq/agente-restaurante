@@ -314,6 +314,7 @@ select:focus {
 
 .acciones-reserva {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 7px;
 }
@@ -332,6 +333,15 @@ select:focus {
 
 .accion.modificar:hover {
   background: #f2eee5;
+}
+
+.accion.mesas {
+  background: #e8eef7;
+  color: #355b86;
+}
+
+.accion.mesas:hover {
+  background: #d7e3f2;
 }
 
 .accion.cancelar {
@@ -421,6 +431,70 @@ select:focus {
 .selector-hora span {
   font-size: 20px;
   font-weight: 800;
+}
+
+.explicacion-mesas {
+  margin-bottom: 16px;
+  color: var(--suave);
+  font-size: 14px;
+}
+
+.opciones-mesas {
+  display: grid;
+  gap: 9px;
+  max-height: min(430px, 55vh);
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.opcion-mesa {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.opcion-mesa:hover,
+.opcion-mesa:has(input:checked) {
+  border-color: var(--acento);
+  background: #fffaf0;
+}
+
+.opcion-mesa.actual {
+  box-shadow: inset 4px 0 0 var(--acento);
+}
+
+.opcion-mesa input {
+  width: 18px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: var(--acento);
+}
+
+.opcion-mesa strong,
+.opcion-mesa small {
+  display: block;
+}
+
+.opcion-mesa small {
+  margin-top: 3px;
+  color: var(--suave);
+  font-weight: 400;
+}
+
+.cargando-mesas,
+.sin-opciones-mesas {
+  margin: 0;
+  border-radius: 12px;
+  padding: 24px;
+  background: #faf8f3;
+  color: var(--suave);
+  text-align: center;
 }
 
 .dialogo-acciones {
