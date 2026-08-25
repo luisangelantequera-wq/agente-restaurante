@@ -166,8 +166,12 @@ module.exports = async (req, res) => {
         return {
           id: reserva.id,
           localizador: reserva.fields.id_reserva || "",
+          fecha: reserva.fields.fecha || fecha,
           hora: reserva.fields.hora || "",
           personas: Number(reserva.fields.personas || 0),
+          mesa_ids: Array.isArray(reserva.fields.mesa)
+            ? reserva.fields.mesa
+            : [],
           mesas: mesasAsignadas.map((mesa) => mesa.nombre),
           capacidad_mesas: mesasAsignadas.reduce(
             (total, mesa) => total + mesa.capacidad,
