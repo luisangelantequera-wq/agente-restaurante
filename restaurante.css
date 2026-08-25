@@ -26,7 +26,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -106,7 +107,8 @@ label {
   font-weight: 700;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--borde);
@@ -116,7 +118,8 @@ input {
   color: var(--texto);
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--acento);
   outline: 3px solid rgba(200, 138, 24, 0.16);
 }
@@ -408,11 +411,16 @@ input:focus {
   gap: 14px;
 }
 
-.ayuda-campo {
-  display: block;
-  margin-top: 6px;
-  color: var(--suave);
-  font-size: 12px;
+.selector-hora {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 7px;
+}
+
+.selector-hora span {
+  font-size: 20px;
+  font-weight: 800;
 }
 
 .dialogo-acciones {
