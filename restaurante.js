@@ -83,6 +83,9 @@ function renderizarReservas(reservas) {
         <strong>${escaparHtml(reserva.nombre)}</strong>
         <span>${escaparHtml(reserva.personas)} personas</span>
       </div>
+      <div class="mesas">${escaparHtml(
+        reserva.mesas?.length ? reserva.mesas.join(" + ") : "Sin asignar"
+      )}</div>
       <div class="localizador">${escaparHtml(reserva.localizador)}</div>
       <div class="contacto">
         <a href="mailto:${encodeURIComponent(reserva.email)}">${escaparHtml(reserva.email)}</a>
