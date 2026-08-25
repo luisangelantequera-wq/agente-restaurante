@@ -186,6 +186,7 @@ function abrirModificacion(reserva, accion = "modificar") {
     `${reserva.localizador} · ${reserva.nombre}`;
   nuevaFecha.value = campoFecha.value;
   nuevaHora.value = reserva.hora;
+  validarMinutosHora();
   nuevasPersonas.value = reserva.personas;
   errorModificar.textContent = "";
   dialogoModificar.showModal();
@@ -196,6 +197,19 @@ function cerrarModificacion() {
   dialogoModificar.close();
   localizadorEnEdicion = "";
   errorModificar.textContent = "";
+}
+
+
+function validarMinutosHora() {
+  const minutos = Number(String(nuevaHora.value).split(":")[1]);
+  const minutosPermitidos = [0, 15, 30, 45];
+  const esValida = minutosPermitidos.includes(minutos);
+
+  nuevaHora.setCustomValidity(
+    esValida ? "" : "Selecciona 00, 15, 30 o 45 minutos."
+  );
+
+  return esValida;
 }
 
 
@@ -273,6 +287,9 @@ botonActualizar.addEventListener("click", () => {
 campoFecha.addEventListener("change", () => botonActualizar.click());
 
 
+nuevaHora.addEventListener("input", validarMinutosHora);
+
+
 botonCerrarSesion.addEventListener("click", () => {
   sessionStorage.removeItem(claveSesion);
   campoClave.value = "";
@@ -338,6 +355,12 @@ reservasContenedor.addEventListener("click", async (evento) => {
 formularioModificar.addEventListener("submit", async (evento) => {
   evento.preventDefault();
   errorModificar.textContent = "";
+
+  if (!validarMinutosHora()) {
+    nuevaHora.reportValidity();
+    return;
+  }
+
   guardarModificacion.disabled = true;
   const esReactivacion = accionEnEdicion === "reactivar";
   guardarModificacion.textContent = esReactivacion
