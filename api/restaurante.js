@@ -136,12 +136,28 @@ module.exports = async (req, res) => {
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
       `?filterByFormula=${encodeURIComponent(formula)}`;
     const datos = await consultarAirtable(url);
+    const formulaMesas =
+      `FIND('${String(restauranteId)}',` +
+      `ARRAYJOIN({id (from restaurante)}))`;
+    const urlMesas =
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS` +
+      `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
+    const datosMesas = await consultarAirtable(urlMesas);
+    const nombresMesas = new Map(
+      (datosMesas.records || []).map((mesa) => [
+        mesa.id,
+        mesa.fields.nombre_mesa || String(mesa.fields.id || "Mesa")
+      ])
+    );
     const reservas = (datos.records || [])
       .map((reserva) => ({
         id: reserva.id,
         localizador: reserva.fields.id_reserva || "",
         hora: reserva.fields.hora || "",
         personas: Number(reserva.fields.personas || 0),
+        mesas: (reserva.fields.mesa || []).map((mesaId) =>
+          nombresMesas.get(mesaId) || "Mesa"
+        ),
         nombre: reserva.fields.nombre_completo || "",
         email: reserva.fields.email || "",
         telefono: reserva.fields.telefono || "",
