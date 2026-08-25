@@ -17,6 +17,8 @@ const formularioModificar = document.getElementById("form-modificar");
 const referenciaModificar = document.getElementById("reserva-modificar");
 const nuevaFecha = document.getElementById("nueva-fecha");
 const nuevaHora = document.getElementById("nueva-hora");
+const nuevaHoraHoras = document.getElementById("nueva-hora-horas");
+const nuevaHoraMinutos = document.getElementById("nueva-hora-minutos");
 const nuevasPersonas = document.getElementById("nuevas-personas");
 const errorModificar = document.getElementById("error-modificar");
 const guardarModificacion = document.getElementById("guardar-modificacion");
@@ -61,6 +63,28 @@ function formatearFecha(fecha) {
     month: "long",
     year: "numeric"
   }).format(new Date(anio, mes - 1, dia)).replace(",", "");
+}
+
+
+function configurarSelectorHora() {
+  nuevaHoraHoras.innerHTML = Array.from({ length: 24 }, (_, hora) => {
+    const valor = String(hora).padStart(2, "0");
+    return `<option value="${valor}">${valor}</option>`;
+  }).join("");
+}
+
+
+function actualizarHoraSeleccionada() {
+  nuevaHora.value = `${nuevaHoraHoras.value}:${nuevaHoraMinutos.value}`;
+}
+
+
+function mostrarHoraEnSelector(hora) {
+  const partes = String(hora || "").match(/^(\d{2}):(00|15|30|45)$/);
+
+  nuevaHoraHoras.value = partes?.[1] || "00";
+  nuevaHoraMinutos.value = partes?.[2] || "00";
+  actualizarHoraSeleccionada();
 }
 
 
@@ -185,8 +209,7 @@ function abrirModificacion(reserva, accion = "modificar") {
   referenciaModificar.textContent =
     `${reserva.localizador} · ${reserva.nombre}`;
   nuevaFecha.value = campoFecha.value;
-  nuevaHora.value = reserva.hora;
-  validarMinutosHora();
+  mostrarHoraEnSelector(reserva.hora);
   nuevasPersonas.value = reserva.personas;
   errorModificar.textContent = "";
   dialogoModificar.showModal();
@@ -197,19 +220,6 @@ function cerrarModificacion() {
   dialogoModificar.close();
   localizadorEnEdicion = "";
   errorModificar.textContent = "";
-}
-
-
-function validarMinutosHora() {
-  const minutos = Number(String(nuevaHora.value).split(":")[1]);
-  const minutosPermitidos = [0, 15, 30, 45];
-  const esValida = minutosPermitidos.includes(minutos);
-
-  nuevaHora.setCustomValidity(
-    esValida ? "" : "Selecciona 00, 15, 30 o 45 minutos."
-  );
-
-  return esValida;
 }
 
 
@@ -287,7 +297,8 @@ botonActualizar.addEventListener("click", () => {
 campoFecha.addEventListener("change", () => botonActualizar.click());
 
 
-nuevaHora.addEventListener("input", validarMinutosHora);
+nuevaHoraHoras.addEventListener("change", actualizarHoraSeleccionada);
+nuevaHoraMinutos.addEventListener("change", actualizarHoraSeleccionada);
 
 
 botonCerrarSesion.addEventListener("click", () => {
@@ -355,12 +366,7 @@ reservasContenedor.addEventListener("click", async (evento) => {
 formularioModificar.addEventListener("submit", async (evento) => {
   evento.preventDefault();
   errorModificar.textContent = "";
-
-  if (!validarMinutosHora()) {
-    nuevaHora.reportValidity();
-    return;
-  }
-
+  actualizarHoraSeleccionada();
   guardarModificacion.disabled = true;
   const esReactivacion = accionEnEdicion === "reactivar";
   guardarModificacion.textContent = esReactivacion
@@ -411,6 +417,7 @@ document.getElementById("cancelar-dialogo").addEventListener(
 );
 
 
+configurarSelectorHora();
 campoFecha.value = fechaInicial();
 const claveGuardada = sessionStorage.getItem(claveSesion);
 
