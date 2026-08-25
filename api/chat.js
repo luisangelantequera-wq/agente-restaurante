@@ -965,8 +965,8 @@ async function enviarCorreoConfirmacionReserva({
     `Puedes consultar, modificar o cancelar tu reserva aquí:\n${enlaceGestion}\n`;
   const html = `
     <p>Hola ${escaparHtml(nombre)},</p>
-    <h2>${escaparHtml(nombreRestaurante)}</h2>
     <p>Tu reserva está confirmada.</p>
+    <h2>${escaparHtml(nombreRestaurante)}</h2>
     <ul>
       <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
       <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
@@ -1016,8 +1016,8 @@ async function enviarCorreoModificacionReserva({
     `Puedes consultar, modificar o cancelar tu reserva aquí:\n${enlaceGestion}\n`;
   const html = `
     <p>Hola ${escaparHtml(nombre)},</p>
-    <h2>${escaparHtml(nombreRestaurante)}</h2>
     <p>Tu reserva ha sido modificada. Estos son los datos actualizados:</p>
+    <h2>${escaparHtml(nombreRestaurante)}</h2>
     <ul>
       <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
       <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
@@ -1067,8 +1067,8 @@ async function enviarCorreoCancelacionReserva({
     `Realice una nueva reserva:\n${enlaceNuevaReserva}\n`;
   const html = `
     <p>Hola ${escaparHtml(nombre)},</p>
-    <h2>${escaparHtml(nombreRestaurante)}</h2>
     <p>Tu reserva ha sido cancelada correctamente.</p>
+    <h2>${escaparHtml(nombreRestaurante)}</h2>
     <ul>
       <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
       <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
