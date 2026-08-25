@@ -1063,6 +1063,74 @@ async function enviarCorreoCancelacionReserva({
 }
 
 
+async function enviarAvisoRestaurante({
+  destinatario,
+  tipo,
+  nombreRestaurante,
+  fecha,
+  hora,
+  personas,
+  localizador,
+  nombreCliente,
+  emailCliente,
+  telefonoCliente,
+  enlaceGestion
+}) {
+  const fechaLarga = formatearFechaLarga(fecha);
+  const titulos = {
+    nueva: "Nueva reserva",
+    modificada: "Reserva modificada",
+    cancelada: "Reserva cancelada"
+  };
+  const titulo = titulos[tipo] || "Actualización de reserva";
+  const asunto =
+    `${titulo} · ${fechaLarga} a las ${hora} · ${personas} personas`;
+  const textoEnlace = tipo !== "cancelada" && enlaceGestion
+    ? `\nGestionar reserva:\n${enlaceGestion}\n`
+    : "";
+  const htmlEnlace = tipo !== "cancelada" && enlaceGestion
+    ? `
+      <p>
+        <a href="${escaparHtml(enlaceGestion)}">Gestionar reserva</a>
+      </p>
+    `
+    : "";
+  const texto =
+    `${nombreRestaurante}\n\n` +
+    `${titulo}.\n\n` +
+    `Localizador: ${localizador}\n` +
+    `Fecha: ${fechaLarga}\n` +
+    `Hora: ${hora}\n` +
+    `Personas: ${personas}\n` +
+    `Cliente: ${nombreCliente}\n` +
+    `Email: ${emailCliente}\n` +
+    `Teléfono: ${telefonoCliente}\n` +
+    textoEnlace;
+  const html = `
+    <h2>${escaparHtml(nombreRestaurante)}</h2>
+    <p><strong>${escaparHtml(titulo)}</strong></p>
+    <ul>
+      <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
+      <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
+      <li><strong>Hora:</strong> ${escaparHtml(hora)}</li>
+      <li><strong>Personas:</strong> ${escaparHtml(personas)}</li>
+      <li><strong>Cliente:</strong> ${escaparHtml(nombreCliente)}</li>
+      <li><strong>Email:</strong> ${escaparHtml(emailCliente)}</li>
+      <li><strong>Teléfono:</strong> ${escaparHtml(telefonoCliente)}</li>
+    </ul>
+    ${htmlEnlace}
+  `;
+
+  return enviarCorreoResend({
+    destinatario,
+    asunto,
+    texto,
+    html,
+    contexto: `aviso interno de reserva ${tipo}`
+  });
+}
+
+
 // 7️⃣ HANDLER PRINCIPAL
 module.exports = async (req, res) => {
 
@@ -1182,21 +1250,38 @@ module.exports = async (req, res) => {
         );
       }
 
-      const correoEnviado = await enviarCorreoCancelacionReserva({
-        destinatario: reservaActualizada.fields.email,
-        nombre: reservaActualizada.fields.nombre_completo,
-        nombreRestaurante: obtenerNombreRestaurante(restauranteCancelacion),
-        fecha: reservaActualizada.fields.fecha,
-        hora: reservaActualizada.fields.hora,
-        personas: reservaActualizada.fields.personas,
-        localizador: reservaActualizada.fields.id_reserva,
-        enlaceNuevaReserva: generarEnlaceGestion(null)
-      });
+      const nombreRestauranteCancelacion =
+        obtenerNombreRestaurante(restauranteCancelacion);
+      const [correoEnviado, correoRestauranteEnviado] = await Promise.all([
+        enviarCorreoCancelacionReserva({
+          destinatario: reservaActualizada.fields.email,
+          nombre: reservaActualizada.fields.nombre_completo,
+          nombreRestaurante: nombreRestauranteCancelacion,
+          fecha: reservaActualizada.fields.fecha,
+          hora: reservaActualizada.fields.hora,
+          personas: reservaActualizada.fields.personas,
+          localizador: reservaActualizada.fields.id_reserva,
+          enlaceNuevaReserva: generarEnlaceGestion(null)
+        }),
+        enviarAvisoRestaurante({
+          destinatario: restauranteCancelacion?.fields?.email,
+          tipo: "cancelada",
+          nombreRestaurante: nombreRestauranteCancelacion,
+          fecha: reservaActualizada.fields.fecha,
+          hora: reservaActualizada.fields.hora,
+          personas: reservaActualizada.fields.personas,
+          localizador: reservaActualizada.fields.id_reserva,
+          nombreCliente: reservaActualizada.fields.nombre_completo,
+          emailCliente: reservaActualizada.fields.email,
+          telefonoCliente: reservaActualizada.fields.telefono
+        })
+      ]);
 
       return responder(res, 200, {
         ok: true,
         cancelada: true,
         correo_enviado: correoEnviado,
+        correo_restaurante_enviado: correoRestauranteEnviado,
         reserva: resumirReserva(reservaActualizada)
       });
     }
@@ -1511,24 +1596,42 @@ await buscarAsignacionDisponible(
         console.error("No se pudo cerrar el bloqueo de modificación:", errorLimpieza);
       }
 
-      const correoEnviado = await enviarCorreoModificacionReserva({
-        destinatario: reservaModificada.fields.email,
-        nombre: reservaModificada.fields.nombre_completo,
-        nombreRestaurante: obtenerNombreRestaurante(restaurante),
-        fecha: reservaModificada.fields.fecha,
-        hora: reservaModificada.fields.hora,
-        personas: reservaModificada.fields.personas,
-        localizador: reservaModificada.fields.id_reserva,
-        enlaceGestion: generarEnlaceGestion(
-          reservaModificada.fields.token_gestion ||
-          reservaActual.fields.token_gestion
-        )
-      });
+      const nombreRestauranteModificacion = obtenerNombreRestaurante(restaurante);
+      const enlaceGestionModificacion = generarEnlaceGestion(
+        reservaModificada.fields.token_gestion ||
+        reservaActual.fields.token_gestion
+      );
+      const [correoEnviado, correoRestauranteEnviado] = await Promise.all([
+        enviarCorreoModificacionReserva({
+          destinatario: reservaModificada.fields.email,
+          nombre: reservaModificada.fields.nombre_completo,
+          nombreRestaurante: nombreRestauranteModificacion,
+          fecha: reservaModificada.fields.fecha,
+          hora: reservaModificada.fields.hora,
+          personas: reservaModificada.fields.personas,
+          localizador: reservaModificada.fields.id_reserva,
+          enlaceGestion: enlaceGestionModificacion
+        }),
+        enviarAvisoRestaurante({
+          destinatario: restaurante.fields.email,
+          tipo: "modificada",
+          nombreRestaurante: nombreRestauranteModificacion,
+          fecha: reservaModificada.fields.fecha,
+          hora: reservaModificada.fields.hora,
+          personas: reservaModificada.fields.personas,
+          localizador: reservaModificada.fields.id_reserva,
+          nombreCliente: reservaModificada.fields.nombre_completo,
+          emailCliente: reservaModificada.fields.email,
+          telefonoCliente: reservaModificada.fields.telefono,
+          enlaceGestion: enlaceGestionModificacion
+        })
+      ]);
 
       return responder(res, 200, {
         ok: true,
         modificada: true,
         correo_enviado: correoEnviado,
+        correo_restaurante_enviado: correoRestauranteEnviado,
         reserva: resumirReserva(reservaModificada),
         mesa: {
           ids: asignacion.ids,
@@ -1676,16 +1779,32 @@ await buscarAsignacionDisponible(
       );
 
       const enlaceGestion = generarEnlaceGestion(tokenGestion);
-      const correoEnviado = await enviarCorreoConfirmacionReserva({
-        destinatario: email,
-        nombre,
-        nombreRestaurante: obtenerNombreRestaurante(restaurante),
-        fecha,
-        hora,
-        personas: numeroPersonas,
-        localizador: idReserva,
-        enlaceGestion
-      });
+      const nombreRestauranteReserva = obtenerNombreRestaurante(restaurante);
+      const [correoEnviado, correoRestauranteEnviado] = await Promise.all([
+        enviarCorreoConfirmacionReserva({
+          destinatario: email,
+          nombre,
+          nombreRestaurante: nombreRestauranteReserva,
+          fecha,
+          hora,
+          personas: numeroPersonas,
+          localizador: idReserva,
+          enlaceGestion
+        }),
+        enviarAvisoRestaurante({
+          destinatario: restaurante.fields.email,
+          tipo: "nueva",
+          nombreRestaurante: nombreRestauranteReserva,
+          fecha,
+          hora,
+          personas: numeroPersonas,
+          localizador: idReserva,
+          nombreCliente: nombre,
+          emailCliente: email,
+          telefonoCliente: telefono,
+          enlaceGestion
+        })
+      ]);
 
 
       // 1️⃣3️⃣ RESPUESTA AL CLIENTE
@@ -1703,6 +1822,8 @@ await buscarAsignacionDisponible(
         enlace_gestion: enlaceGestion,
 
         correo_enviado: correoEnviado,
+
+        correo_restaurante_enviado: correoRestauranteEnviado,
 
         airtable_record_id:
           reservaCreada.id,
