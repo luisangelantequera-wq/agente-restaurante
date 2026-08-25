@@ -76,12 +76,58 @@
           <span>Localizador</span>
           <span>Contacto</span>
           <span>Estado</span>
+          <span>Acciones</span>
         </div>
 
         <div id="reservas" class="reservas"></div>
       </section>
     </section>
   </main>
+
+  <dialog id="dialogo-modificar" class="dialogo">
+    <form id="form-modificar">
+      <div class="dialogo-cabecera">
+        <div>
+          <p class="etiqueta">RESERVA</p>
+          <h2>Modificar reserva</h2>
+        </div>
+        <button
+          id="cerrar-dialogo"
+          class="cerrar-dialogo"
+          type="button"
+          aria-label="Cerrar"
+        >×</button>
+      </div>
+
+      <p id="reserva-modificar" class="referencia-reserva"></p>
+
+      <div class="campos-modificar">
+        <div>
+          <label for="nueva-fecha">Fecha</label>
+          <input id="nueva-fecha" type="date" required>
+        </div>
+        <div>
+          <label for="nueva-hora">Hora</label>
+          <input id="nueva-hora" type="time" required>
+        </div>
+        <div>
+          <label for="nuevas-personas">Personas</label>
+          <input id="nuevas-personas" type="number" min="1" step="1" required>
+        </div>
+      </div>
+
+      <p id="error-modificar" class="mensaje-error" role="alert"></p>
+
+      <div class="dialogo-acciones">
+        <button id="cancelar-dialogo" class="boton-secundario" type="button">
+          Volver
+        </button>
+        <button id="guardar-modificacion" type="submit">
+          Guardar cambios
+        </button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="restaurante.js"></script>
 </body>
