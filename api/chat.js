@@ -820,7 +820,9 @@ function generarEnlaceGestion(tokenGestion) {
     process.env.PUBLIC_BASE_URL || "https://contactia.net"
   ).trim().replace(/\/+$/, "");
 
-  return `${urlPublica}/?gestion=${tokenGestion}`;
+  return tokenGestion
+    ? `${urlPublica}/?gestion=${tokenGestion}`
+    : urlPublica;
 }
 
 
@@ -853,6 +855,64 @@ function formatearFechaLarga(fecha) {
 }
 
 
+function obtenerNombreRestaurante(restaurante) {
+  return restaurante?.fields?.nombre_restaurante ||
+    restaurante?.fields?.nombre ||
+    "Restaurante Sol";
+}
+
+
+async function enviarCorreoResend({
+  destinatario,
+  asunto,
+  texto,
+  html,
+  contexto
+}) {
+  if (!process.env.RESEND_API_KEY || !destinatario) {
+    console.warn(
+      `Correo de ${contexto} omitido: falta RESEND_API_KEY o destinatario.`
+    );
+    return false;
+  }
+
+  const remitente =
+    process.env.EMAIL_FROM ||
+    "Contactia <reservas@contactia.net>";
+
+  try {
+    const respuesta = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: remitente,
+        to: [destinatario],
+        subject: asunto,
+        text: texto,
+        html
+      })
+    });
+
+    if (!respuesta.ok) {
+      console.error(
+        `Error Resend al enviar el correo de ${contexto}:`,
+        respuesta.status,
+        await respuesta.text()
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`No se pudo enviar el correo de ${contexto}:`, error);
+    return false;
+  }
+}
+
+
 async function enviarCorreoConfirmacionReserva({
   destinatario,
   nombre,
@@ -863,14 +923,6 @@ async function enviarCorreoConfirmacionReserva({
   localizador,
   enlaceGestion
 }) {
-  if (!process.env.RESEND_API_KEY || !destinatario) {
-    console.warn("Correo de confirmación omitido: falta RESEND_API_KEY o destinatario.");
-    return false;
-  }
-
-  const remitente =
-    process.env.EMAIL_FROM ||
-    "Contactia <reservas@contactia.net>";
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto =
     `Reserva confirmada en ${nombreRestaurante} el ${fechaLarga} ` +
@@ -901,36 +953,113 @@ async function enviarCorreoConfirmacionReserva({
     </p>
   `;
 
-  try {
-    const respuesta = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        from: remitente,
-        to: [destinatario],
-        subject: asunto,
-        text: texto,
-        html
-      })
-    });
+  return enviarCorreoResend({
+    destinatario,
+    asunto,
+    texto,
+    html,
+    contexto: "confirmación"
+  });
+}
 
-    if (!respuesta.ok) {
-      console.error(
-        "Error Resend al enviar la confirmación:",
-        respuesta.status,
-        await respuesta.text()
-      );
-      return false;
-    }
 
-    return true;
-  } catch (error) {
-    console.error("No se pudo enviar el correo de confirmación:", error);
-    return false;
-  }
+async function enviarCorreoModificacionReserva({
+  destinatario,
+  nombre,
+  nombreRestaurante,
+  fecha,
+  hora,
+  personas,
+  localizador,
+  enlaceGestion
+}) {
+  const fechaLarga = formatearFechaLarga(fecha);
+  const asunto =
+    `Reserva modificada en ${nombreRestaurante} para el ${fechaLarga} ` +
+    `a las ${hora}.`;
+  const texto =
+    `Hola ${nombre},\n\n` +
+    `Tu reserva ha sido modificada. Estos son los datos actualizados:\n\n` +
+    `${nombreRestaurante}\n` +
+    `Localizador: ${localizador}\n` +
+    `Fecha: ${fechaLarga}\n` +
+    `Hora: ${hora}\n` +
+    `Personas: ${personas}\n\n` +
+    `Puedes consultar, modificar o cancelar tu reserva aquí:\n${enlaceGestion}\n`;
+  const html = `
+    <p>Hola ${escaparHtml(nombre)},</p>
+    <h2>${escaparHtml(nombreRestaurante)}</h2>
+    <p>Tu reserva ha sido modificada. Estos son los datos actualizados:</p>
+    <ul>
+      <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
+      <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
+      <li><strong>Hora:</strong> ${escaparHtml(hora)}</li>
+      <li><strong>Personas:</strong> ${escaparHtml(personas)}</li>
+    </ul>
+    <p>
+      <a href="${escaparHtml(enlaceGestion)}">
+        Consultar, modificar o cancelar la reserva
+      </a>
+    </p>
+  `;
+
+  return enviarCorreoResend({
+    destinatario,
+    asunto,
+    texto,
+    html,
+    contexto: "modificación"
+  });
+}
+
+
+async function enviarCorreoCancelacionReserva({
+  destinatario,
+  nombre,
+  nombreRestaurante,
+  fecha,
+  hora,
+  personas,
+  localizador,
+  enlaceGestion
+}) {
+  const fechaLarga = formatearFechaLarga(fecha);
+  const asunto =
+    `Reserva cancelada en ${nombreRestaurante} para el ${fechaLarga} ` +
+    `a las ${hora}.`;
+  const texto =
+    `Hola ${nombre},\n\n` +
+    `Tu reserva ha sido cancelada correctamente.\n\n` +
+    `${nombreRestaurante}\n` +
+    `Localizador: ${localizador}\n` +
+    `Fecha: ${fechaLarga}\n` +
+    `Hora: ${hora}\n` +
+    `Personas: ${personas}\n\n` +
+    `Puedes consultar el estado de la reserva aquí:\n${enlaceGestion}\n`;
+  const html = `
+    <p>Hola ${escaparHtml(nombre)},</p>
+    <h2>${escaparHtml(nombreRestaurante)}</h2>
+    <p>Tu reserva ha sido cancelada correctamente.</p>
+    <ul>
+      <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
+      <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
+      <li><strong>Hora:</strong> ${escaparHtml(hora)}</li>
+      <li><strong>Personas:</strong> ${escaparHtml(personas)}</li>
+    </ul>
+    <p>
+      <a href="${escaparHtml(enlaceGestion)}">
+        Consultar el estado de la reserva
+      </a>
+    </p>
+  `;
+
+  return enviarCorreoResend({
+    destinatario,
+    asunto,
+    texto,
+    html,
+    contexto: "cancelación"
+  });
 }
 
 
@@ -1042,9 +1171,34 @@ module.exports = async (req, res) => {
         body: JSON.stringify({ fields: { estado: "cancelada" } })
       });
 
+      let restauranteCancelacion = null;
+
+      try {
+        restauranteCancelacion = await buscarRestaurante(restaurante_id);
+      } catch (errorRestaurante) {
+        console.error(
+          "No se pudo obtener el nombre del restaurante para el correo:",
+          errorRestaurante
+        );
+      }
+
+      const correoEnviado = await enviarCorreoCancelacionReserva({
+        destinatario: reservaActualizada.fields.email,
+        nombre: reservaActualizada.fields.nombre_completo,
+        nombreRestaurante: obtenerNombreRestaurante(restauranteCancelacion),
+        fecha: reservaActualizada.fields.fecha,
+        hora: reservaActualizada.fields.hora,
+        personas: reservaActualizada.fields.personas,
+        localizador: reservaActualizada.fields.id_reserva,
+        enlaceGestion: generarEnlaceGestion(
+          reservaActualizada.fields.token_gestion || reserva.fields.token_gestion
+        )
+      });
+
       return responder(res, 200, {
         ok: true,
         cancelada: true,
+        correo_enviado: correoEnviado,
         reserva: resumirReserva(reservaActualizada)
       });
     }
@@ -1359,9 +1513,24 @@ await buscarAsignacionDisponible(
         console.error("No se pudo cerrar el bloqueo de modificación:", errorLimpieza);
       }
 
+      const correoEnviado = await enviarCorreoModificacionReserva({
+        destinatario: reservaModificada.fields.email,
+        nombre: reservaModificada.fields.nombre_completo,
+        nombreRestaurante: obtenerNombreRestaurante(restaurante),
+        fecha: reservaModificada.fields.fecha,
+        hora: reservaModificada.fields.hora,
+        personas: reservaModificada.fields.personas,
+        localizador: reservaModificada.fields.id_reserva,
+        enlaceGestion: generarEnlaceGestion(
+          reservaModificada.fields.token_gestion ||
+          reservaActual.fields.token_gestion
+        )
+      });
+
       return responder(res, 200, {
         ok: true,
         modificada: true,
+        correo_enviado: correoEnviado,
         reserva: resumirReserva(reservaModificada),
         mesa: {
           ids: asignacion.ids,
@@ -1512,10 +1681,7 @@ await buscarAsignacionDisponible(
       const correoEnviado = await enviarCorreoConfirmacionReserva({
         destinatario: email,
         nombre,
-        nombreRestaurante:
-          restaurante.fields.nombre_restaurante ||
-          restaurante.fields.nombre ||
-          "Restaurante Sol",
+        nombreRestaurante: obtenerNombreRestaurante(restaurante),
         fecha,
         hora,
         personas: numeroPersonas,
