@@ -44,6 +44,11 @@ button:hover {
   background: var(--acento-oscuro);
 }
 
+button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
 .panel {
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
@@ -210,7 +215,7 @@ input:focus {
   display: grid;
   grid-template-columns:
     70px minmax(130px, 1fr) minmax(130px, 0.9fr)
-    minmax(125px, 0.9fr) minmax(180px, 1.2fr) 115px;
+    minmax(125px, 0.9fr) minmax(170px, 1.2fr) 105px 155px;
   gap: 16px;
 }
 
@@ -290,6 +295,103 @@ input:focus {
   color: var(--cancelada);
 }
 
+.acciones-reserva {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.accion {
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+
+.accion.modificar {
+  border: 1px solid var(--borde);
+  background: #fff;
+  color: var(--texto);
+}
+
+.accion.modificar:hover {
+  background: #f2eee5;
+}
+
+.accion.cancelar {
+  background: #f7dede;
+  color: var(--cancelada);
+}
+
+.accion.cancelar:hover {
+  background: #efcaca;
+}
+
+.sin-acciones {
+  justify-self: end;
+  color: var(--suave);
+}
+
+.dialogo {
+  width: min(620px, calc(100% - 28px));
+  border: 1px solid var(--borde);
+  border-radius: 20px;
+  padding: 0;
+  background: #fff;
+  color: var(--texto);
+  box-shadow: 0 28px 80px rgba(25, 20, 12, 0.24);
+}
+
+.dialogo::backdrop {
+  background: rgba(30, 26, 20, 0.52);
+  backdrop-filter: blur(3px);
+}
+
+.dialogo form {
+  padding: 26px;
+}
+
+.dialogo-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.dialogo-cabecera h2 {
+  margin-bottom: 0;
+}
+
+.cerrar-dialogo {
+  min-width: 38px;
+  padding: 3px 10px 7px;
+  background: transparent;
+  color: var(--suave);
+  font-size: 29px;
+  line-height: 1;
+}
+
+.cerrar-dialogo:hover {
+  background: #f2eee5;
+}
+
+.referencia-reserva {
+  margin: 18px 0;
+  color: var(--suave);
+}
+
+.campos-modificar {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.8fr;
+  gap: 14px;
+}
+
+.dialogo-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
 .sin-reservas {
   padding: 48px 24px;
   color: var(--suave);
@@ -346,6 +448,25 @@ input:focus {
   .contacto {
     grid-column: 2 / -1;
     grid-row: 4;
+  }
+
+  .acciones-reserva,
+  .sin-acciones {
+    grid-column: 2 / -1;
+    grid-row: 5;
+    justify-self: start;
+  }
+
+  .campos-modificar {
+    grid-template-columns: 1fr;
+  }
+
+  .dialogo-acciones {
+    flex-direction: column-reverse;
+  }
+
+  .dialogo-acciones button {
+    width: 100%;
   }
 
   .estado {
