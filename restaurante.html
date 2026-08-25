@@ -140,6 +140,41 @@
     </form>
   </dialog>
 
+  <dialog id="dialogo-mesas" class="dialogo">
+    <form id="form-mesas">
+      <div class="dialogo-cabecera">
+        <div>
+          <p class="etiqueta">ORGANIZACIÓN</p>
+          <h2>Cambiar mesas</h2>
+        </div>
+        <button
+          id="cerrar-dialogo-mesas"
+          class="cerrar-dialogo"
+          type="button"
+          aria-label="Cerrar"
+        >×</button>
+      </div>
+
+      <p id="reserva-mesas" class="referencia-reserva"></p>
+      <p class="explicacion-mesas">
+        Puedes cambiar de zona. Solo aparecen mesas libres y combinaciones
+        previamente autorizadas.
+      </p>
+
+      <div id="opciones-mesas" class="opciones-mesas" aria-live="polite"></div>
+      <p id="error-mesas" class="mensaje-error" role="alert"></p>
+
+      <div class="dialogo-acciones">
+        <button id="cancelar-dialogo-mesas" class="boton-secundario" type="button">
+          Volver
+        </button>
+        <button id="guardar-mesas" type="submit">
+          Guardar mesas
+        </button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="restaurante.js"></script>
 </body>
 
