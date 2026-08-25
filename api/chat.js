@@ -855,6 +855,23 @@ function formatearFechaLarga(fecha) {
 }
 
 
+function formatearFechaOperativa(fecha) {
+  const partes = String(fecha || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!partes) {
+    return {
+      diaSemana: "",
+      fechaCorta: String(fecha || "")
+    };
+  }
+
+  return {
+    diaSemana: obtenerDiaSemana(fecha) || "",
+    fechaCorta: `${partes[3]}/${partes[2]}/${partes[1]}`
+  };
+}
+
+
 function normalizarTexto(valor) {
   if (Array.isArray(valor)) {
     return valor.map(normalizarTexto).filter(Boolean).join(", ");
@@ -1107,6 +1124,7 @@ async function enviarAvisoRestaurante({
 }) {
   nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
   const fechaLarga = formatearFechaLarga(fecha);
+  const { diaSemana, fechaCorta } = formatearFechaOperativa(fecha);
   const titulos = {
     nueva: "Nueva reserva",
     modificada: "Reserva modificada",
@@ -1126,29 +1144,27 @@ async function enviarAvisoRestaurante({
     `
     : "";
   const texto =
-    `${nombreRestaurante}\n\n` +
-    `${titulo}.\n\n` +
-    `Localizador: ${localizador}\n` +
-    `Fecha: ${fechaLarga}\n` +
-    `Hora: ${hora}\n` +
-    `Personas: ${personas}\n` +
+    `${titulo}\n\n` +
+    `${diaSemana} ${fechaCorta} / Hora: ${hora} / ${personas} personas\n` +
     `Cliente: ${nombreCliente}\n` +
     `Email: ${emailCliente}\n` +
     `Teléfono: ${telefonoCliente}\n` +
+    `Localizador: ${localizador}\n` +
     textoEnlace;
   const html = `
-    <h2>${escaparHtml(nombreRestaurante)}</h2>
-    <p><strong>${escaparHtml(titulo)}</strong></p>
+    <h2>${escaparHtml(titulo)}</h2>
     <ul>
-      <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
-      <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
-      <li><strong>Hora:</strong> ${escaparHtml(hora)}</li>
-      <li><strong>Personas:</strong> ${escaparHtml(personas)}</li>
+      <li>
+        ${escaparHtml(diaSemana)} <strong>${escaparHtml(fechaCorta)}</strong>
+        &nbsp;/&nbsp; Hora: <strong>${escaparHtml(hora)}</strong>
+        &nbsp;/&nbsp; <strong>${escaparHtml(personas)}</strong> personas
+      </li>
       <li><strong>Cliente:</strong> ${escaparHtml(nombreCliente)}</li>
       <li><strong>Email:</strong> ${escaparHtml(emailCliente)}</li>
       <li><strong>Teléfono:</strong> ${escaparHtml(telefonoCliente)}</li>
+      <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
     </ul>
-    ${htmlEnlace}
+    <div style="margin-left: 2rem;">${htmlEnlace}</div>
   `;
 
   return enviarCorreoResend({
