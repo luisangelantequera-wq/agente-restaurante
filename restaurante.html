@@ -108,9 +108,18 @@
           <input id="nueva-fecha" type="date" required>
         </div>
         <div>
-          <label for="nueva-hora">Hora</label>
-          <input id="nueva-hora" type="time" step="900" required>
-          <small class="ayuda-campo">Minutos: 00, 15, 30 o 45.</small>
+          <label for="nueva-hora-horas">Hora</label>
+          <div class="selector-hora">
+            <select id="nueva-hora-horas" aria-label="Hora"></select>
+            <span aria-hidden="true">:</span>
+            <select id="nueva-hora-minutos" aria-label="Minutos">
+              <option value="00">00</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="45">45</option>
+            </select>
+          </div>
+          <input id="nueva-hora" type="hidden">
         </div>
         <div>
           <label for="nuevas-personas">Personas</label>
