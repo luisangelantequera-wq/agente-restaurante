@@ -855,10 +855,36 @@ function formatearFechaLarga(fecha) {
 }
 
 
+function normalizarTexto(valor) {
+  if (Array.isArray(valor)) {
+    return valor.map(normalizarTexto).filter(Boolean).join(", ");
+  }
+
+  if (valor && typeof valor === "object") {
+    return normalizarTexto(valor.name || valor.value || "");
+  }
+
+  return String(valor ?? "").trim();
+}
+
+
 function obtenerNombreRestaurante(restaurante) {
-  return restaurante?.fields?.nombre_restaurante ||
-    restaurante?.fields?.nombre ||
-    "Restaurante Sol";
+  const campos = restaurante?.fields || {};
+  const candidatos = [
+    campos.nombre_restaurante,
+    campos.nombre,
+    campos.restaurante
+  ];
+
+  for (const candidato of candidatos) {
+    const nombre = normalizarTexto(candidato);
+
+    if (nombre) {
+      return nombre;
+    }
+  }
+
+  return "Restaurante Sol";
 }
 
 
@@ -923,6 +949,7 @@ async function enviarCorreoConfirmacionReserva({
   localizador,
   enlaceGestion
 }) {
+  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto =
     `Reserva confirmada en ${nombreRestaurante} el ${fechaLarga} ` +
@@ -973,6 +1000,7 @@ async function enviarCorreoModificacionReserva({
   localizador,
   enlaceGestion
 }) {
+  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto =
     `Reserva modificada en ${nombreRestaurante} para el ${fechaLarga} ` +
@@ -1023,6 +1051,7 @@ async function enviarCorreoCancelacionReserva({
   localizador,
   enlaceNuevaReserva
 }) {
+  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto =
     `Reserva cancelada en ${nombreRestaurante} para el ${fechaLarga} ` +
@@ -1076,6 +1105,7 @@ async function enviarAvisoRestaurante({
   telefonoCliente,
   enlaceGestion
 }) {
+  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
   const fechaLarga = formatearFechaLarga(fecha);
   const titulos = {
     nueva: "Nueva reserva",
