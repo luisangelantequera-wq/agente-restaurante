@@ -83,43 +83,6 @@ function normalizarEstado(valor) {
 }
 
 
-async function ejecutarAccionReserva(body) {
-  const urlPublica = String(
-    process.env.PUBLIC_BASE_URL || "https://contactia.net"
-  ).trim().replace(/\/+$/, "");
-  const datosAccion = {
-    accion: body.accion,
-    restaurante_id: Number(body.restaurante_id),
-    localizador: body.localizador
-  };
-
-  if (body.accion === "modificar") {
-    datosAccion.fecha = body.fecha;
-    datosAccion.hora = body.hora;
-    datosAccion.personas = body.personas;
-  }
-
-  const respuesta = await fetch(`${urlPublica}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(datosAccion)
-  });
-  const texto = await respuesta.text();
-  let datos;
-
-  try {
-    datos = texto ? JSON.parse(texto) : {};
-  } catch {
-    throw new Error("La operación sobre la reserva devolvió una respuesta no válida.");
-  }
-
-  return {
-    status: respuesta.status,
-    datos
-  };
-}
-
-
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     return responder(res, 405, {
@@ -139,7 +102,7 @@ module.exports = async (req, res) => {
     if (
       !Number.isInteger(restauranteId) ||
       restauranteId <= 0 ||
-      (!body.accion && !fechaValida(fecha))
+      !fechaValida(fecha)
     ) {
       return responder(res, 400, {
         ok: false,
@@ -163,25 +126,6 @@ module.exports = async (req, res) => {
       });
     }
 
-    if (body.accion) {
-      if (!["modificar", "cancelar"].includes(body.accion)) {
-        return responder(res, 400, {
-          ok: false,
-          error: "La acción solicitada no es válida."
-        });
-      }
-
-      if (!/^[A-Z0-9-]{8,40}$/i.test(String(body.localizador || "").trim())) {
-        return responder(res, 400, {
-          ok: false,
-          error: "El localizador no es válido."
-        });
-      }
-
-      const resultadoAccion = await ejecutarAccionReserva(body);
-      return responder(res, resultadoAccion.status, resultadoAccion.datos);
-    }
-
     const formula =
       `AND(` +
       `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
@@ -203,26 +147,38 @@ module.exports = async (req, res) => {
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS` +
       `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
     const datosMesas = await consultarAirtable(urlMesas);
-    const nombresMesas = new Map(
+    const datosMesasPorId = new Map(
       (datosMesas.records || []).map((mesa) => [
         mesa.id,
-        mesa.fields.nombre_mesa || String(mesa.fields.id || "Mesa")
+        {
+          nombre:
+            mesa.fields.nombre_mesa || String(mesa.fields.id || "Mesa"),
+          capacidad: Number(mesa.fields.capacidad || 0)
+        }
       ])
     );
     const reservas = (datos.records || [])
-      .map((reserva) => ({
-        id: reserva.id,
-        localizador: reserva.fields.id_reserva || "",
-        hora: reserva.fields.hora || "",
-        personas: Number(reserva.fields.personas || 0),
-        mesas: (reserva.fields.mesa || []).map((mesaId) =>
-          nombresMesas.get(mesaId) || "Mesa"
-        ),
-        nombre: reserva.fields.nombre_completo || "",
-        email: reserva.fields.email || "",
-        telefono: reserva.fields.telefono || "",
-        estado: normalizarEstado(reserva.fields.estado)
-      }))
+      .map((reserva) => {
+        const mesasAsignadas = (reserva.fields.mesa || []).map((mesaId) =>
+          datosMesasPorId.get(mesaId) || { nombre: "Mesa", capacidad: 0 }
+        );
+
+        return {
+          id: reserva.id,
+          localizador: reserva.fields.id_reserva || "",
+          hora: reserva.fields.hora || "",
+          personas: Number(reserva.fields.personas || 0),
+          mesas: mesasAsignadas.map((mesa) => mesa.nombre),
+          capacidad_mesas: mesasAsignadas.reduce(
+            (total, mesa) => total + mesa.capacidad,
+            0
+          ),
+          nombre: reserva.fields.nombre_completo || "",
+          email: reserva.fields.email || "",
+          telefono: reserva.fields.telefono || "",
+          estado: normalizarEstado(reserva.fields.estado)
+        };
+      })
       .sort((a, b) =>
         String(a.hora).localeCompare(String(b.hora)) ||
         String(a.localizador).localeCompare(String(b.localizador))
