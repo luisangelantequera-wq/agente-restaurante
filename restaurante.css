@@ -553,6 +553,16 @@ select:focus {
   align-items: end;
 }
 
+.controles-disponibilidad {
+  display: flex;
+  align-items: end;
+  gap: 14px;
+}
+
+.controles-disponibilidad > button {
+  white-space: nowrap;
+}
+
 .hora-disponibilidad {
   display: grid;
   grid-template-columns: auto 94px;
@@ -728,6 +738,160 @@ select:focus {
   font-weight: 800;
 }
 
+.dialogo-disponibilidad {
+  width: min(820px, calc(100% - 28px));
+  padding: 26px;
+}
+
+.nota-disponibilidad {
+  margin: 0 0 20px;
+  color: var(--suave);
+  line-height: 1.5;
+}
+
+.recursos-disponibilidad {
+  display: grid;
+  gap: 16px;
+  max-height: min(60vh, 620px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.grupo-zona {
+  overflow: hidden;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.grupo-zona.zona-cerrada {
+  background: #fbf8f3;
+}
+
+.cabecera-zona {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.cabecera-zona > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cabecera-zona h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.estado-recurso {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.estado-recurso.abierto {
+  background: #e6f3e7;
+  color: #2e7036;
+}
+
+.estado-recurso.cerrado {
+  background: #f7dddd;
+  color: var(--cancelada);
+}
+
+.aviso-zona-cerrada {
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid #ead4c7;
+  background: #fff5ec;
+  color: #8a4a22;
+  font-size: 13px;
+}
+
+.mesas-configuracion {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.recurso-mesa {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--borde);
+  border-radius: 11px;
+  padding: 11px;
+  background: #fff;
+}
+
+.recurso-mesa.recurso-cerrado {
+  background: #fffafa;
+}
+
+.recurso-mesa strong,
+.recurso-mesa small {
+  display: block;
+}
+
+.recurso-mesa small {
+  margin-top: 3px;
+  color: var(--suave);
+}
+
+.recurso-mesa .estado-recurso {
+  justify-self: end;
+}
+
+.boton-estado-recurso {
+  grid-column: 1 / -1;
+  justify-self: end;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.cabecera-zona .boton-estado-recurso {
+  grid-column: auto;
+}
+
+.boton-cerrar {
+  border: 1px solid #e7c5c5;
+  background: #fff;
+  color: var(--cancelada);
+}
+
+.boton-cerrar:hover {
+  background: #fff1f1;
+}
+
+.boton-reabrir {
+  background: #357b3e;
+}
+
+.boton-reabrir:hover {
+  background: #275f2e;
+}
+
+.sin-mesas-zona {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px;
+  color: var(--suave);
+  text-align: center;
+}
+
 @media (max-width: 760px) {
   .panel {
     width: min(100% - 20px, 640px);
@@ -807,6 +971,24 @@ select:focus {
 
   .campos-reserva-panel {
     grid-template-columns: 1fr;
+  }
+
+  .controles-disponibilidad {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hora-disponibilidad {
+    grid-template-columns: 1fr 94px;
+  }
+
+  .mesas-configuracion {
+    grid-template-columns: 1fr;
+  }
+
+  .cabecera-zona {
+    align-items: flex-start;
   }
 
   .mesas-reserva-manual {
