@@ -173,16 +173,20 @@ module.exports = async (req, res) => {
     const urlZonas =
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/ZONA`;
     const datosZonas = await consultarAirtable(urlZonas);
+    const zonasRestaurante = (datosZonas.records || [])
+      .filter((zona) =>
+        Array.isArray(zona.fields.restaurante) &&
+        zona.fields.restaurante.includes(restaurante.id)
+      )
+      .map((zona) => ({
+        id: zona.id,
+        nombre:
+          zona.fields.nombre || zona.fields.zona ||
+          zona.fields.id_zona || "Sin zona",
+        estado: normalizarEstado(zona.fields.estado || "activo")
+      }));
     const zonasPorId = new Map(
-      (datosZonas.records || [])
-        .filter((zona) =>
-          Array.isArray(zona.fields.restaurante) &&
-          zona.fields.restaurante.includes(restaurante.id)
-        )
-        .map((zona) => [
-          zona.id,
-          zona.fields.nombre || zona.fields.zona || "Sin zona"
-        ])
+      zonasRestaurante.map((zona) => [zona.id, zona])
     );
     const datosMesasPorId = new Map(
       (datosMesas.records || []).map((mesa) => [
@@ -193,7 +197,10 @@ module.exports = async (req, res) => {
             mesa.fields.nombre_mesa || String(mesa.fields.id || "Mesa"),
           capacidad: Number(mesa.fields.capacidad || 0),
           estado: normalizarEstado(mesa.fields.estado),
-          zona: zonasPorId.get(mesa.fields.zona?.[0]) || "Sin zona"
+          zona_id: mesa.fields.zona?.[0] || null,
+          zona: zonasPorId.get(mesa.fields.zona?.[0])?.nombre || "Sin zona",
+          zona_estado:
+            zonasPorId.get(mesa.fields.zona?.[0])?.estado || "inactivo"
         }
       ])
     );
@@ -273,7 +280,9 @@ module.exports = async (req, res) => {
 
     const mesasDisponibles = Array.from(datosMesasPorId.values())
       .filter((mesa) =>
-        mesa.estado !== "fuera de servicio" && !mesasOcupadas.has(mesa.id)
+        mesa.estado !== "fuera de servicio" &&
+        mesa.zona_estado !== "inactivo" &&
+        !mesasOcupadas.has(mesa.id)
       )
       .sort((a, b) =>
         String(a.zona).localeCompare(String(b.zona), "es") ||
@@ -286,6 +295,22 @@ module.exports = async (req, res) => {
         nombre,
         capacidad,
         zona
+      }));
+    const mesasConfiguracion = Array.from(datosMesasPorId.values())
+      .sort((a, b) =>
+        String(a.zona).localeCompare(String(b.zona), "es") ||
+        String(a.nombre).localeCompare(String(b.nombre), "es", {
+          numeric: true
+        })
+      )
+      .map(({ id, nombre, capacidad, estado, zona_id, zona, zona_estado }) => ({
+        id,
+        nombre,
+        capacidad,
+        estado,
+        zona_id,
+        zona,
+        zona_estado
       }));
 
     return responder(res, 200, {
@@ -303,7 +328,11 @@ module.exports = async (req, res) => {
           total + reserva.personas, 0)
       },
       reservas,
-      mesas_disponibles: mesasDisponibles
+      mesas_disponibles: mesasDisponibles,
+      zonas: zonasRestaurante.sort((a, b) =>
+        a.nombre.localeCompare(b.nombre, "es")
+      ),
+      mesas_configuracion: mesasConfiguracion
     });
   } catch (error) {
     console.error("ERROR PANEL RESTAURANTE:", error);
