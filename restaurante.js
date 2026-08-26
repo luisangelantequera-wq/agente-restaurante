@@ -29,6 +29,9 @@ const referenciaMesas = document.getElementById("reserva-mesas");
 const opcionesMesas = document.getElementById("opciones-mesas");
 const errorMesas = document.getElementById("error-mesas");
 const guardarMesas = document.getElementById("guardar-mesas");
+const horaMesas = document.getElementById("hora-mesas");
+const mesasLibresContenedor = document.getElementById("mesas-libres");
+const resumenMesasLibres = document.getElementById("resumen-mesas-libres");
 let reservasActuales = [];
 let localizadorEnEdicion = "";
 let accionEnEdicion = "modificar";
@@ -82,6 +85,22 @@ function configurarSelectorHora() {
 }
 
 
+function configurarHoraMesas() {
+  horaMesas.innerHTML = Array.from({ length: 24 * 4 }, (_, indice) => {
+    const totalMinutos = indice * 15;
+    const horas = String(Math.floor(totalMinutos / 60)).padStart(2, "0");
+    const minutos = String(totalMinutos % 60).padStart(2, "0");
+    const valor = `${horas}:${minutos}`;
+    return `<option value="${valor}">${valor}</option>`;
+  }).join("");
+
+  const horaUrl = parametros.get("hora_mesas");
+  horaMesas.value = /^\d{2}:(00|15|30|45)$/.test(horaUrl || "")
+    ? horaUrl
+    : "14:00";
+}
+
+
 function actualizarHoraSeleccionada() {
   nuevaHora.value = `${nuevaHoraHoras.value}:${nuevaHoraMinutos.value}`;
 }
@@ -123,42 +142,80 @@ function renderizarReservas(reservas) {
   }
 
   reservasContenedor.innerHTML = reservas.map((reserva) => {
-    const acciones = reserva.estado === "confirmada"
+    const estadosEditables = ["confirmada", "ocupada", "con retraso"];
+    const etiquetasEstado = {
+      confirmada: "Confirmada",
+      ocupada: "Ocupada",
+      "con retraso": "Con retraso",
+      cobrada: "Cobrada",
+      cancelada: "Cancelada"
+    };
+    const selectorEstado = estadosEditables.includes(reserva.estado)
       ? `
-        <div class="acciones-reserva">
-          <button
-            class="accion mesas"
-            type="button"
-            data-accion="mesas"
-            data-localizador="${escaparHtml(reserva.localizador)}"
-          >Mesas</button>
+        <select
+          class="selector-estado estado estado-${reserva.estado.replace(" ", "-")}"
+          data-localizador="${escaparHtml(reserva.localizador)}"
+          aria-label="Estado de la reserva ${escaparHtml(reserva.localizador)}"
+        >
+          ${["confirmada", "ocupada", "con retraso", "cobrada"]
+            .map((estado) => `
+              <option value="${estado}" ${estado === reserva.estado ? "selected" : ""}>
+                ${etiquetasEstado[estado]}
+              </option>
+            `).join("")}
+        </select>
+      `
+      : `<span class="estado estado-${reserva.estado.replace(" ", "-")}">
+          ${escaparHtml(etiquetasEstado[reserva.estado] || reserva.estado)}
+        </span>`;
+    let acciones = '<div class="acciones-reserva">';
+
+    if (reserva.estado === "cancelada") {
+      acciones += `
+        <button
+          class="accion reactivar"
+          type="button"
+          data-accion="reactivar"
+          data-localizador="${escaparHtml(reserva.localizador)}"
+        >Reactivar</button>
+      `;
+    } else if (reserva.estado !== "cobrada") {
+      acciones += `
+        <button
+          class="accion mesas"
+          type="button"
+          data-accion="mesas"
+          data-localizador="${escaparHtml(reserva.localizador)}"
+        >Mesas</button>
+      `;
+
+      if (reserva.estado === "confirmada") {
+        acciones += `
           <button
             class="accion modificar"
             type="button"
             data-accion="modificar"
             data-localizador="${escaparHtml(reserva.localizador)}"
           >Modificar</button>
+        `;
+      }
+
+      if (["confirmada", "con retraso"].includes(reserva.estado)) {
+        acciones += `
           <button
             class="accion cancelar"
             type="button"
             data-accion="cancelar"
             data-localizador="${escaparHtml(reserva.localizador)}"
           >Cancelar</button>
-        </div>
-      `
-      : `
-        <div class="acciones-reserva">
-          <button
-            class="accion reactivar"
-            type="button"
-            data-accion="reactivar"
-            data-localizador="${escaparHtml(reserva.localizador)}"
-          >Reactivar</button>
-        </div>
-      `;
+        `;
+      }
+    }
+
+    acciones += "</div>";
 
     return `
-    <article class="reserva ${reserva.estado === "cancelada" ? "cancelada" : ""}">
+    <article class="reserva estado-fila-${reserva.estado.replace(" ", "-")}">
       <div class="hora">${escaparHtml(reserva.hora)}</div>
       <div class="cliente">
         <strong>${escaparHtml(reserva.nombre)}</strong>
@@ -178,11 +235,37 @@ function renderizarReservas(reservas) {
         <a href="mailto:${encodeURIComponent(reserva.email)}">${escaparHtml(reserva.email)}</a>
         <a href="tel:${encodeURIComponent(reserva.telefono)}">${escaparHtml(reserva.telefono)}</a>
       </div>
-      <span class="estado">${escaparHtml(reserva.estado)}</span>
+      ${selectorEstado}
       ${acciones}
     </article>
   `;
   }).join("");
+}
+
+
+function renderizarMesasLibres(mesas, hora) {
+  const total = mesas.length;
+  resumenMesasLibres.textContent = total === 1
+    ? `1 mesa libre a las ${hora}`
+    : `${total} mesas libres a las ${hora}`;
+
+  if (!total) {
+    mesasLibresContenedor.innerHTML = `
+      <p class="sin-reservas">No hay mesas libres para esa hora.</p>
+    `;
+    return;
+  }
+
+  mesasLibresContenedor.innerHTML = mesas.map((mesa) => `
+    <article class="mesa-libre">
+      <div>
+        <strong>${escaparHtml(mesa.nombre)}</strong>
+        <span>${escaparHtml(mesa.zona)}</span>
+      </div>
+      <span class="capacidad-mesa">${escaparHtml(mesa.capacidad)} plazas</span>
+      <span class="estado estado-libre">Libre</span>
+    </article>
+  `).join("");
 }
 
 
@@ -325,6 +408,7 @@ async function cargarReservas(clave) {
       body: JSON.stringify({
         restaurante_id: restauranteId,
         fecha,
+        hora_mesas: horaMesas.value,
         clave
       })
     });
@@ -346,17 +430,19 @@ async function cargarReservas(clave) {
       datos.restaurante.nombre;
     document.getElementById("titulo-fecha").textContent = formatearFecha(fecha);
     document.getElementById("total-confirmadas").textContent =
-      datos.resumen.confirmadas;
+      datos.resumen.reservas;
     document.getElementById("total-personas").textContent =
       datos.resumen.personas;
     document.getElementById("total-canceladas").textContent =
       datos.resumen.canceladas;
     renderizarReservas(datos.reservas);
+    renderizarMesasLibres(datos.mesas_disponibles || [], datos.hora_mesas);
     estadoCarga.textContent = `${datos.reservas.length} reservas`;
 
     const nuevaUrl = new URL(window.location.href);
     nuevaUrl.searchParams.set("fecha", fecha);
     nuevaUrl.searchParams.set("restaurante", restauranteId);
+    nuevaUrl.searchParams.set("hora_mesas", horaMesas.value);
     window.history.replaceState({}, "", nuevaUrl);
   } catch (error) {
     estadoCarga.textContent = error.message;
@@ -385,6 +471,7 @@ botonActualizar.addEventListener("click", () => {
 
 
 campoFecha.addEventListener("change", () => botonActualizar.click());
+horaMesas.addEventListener("change", () => botonActualizar.click());
 
 
 nuevaHoraHoras.addEventListener("change", actualizarHoraSeleccionada);
@@ -395,6 +482,75 @@ botonCerrarSesion.addEventListener("click", () => {
   sessionStorage.removeItem(claveSesion);
   campoClave.value = "";
   mostrarAcceso();
+});
+
+
+reservasContenedor.addEventListener("change", async (evento) => {
+  const selector = evento.target.closest("select.selector-estado");
+
+  if (!selector) {
+    return;
+  }
+
+  const reserva = reservasActuales.find((item) =>
+    item.localizador === selector.dataset.localizador
+  );
+
+  if (!reserva || selector.value === reserva.estado) {
+    return;
+  }
+
+  if (selector.value === "con retraso") {
+    const confirmado = window.confirm(
+      `Se marcará la reserva ${reserva.localizador} como "Con retraso" ` +
+      "y se enviará un correo al cliente. ¿Confirmas?"
+    );
+
+    if (!confirmado) {
+      selector.value = reserva.estado;
+      return;
+    }
+  }
+
+  if (selector.value === "cobrada") {
+    const confirmado = window.confirm(
+      `Al marcar la reserva ${reserva.localizador} como cobrada, ` +
+      "sus mesas quedarán libres. ¿Confirmas?"
+    );
+
+    if (!confirmado) {
+      selector.value = reserva.estado;
+      return;
+    }
+  }
+
+  selector.disabled = true;
+  estadoCarga.textContent = "Actualizando estado…";
+
+  try {
+    const resultado = await ejecutarAccionReserva({
+      accion: "actualizar_estado",
+      localizador: reserva.localizador,
+      estado_nuevo: selector.value
+    });
+
+    if (!resultado.estado_actualizado) {
+      throw new Error(resultado.motivo || "No se pudo cambiar el estado.");
+    }
+
+    const nuevoEstado = selector.value;
+    await cargarReservas(sessionStorage.getItem(claveSesion));
+
+    if (nuevoEstado === "con retraso") {
+      estadoCarga.textContent = resultado.correo_enviado
+        ? "Estado actualizado y correo enviado al cliente."
+        : "Estado actualizado, pero no se pudo enviar el correo al cliente.";
+    }
+  } catch (error) {
+    selector.value = reserva.estado;
+    selector.disabled = false;
+    estadoCarga.textContent = error.message;
+  }
 });
 
 
@@ -565,6 +721,7 @@ document.getElementById("cancelar-dialogo-mesas").addEventListener(
 
 
 configurarSelectorHora();
+configurarHoraMesas();
 campoFecha.value = fechaInicial();
 const claveGuardada = sessionStorage.getItem(claveSesion);
 
