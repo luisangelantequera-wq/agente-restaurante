@@ -39,6 +39,21 @@ const personasOcupar = document.getElementById("personas-ocupar");
 const nombreOcupar = document.getElementById("nombre-ocupar");
 const errorOcupar = document.getElementById("error-ocupar");
 const confirmarOcupacion = document.getElementById("confirmar-ocupacion");
+const botonNuevaReserva = document.getElementById("nueva-reserva");
+const dialogoNuevaReserva = document.getElementById("dialogo-nueva-reserva");
+const formularioNuevaReserva = document.getElementById("form-nueva-reserva");
+const fechaNuevaReserva = document.getElementById("fecha-nueva-reserva");
+const horaNuevaReservaHoras = document.getElementById("hora-nueva-reserva-horas");
+const horaNuevaReservaMinutos = document.getElementById("hora-nueva-reserva-minutos");
+const personasNuevaReserva = document.getElementById("personas-nueva-reserva");
+const nombreNuevaReserva = document.getElementById("nombre-nueva-reserva");
+const telefonoNuevaReserva = document.getElementById("telefono-nueva-reserva");
+const emailNuevaReserva = document.getElementById("email-nueva-reserva");
+const errorNuevaReserva = document.getElementById("error-nueva-reserva");
+const guardarNuevaReserva = document.getElementById("guardar-nueva-reserva");
+const seleccionMesasManual = document.getElementById("seleccion-mesas-manual");
+const mesasReservaManual = document.getElementById("mesas-reserva-manual");
+const capacidadReservaManual = document.getElementById("capacidad-reserva-manual");
 let reservasActuales = [];
 let mesasLibresActuales = [];
 let localizadorEnEdicion = "";
@@ -46,6 +61,7 @@ let accionEnEdicion = "modificar";
 let reservaMesasEnEdicion = null;
 let opcionesMesasActuales = [];
 let mesaEnOcupacion = null;
+let mesasDisponiblesReservaPanel = [];
 
 
 function fechaLocalISO() {
@@ -87,10 +103,13 @@ function formatearFecha(fecha) {
 
 
 function configurarSelectorHora() {
-  nuevaHoraHoras.innerHTML = Array.from({ length: 24 }, (_, hora) => {
+  const opciones = Array.from({ length: 24 }, (_, hora) => {
     const valor = String(hora).padStart(2, "0");
     return `<option value="${valor}">${valor}</option>`;
   }).join("");
+
+  nuevaHoraHoras.innerHTML = opciones;
+  horaNuevaReservaHoras.innerHTML = opciones;
 }
 
 
@@ -121,6 +140,18 @@ function mostrarHoraEnSelector(hora) {
   nuevaHoraHoras.value = partes?.[1] || "00";
   nuevaHoraMinutos.value = partes?.[2] || "00";
   actualizarHoraSeleccionada();
+}
+
+
+function horaFormularioNuevaReserva() {
+  return `${horaNuevaReservaHoras.value}:${horaNuevaReservaMinutos.value}`;
+}
+
+
+function mostrarHoraNuevaReserva(hora) {
+  const partes = String(hora || "").match(/^(\d{2}):(00|15|30|45)$/);
+  horaNuevaReservaHoras.value = partes?.[1] || "14";
+  horaNuevaReservaMinutos.value = partes?.[2] || "00";
 }
 
 
@@ -317,6 +348,134 @@ function cerrarOcupacion() {
   dialogoOcupar.close();
   mesaEnOcupacion = null;
   errorOcupar.textContent = "";
+}
+
+
+function abrirNuevaReserva() {
+  formularioNuevaReserva.reset();
+  seleccionMesasManual.hidden = true;
+  mesasDisponiblesReservaPanel = [];
+  mesasReservaManual.innerHTML = "";
+  capacidadReservaManual.textContent = "";
+  fechaNuevaReserva.value = campoFecha.value;
+  mostrarHoraNuevaReserva(horaMesas.value);
+  errorNuevaReserva.textContent = "";
+  dialogoNuevaReserva.showModal();
+  personasNuevaReserva.focus();
+}
+
+
+function cerrarNuevaReserva() {
+  dialogoNuevaReserva.close();
+  mesasDisponiblesReservaPanel = [];
+  mesasReservaManual.innerHTML = "";
+  capacidadReservaManual.textContent = "";
+  errorNuevaReserva.textContent = "";
+}
+
+
+function esAsignacionManual() {
+  return new FormData(formularioNuevaReserva).get("modo_asignacion") ===
+    "manual";
+}
+
+
+function actualizarCapacidadManual() {
+  const seleccionadas = Array.from(
+    mesasReservaManual.querySelectorAll("input[type='checkbox']:checked")
+  );
+  const capacidad = seleccionadas.reduce(
+    (total, input) => total + Number(input.dataset.capacidad || 0),
+    0
+  );
+  const personas = Number(personasNuevaReserva.value || 0);
+
+  capacidadReservaManual.textContent = seleccionadas.length
+    ? `${seleccionadas.length} mesas · ${capacidad} plazas` +
+      (personas > capacidad ? ` · Faltan ${personas - capacidad} plazas` : "")
+    : "Selecciona las mesas que quieres unir.";
+}
+
+
+function renderizarMesasReservaManual(mesas) {
+  mesasDisponiblesReservaPanel = mesas;
+
+  if (!mesas.length) {
+    mesasReservaManual.innerHTML = `
+      <p class="sin-opciones-mesas">No hay mesas libres para esa fecha y hora.</p>
+    `;
+    actualizarCapacidadManual();
+    return;
+  }
+
+  let zonaAnterior = "";
+  mesasReservaManual.innerHTML = mesas.map((mesa) => {
+    const cabeceraZona = mesa.zona !== zonaAnterior
+      ? `<h3>${escaparHtml(mesa.zona)}</h3>`
+      : "";
+    zonaAnterior = mesa.zona;
+
+    return `
+      ${cabeceraZona}
+      <label class="mesa-manual">
+        <input
+          type="checkbox"
+          name="mesa_manual"
+          value="${escaparHtml(mesa.id)}"
+          data-zona="${escaparHtml(mesa.zona)}"
+          data-capacidad="${escaparHtml(mesa.capacidad)}"
+        >
+        <span>
+          <strong>${escaparHtml(mesa.nombre)}</strong>
+          <small>${escaparHtml(mesa.capacidad)} plazas</small>
+        </span>
+      </label>
+    `;
+  }).join("");
+  actualizarCapacidadManual();
+}
+
+
+async function cargarMesasReservaManual() {
+  if (!esAsignacionManual()) {
+    return;
+  }
+
+  const fecha = fechaNuevaReserva.value;
+  const hora = horaFormularioNuevaReserva();
+
+  if (!fecha) {
+    mesasReservaManual.innerHTML = "";
+    capacidadReservaManual.textContent = "Selecciona primero una fecha.";
+    return;
+  }
+
+  mesasReservaManual.innerHTML =
+    '<p class="cargando-mesas">Buscando mesas libres…</p>';
+  capacidadReservaManual.textContent = "";
+
+  try {
+    const respuesta = await fetch("/api/restaurante", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        restaurante_id: restauranteId,
+        fecha,
+        hora_mesas: hora,
+        clave: sessionStorage.getItem(claveSesion)
+      })
+    });
+    const datos = await respuesta.json();
+
+    if (!respuesta.ok || !datos.ok) {
+      throw new Error(datos.error || "No se pudieron consultar las mesas.");
+    }
+
+    renderizarMesasReservaManual(datos.mesas_disponibles || []);
+  } catch (error) {
+    mesasReservaManual.innerHTML = "";
+    capacidadReservaManual.textContent = error.message;
+  }
 }
 
 
@@ -605,6 +764,119 @@ formularioOcupar.addEventListener("submit", async (evento) => {
 });
 
 
+botonNuevaReserva.addEventListener("click", abrirNuevaReserva);
+
+
+formularioNuevaReserva.querySelectorAll("input[name='modo_asignacion']")
+  .forEach((input) => input.addEventListener("change", async () => {
+    seleccionMesasManual.hidden = !esAsignacionManual();
+
+    if (esAsignacionManual()) {
+      await cargarMesasReservaManual();
+    }
+  }));
+
+
+[fechaNuevaReserva, horaNuevaReservaHoras, horaNuevaReservaMinutos]
+  .forEach((campo) => campo.addEventListener("change", () => {
+    if (esAsignacionManual()) {
+      cargarMesasReservaManual();
+    }
+  }));
+
+
+personasNuevaReserva.addEventListener("input", actualizarCapacidadManual);
+
+
+mesasReservaManual.addEventListener("change", (evento) => {
+  const checkbox = evento.target.closest("input[type='checkbox']");
+
+  if (!checkbox) {
+    return;
+  }
+
+  const seleccionadas = Array.from(
+    mesasReservaManual.querySelectorAll("input[type='checkbox']:checked")
+  );
+  const zonaSeleccionada = seleccionadas[0]?.dataset.zona || "";
+
+  mesasReservaManual.querySelectorAll("input[type='checkbox']")
+    .forEach((input) => {
+      input.disabled = Boolean(
+        zonaSeleccionada && input.dataset.zona !== zonaSeleccionada
+      );
+    });
+  actualizarCapacidadManual();
+});
+
+
+formularioNuevaReserva.addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+  errorNuevaReserva.textContent = "";
+  guardarNuevaReserva.disabled = true;
+  guardarNuevaReserva.textContent = "Comprobando disponibilidad…";
+
+  const fechaReserva = fechaNuevaReserva.value;
+  const horaReserva = horaFormularioNuevaReserva();
+  const emailReserva = emailNuevaReserva.value.trim();
+  const mesasManuales = esAsignacionManual()
+    ? Array.from(
+      mesasReservaManual.querySelectorAll("input[type='checkbox']:checked")
+    ).map((input) => input.value)
+    : [];
+
+  if (esAsignacionManual() && !mesasManuales.length) {
+    errorNuevaReserva.textContent =
+      "Selecciona al menos una mesa o utiliza la asignación automática.";
+    guardarNuevaReserva.disabled = false;
+    guardarNuevaReserva.textContent = "Crear reserva";
+    return;
+  }
+
+  try {
+    const resultado = await ejecutarAccionReserva({
+      accion: "reservar_panel",
+      fecha: fechaReserva,
+      hora: horaReserva,
+      personas: Number(personasNuevaReserva.value),
+      nombre: nombreNuevaReserva.value.trim(),
+      telefono: telefonoNuevaReserva.value.trim(),
+      email: emailReserva,
+      mesa_ids: mesasManuales,
+      mensaje: "Reserva telefónica añadida desde el panel."
+    });
+
+    if (!resultado.reservado) {
+      const alternativas = resultado.alternativas?.length
+        ? ` Horarios disponibles: ${resultado.alternativas.join(", ")}.`
+        : "";
+      throw new Error(
+        (resultado.motivo || "No hay disponibilidad con esos datos.") +
+        alternativas
+      );
+    }
+
+    cerrarNuevaReserva();
+    campoFecha.value = fechaReserva;
+    horaMesas.value = horaReserva;
+    await cargarReservas(sessionStorage.getItem(claveSesion));
+
+    if (emailReserva) {
+      estadoCarga.textContent = resultado.correo_enviado
+        ? `Reserva ${resultado.id_reserva} creada y correo enviado.`
+        : `Reserva ${resultado.id_reserva} creada, pero el correo no pudo enviarse.`;
+    } else {
+      estadoCarga.textContent = `Reserva ${resultado.id_reserva} creada.`;
+    }
+  } catch (error) {
+    errorNuevaReserva.textContent = error.message;
+  } finally {
+    guardarNuevaReserva.disabled = false;
+    guardarNuevaReserva.textContent = "Crear reserva";
+  }
+});
+
+
 reservasContenedor.addEventListener("change", async (evento) => {
   const selector = evento.target.closest("select.selector-estado");
 
@@ -858,6 +1130,14 @@ document.getElementById("cerrar-dialogo-ocupar").addEventListener(
 document.getElementById("cancelar-dialogo-ocupar").addEventListener(
   "click",
   cerrarOcupacion
+);
+document.getElementById("cerrar-dialogo-nueva-reserva").addEventListener(
+  "click",
+  cerrarNuevaReserva
+);
+document.getElementById("cancelar-dialogo-nueva-reserva").addEventListener(
+  "click",
+  cerrarNuevaReserva
 );
 
 
