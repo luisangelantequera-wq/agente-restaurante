@@ -115,7 +115,11 @@ async function buscarAsignacionDisponible(
 const formulaReservas =
   `AND(` +
   `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
+  `OR(` +
   `LOWER(TRIM({estado}))='confirmada',` +
+  `LOWER(TRIM({estado}))='ocupada',` +
+  `LOWER(TRIM({estado}))='con retraso'` +
+  `),` +
   `FIND('${String(restaurante_id)}',` +
   `ARRAYJOIN({id (from restaurante)}))` +
   `)`;
@@ -394,6 +398,8 @@ async function confirmarReservaSinConflictos(
     `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
     `OR(` +
     `LOWER(TRIM({estado}))='confirmada',` +
+    `LOWER(TRIM({estado}))='ocupada',` +
+    `LOWER(TRIM({estado}))='con retraso',` +
     `LOWER(TRIM({estado}))='pendiente'` +
     `),` +
     `FIND('${String(restaurante_id)}',` +
@@ -462,9 +468,16 @@ async function confirmarReservaSinConflictos(
     return inicioActual < fin && finActual > inicio;
   });
 
+  const estadosQueBloquean = new Set([
+    "confirmada",
+    "ocupada",
+    "con retraso"
+  ]);
   const hayConfirmadaAnterior = conflictos.some((reserva) =>
     reserva.id !== reservaCreada.id &&
-    String(reserva.fields.estado || "").trim().toLowerCase() === "confirmada"
+    estadosQueBloquean.has(
+      String(reserva.fields.estado || "").trim().toLowerCase()
+    )
   );
   const pendientes = conflictos
     .filter((reserva) =>
@@ -1274,6 +1287,56 @@ async function enviarCorreoCancelacionReserva({
 }
 
 
+async function enviarCorreoRetrasoReserva({
+  destinatario,
+  nombre,
+  nombreRestaurante,
+  fecha,
+  hora,
+  personas,
+  localizador,
+  enlaceGestion
+}) {
+  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  const fechaLarga = formatearFechaLarga(fecha);
+  const asunto = `Te estamos esperando en ${nombreRestaurante}`;
+  const texto =
+    `Hola ${normalizarTexto(nombre) || "cliente"},\n\n` +
+    `Tu mesa en ${nombreRestaurante} sigue reservada. ` +
+    `La reserva era para el ${fechaLarga} a las ${hora}.\n\n` +
+    `Localizador: ${localizador}\n` +
+    `Personas: ${personas}\n\n` +
+    `Si finalmente no puedes venir, puedes gestionar la reserva aquí:\n` +
+    `${enlaceGestion}\n`;
+  const html = `
+    <p>Hola ${escaparHtml(normalizarTexto(nombre) || "cliente")},</p>
+    <p>
+      Tu mesa en <strong>${escaparHtml(nombreRestaurante)}</strong> sigue
+      reservada. La reserva era para el ${escaparHtml(fechaLarga)} a las
+      <strong>${escaparHtml(hora)}</strong>.
+    </p>
+    <p>
+      <strong>Localizador:</strong> ${escaparHtml(localizador)}<br>
+      <strong>Personas:</strong> ${escaparHtml(personas)}
+    </p>
+    <p>Si finalmente no puedes venir, puedes gestionar la reserva aquí:</p>
+    <p>
+      <a href="${escaparHtml(enlaceGestion)}">
+        Consultar, modificar o cancelar la reserva
+      </a>
+    </p>
+  `;
+
+  return enviarCorreoResend({
+    destinatario,
+    asunto,
+    texto,
+    html,
+    contexto: "aviso de retraso"
+  });
+}
+
+
 async function enviarAvisoRestaurante({
   destinatario,
   tipo,
@@ -1376,8 +1439,127 @@ module.exports = async (req, res) => {
       localizador,
       token_gestion,
       clave_restaurante,
-      mesa_ids
+      mesa_ids,
+      estado_nuevo
     } = body;
+
+    if (accion === "actualizar_estado") {
+      const restauranteIdEstado = Number(restaurante_id);
+      const localizadorEstado = String(localizador || "").trim().toUpperCase();
+      const estadoNuevo = String(estado_nuevo || "").trim().toLowerCase();
+      const estadosOperativos = new Set([
+        "confirmada",
+        "ocupada",
+        "con retraso",
+        "cobrada"
+      ]);
+
+      if (
+        !Number.isInteger(restauranteIdEstado) ||
+        restauranteIdEstado <= 0 ||
+        !/^[A-Z0-9-]{8,40}$/.test(localizadorEstado) ||
+        !estadosOperativos.has(estadoNuevo)
+      ) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El restaurante, la reserva o el estado no son válidos."
+        });
+      }
+
+      if (!clave_restaurante) {
+        return responder(res, 401, {
+          ok: false,
+          error: "Esta operación requiere la clave del restaurante."
+        });
+      }
+
+      const restauranteEstado = await buscarRestaurante(restauranteIdEstado);
+
+      if (
+        !restauranteEstado ||
+        !clavesRestauranteCoinciden(
+          clave_restaurante,
+          restauranteEstado.fields.api_key_restaurante
+        )
+      ) {
+        return responder(res, 401, {
+          ok: false,
+          error: "La clave del restaurante no es correcta."
+        });
+      }
+
+      const reservaEstado = await buscarReservaGestion(
+        restauranteIdEstado,
+        localizadorEstado,
+        null
+      );
+
+      if (!reservaEstado) {
+        return responder(res, 404, {
+          ok: false,
+          error: "No se ha encontrado una reserva con ese localizador."
+        });
+      }
+
+      const estadoAnterior = String(reservaEstado.fields.estado || "")
+        .trim()
+        .toLowerCase();
+
+      if (!estadosOperativos.has(estadoAnterior) || estadoAnterior === "cobrada") {
+        return responder(res, 200, {
+          ok: true,
+          estado_actualizado: false,
+          motivo:
+            estadoAnterior === "cobrada"
+              ? "Una reserva cobrada ya está finalizada."
+              : "Ese estado no se puede cambiar desde el panel."
+        });
+      }
+
+      if (estadoAnterior === estadoNuevo) {
+        return responder(res, 200, {
+          ok: true,
+          estado_actualizado: true,
+          sin_cambios: true,
+          reserva: resumirReserva(reservaEstado)
+        });
+      }
+
+      const urlReservaEstado =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaEstado.id}`;
+      const reservaActualizadaEstado = await consultarAirtable(
+        urlReservaEstado,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { estado: estadoNuevo } })
+        }
+      );
+      let correoEnviado = null;
+
+      if (estadoNuevo === "con retraso") {
+        correoEnviado = await enviarCorreoRetrasoReserva({
+          destinatario: reservaActualizadaEstado.fields.email,
+          nombre: reservaActualizadaEstado.fields.nombre_completo,
+          nombreRestaurante: obtenerNombreRestaurante(restauranteEstado),
+          fecha: reservaActualizadaEstado.fields.fecha,
+          hora: reservaActualizadaEstado.fields.hora,
+          personas: reservaActualizadaEstado.fields.personas,
+          localizador: reservaActualizadaEstado.fields.id_reserva,
+          enlaceGestion: generarEnlaceGestion(
+            reservaActualizadaEstado.fields.token_gestion
+          )
+        });
+      }
+
+      return responder(res, 200, {
+        ok: true,
+        estado_actualizado: true,
+        correo_enviado: correoEnviado,
+        reserva: resumirReserva(reservaActualizadaEstado)
+      });
+    }
 
     // Consulta y cancelación no necesitan fecha, hora ni comensales.
     if (accion === "consultar" || accion === "cancelar") {
@@ -1452,11 +1634,11 @@ module.exports = async (req, res) => {
         });
       }
 
-      if (estadoActual !== "confirmada") {
+      if (!["confirmada", "con retraso"].includes(estadoActual)) {
         return responder(res, 200, {
           ok: true,
           cancelada: false,
-          motivo: "La reserva no está confirmada y no se puede cancelar.",
+          motivo: "La reserva no está pendiente de llegada y no se puede cancelar.",
           reserva: resumirReserva(reserva)
         });
       }
@@ -1976,14 +2158,17 @@ await buscarAsignacionDisponible(
         });
       }
 
-      if (
-        String(reservaActual.fields.estado || "").trim().toLowerCase() !==
-        "confirmada"
-      ) {
+      if (![
+        "confirmada",
+        "ocupada",
+        "con retraso"
+      ].includes(
+        String(reservaActual.fields.estado || "").trim().toLowerCase()
+      )) {
         return responder(res, 200, {
           ok: true,
           mesas_cambiadas: false,
-          motivo: "Solo se pueden reorganizar reservas confirmadas."
+          motivo: "Solo se pueden reorganizar reservas activas."
         });
       }
 
