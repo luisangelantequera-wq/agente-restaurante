@@ -40,7 +40,7 @@ function agregarMensaje(texto, tipo) {
     : `Restaurante Sol: ${texto}`;
 
   if (tipo === "bot") {
-    const patronEnlace = /https?:\/\/[^\s]+/g;
+    const patronEnlace = /(?:https?:\/\/|tel:)[^\s]+/g;
     let posicion = 0;
     let coincidencia;
 
@@ -51,9 +51,13 @@ function agregarMensaje(texto, tipo) {
 
       const enlace = document.createElement("a");
       enlace.href = coincidencia[0];
-      enlace.textContent = coincidencia[0];
-      enlace.target = "_blank";
-      enlace.rel = "noopener noreferrer";
+      enlace.textContent = coincidencia[0].startsWith("tel:")
+        ? coincidencia[0].slice(4)
+        : coincidencia[0];
+      if (!coincidencia[0].startsWith("tel:")) {
+        enlace.target = "_blank";
+        enlace.rel = "noopener noreferrer";
+      }
       mensaje.appendChild(enlace);
       posicion = coincidencia.index + coincidencia[0].length;
     }
@@ -247,6 +251,13 @@ function telefonoValido(texto) {
 }
 
 
+function telefonoParaEnlace(texto) {
+  const telefono = String(texto || "").trim();
+  const prefijo = telefono.startsWith("+") ? "+" : "";
+  return `${prefijo}${telefono.replace(/\D/g, "")}`;
+}
+
+
 // 7️⃣ NORMALIZAR TELÉFONO ESPAÑOL
 function normalizarTelefono(texto) {
   let telefono = texto
@@ -327,6 +338,20 @@ async function comprobarDisponibilidad() {
     const alternativas = Array.isArray(data.alternativas)
       ? data.alternativas
       : [];
+
+    if (data.requiere_contacto_restaurante) {
+      const telefono = telefonoParaEnlace(data.telefono_restaurante);
+      const contacto = telefono
+        ? `Puedes llamar directamente al restaurante: tel:${telefono}`
+        : "Contacta directamente con el restaurante para consultarlo.";
+
+      agregarMensaje(
+        `Para una reserva de ${datosReserva.personas} personas necesitamos que el restaurante compruebe si puede realizar una organización especial.\n\n${contacto}\n\nTambién puedes indicarme otro número de personas, otro día u otra hora.`,
+        "bot"
+      );
+      paso = "hora";
+      return;
+    }
 
     if (data.cambio_requerido === "fecha") {
       agregarMensaje(
