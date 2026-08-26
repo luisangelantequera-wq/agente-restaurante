@@ -345,10 +345,10 @@ async function comprobarDisponibilidad() {
         ? `Puedes llamar directamente al restaurante: tel:${telefono}`
         : "Contacta directamente con el restaurante para consultarlo.";
 
-      agregarMensaje(
-        `Para una reserva de ${datosReserva.personas} personas necesitamos que el restaurante compruebe si puede realizar una organización especial.\n\n${contacto}\n\nTambién puedes indicarme otro número de personas, otro día u otra hora.`,
-        "bot"
-      );
+  agregarMensaje(
+    `Para una reserva de ${datosReserva.personas} personas necesitamos que el restaurante compruebe si puede realizar una organización especial.\n\n${contacto}`,
+    "bot"
+  );
       paso = "hora";
       return;
     }
