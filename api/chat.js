@@ -1929,7 +1929,7 @@ Number(restaurante.fields.duracion_reserva_minutos);
         )
         : [];
 
-      if (accion === "reservar") {
+      if (["reservar", "reservar_panel"].includes(accion)) {
         return responder(res, 200, {
           ok: true,
           reservado: false,
@@ -1963,7 +1963,12 @@ Number(restaurante.fields.duracion_reserva_minutos);
     }
 
     if (
-      ["reactivar", "opciones_mesas", "cambiar_mesas"].includes(accion) &&
+      [
+        "reactivar",
+        "opciones_mesas",
+        "cambiar_mesas",
+        "reservar_panel"
+      ].includes(accion) &&
       !clave_restaurante
     ) {
       return responder(res, 401, {
@@ -2483,15 +2488,18 @@ await buscarAsignacionDisponible(
     // 🔟 ACCIÓN: RESERVAR
     // ========================================================
 
-    if (accion === "reservar") {
+    if (accion === "reservar" || accion === "reservar_panel") {
+      const esReservaPanel = accion === "reservar_panel";
 
       // Para crear la reserva necesitamos estos datos.
-      if (!nombre || !email || !telefono) {
+      if (!nombre || !telefono || (!esReservaPanel && !email)) {
 
         return responder(res, 400, {
           ok: false,
           error:
-            "Faltan nombre, email o teléfono."
+            esReservaPanel
+              ? "Faltan el nombre o el teléfono."
+              : "Faltan nombre, email o teléfono."
         });
       }
 
@@ -2502,24 +2510,123 @@ await buscarAsignacionDisponible(
       // No confiamos en la comprobación realizada unos
       // minutos antes en el navegador.
 
-      const mesaLibre =
-   await buscarAsignacionDisponible(
-    restaurante_id,
-    restaurante.id,
-    fecha,
-    hora,
-    numeroPersonas,
-    margenCapacidad,
-    duracionReservaMinutos
-    );
+      const idsMesasManuales = esReservaPanel && Array.isArray(mesa_ids)
+        ? [...new Set(mesa_ids.map((id) => String(id).trim()).filter(Boolean))]
+        : [];
+      let mesaLibre = null;
+
+      if (idsMesasManuales.length) {
+        if (
+          idsMesasManuales.length > 20 ||
+          idsMesasManuales.some((id) => !/^rec[a-zA-Z0-9]{14}$/.test(id))
+        ) {
+          return responder(res, 400, {
+            ok: false,
+            error: "La selección manual de mesas no es válida."
+          });
+        }
+
+        const formulaMesasPanel =
+          `FIND('${String(restaurante_id)}',` +
+          `ARRAYJOIN({id (from restaurante)}))`;
+        const urlMesasPanel =
+          `https://api.airtable.com/v0/` +
+          `${process.env.AIRTABLE_BASE_ID}/MESAS` +
+          `?filterByFormula=${encodeURIComponent(formulaMesasPanel)}`;
+        const datosMesasPanel = await consultarAirtable(urlMesasPanel);
+        const mesasSeleccionadas = (datosMesasPanel.records || []).filter(
+          (mesa) => idsMesasManuales.includes(mesa.id)
+        );
+
+        if (
+          mesasSeleccionadas.length !== idsMesasManuales.length ||
+          mesasSeleccionadas.some((mesa) =>
+            String(mesa.fields.estado || "").trim().toLowerCase() ===
+            "fuera de servicio"
+          )
+        ) {
+          return responder(res, 200, {
+            ok: true,
+            reservado: false,
+            disponible: false,
+            motivo:
+              "Alguna de las mesas seleccionadas no pertenece al restaurante o está fuera de servicio."
+          });
+        }
+
+        const zonasSeleccionadas = mesasSeleccionadas.map((mesa) =>
+          Array.isArray(mesa.fields.zona) && mesa.fields.zona.length === 1
+            ? mesa.fields.zona[0]
+            : null
+        );
+
+        if (
+          !zonasSeleccionadas[0] ||
+          zonasSeleccionadas.some((zona) => zona !== zonasSeleccionadas[0])
+        ) {
+          return responder(res, 200, {
+            ok: true,
+            reservado: false,
+            disponible: false,
+            motivo: "Las mesas seleccionadas deben pertenecer a la misma zona."
+          });
+        }
+
+        const capacidadManual = mesasSeleccionadas.reduce(
+          (total, mesa) => total + Number(mesa.fields.capacidad || 0),
+          0
+        );
+
+        if (capacidadManual < numeroPersonas) {
+          return responder(res, 200, {
+            ok: true,
+            reservado: false,
+            disponible: false,
+            motivo:
+              `Las mesas seleccionadas suman ${capacidadManual} plazas y ` +
+              `la reserva es para ${numeroPersonas} personas.`
+          });
+        }
+
+        mesaLibre = {
+          ids: idsMesasManuales,
+          nombre: mesasSeleccionadas
+            .map((mesa) => mesa.fields.nombre_mesa || "Mesa")
+            .join(" + "),
+          capacidad: capacidadManual,
+          tipo: "manual"
+        };
+      } else {
+        mesaLibre = await buscarAsignacionDisponible(
+          restaurante_id,
+          restaurante.id,
+          fecha,
+          hora,
+          numeroPersonas,
+          margenCapacidad,
+          duracionReservaMinutos
+        );
+      }
 
 
       if (!mesaLibre) {
+        const alternativas = await buscarHorariosAlternativos(
+          restaurante_id,
+          restaurante.id,
+          fecha,
+          hora,
+          numeroPersonas,
+          margenCapacidad,
+          duracionReservaMinutos,
+          intervaloMinutos,
+          restaurante.fields
+        );
 
         return responder(res, 200, {
           ok: true,
           reservado: false,
           disponible: false,
+          alternativas,
           motivo:
             "La mesa ya no está disponible."
         });
@@ -2564,9 +2671,11 @@ await buscarAsignacionDisponible(
 
           telefono: telefono,
 
-          email: email,
+          ...(email ? { email: email } : {}),
 
-          mensaje: mensaje || "",
+          mensaje: mensaje || (esReservaPanel
+            ? "Reserva telefónica añadida desde el panel."
+            : ""),
 
           estado: "pendiente"
         }
