@@ -32,11 +32,20 @@ const guardarMesas = document.getElementById("guardar-mesas");
 const horaMesas = document.getElementById("hora-mesas");
 const mesasLibresContenedor = document.getElementById("mesas-libres");
 const resumenMesasLibres = document.getElementById("resumen-mesas-libres");
+const dialogoOcupar = document.getElementById("dialogo-ocupar");
+const formularioOcupar = document.getElementById("form-ocupar");
+const referenciaOcupar = document.getElementById("referencia-ocupar");
+const personasOcupar = document.getElementById("personas-ocupar");
+const nombreOcupar = document.getElementById("nombre-ocupar");
+const errorOcupar = document.getElementById("error-ocupar");
+const confirmarOcupacion = document.getElementById("confirmar-ocupacion");
 let reservasActuales = [];
+let mesasLibresActuales = [];
 let localizadorEnEdicion = "";
 let accionEnEdicion = "modificar";
 let reservaMesasEnEdicion = null;
 let opcionesMesasActuales = [];
+let mesaEnOcupacion = null;
 
 
 function fechaLocalISO() {
@@ -174,6 +183,16 @@ function renderizarReservas(reservas) {
       : `<span class="estado estado-${reserva.estado.replace(" ", "-")}">
           ${escaparHtml(etiquetasEstado[reserva.estado] || reserva.estado)}
         </span>`;
+    const contacto = reserva.email || reserva.telefono
+      ? `
+        ${reserva.email
+          ? `<a href="mailto:${encodeURIComponent(reserva.email)}">${escaparHtml(reserva.email)}</a>`
+          : ""}
+        ${reserva.telefono
+          ? `<a href="tel:${encodeURIComponent(reserva.telefono)}">${escaparHtml(reserva.telefono)}</a>`
+          : ""}
+      `
+      : '<span class="contacto-vacio">Sin datos de contacto</span>';
     let acciones = '<div class="acciones-reserva">';
 
     if (reserva.estado === "cancelada") {
@@ -238,8 +257,7 @@ function renderizarReservas(reservas) {
       </div>
       <div class="localizador">${escaparHtml(reserva.localizador)}</div>
       <div class="contacto">
-        <a href="mailto:${encodeURIComponent(reserva.email)}">${escaparHtml(reserva.email)}</a>
-        <a href="tel:${encodeURIComponent(reserva.telefono)}">${escaparHtml(reserva.telefono)}</a>
+        ${contacto}
       </div>
       ${selectorEstado}
       ${acciones}
@@ -250,6 +268,7 @@ function renderizarReservas(reservas) {
 
 
 function renderizarMesasLibres(mesas, hora) {
+  mesasLibresActuales = mesas;
   const total = mesas.length;
   resumenMesasLibres.textContent = total === 1
     ? `1 mesa libre a las ${hora}`
@@ -270,8 +289,34 @@ function renderizarMesasLibres(mesas, hora) {
       </div>
       <span class="capacidad-mesa">${escaparHtml(mesa.capacidad)} plazas</span>
       <span class="estado estado-libre">Libre</span>
+      <button
+        class="ocupar-mesa"
+        type="button"
+        data-mesa-id="${escaparHtml(mesa.id)}"
+      >Ocupar</button>
     </article>
   `).join("");
+}
+
+
+function abrirOcupacion(mesa) {
+  mesaEnOcupacion = mesa;
+  referenciaOcupar.textContent =
+    `${mesa.nombre} · ${mesa.zona} · ${mesa.capacidad} plazas · ` +
+    `${formatearFecha(campoFecha.value)} a las ${horaMesas.value}`;
+  personasOcupar.max = mesa.capacidad;
+  personasOcupar.value = "";
+  nombreOcupar.value = "";
+  errorOcupar.textContent = "";
+  dialogoOcupar.showModal();
+  personasOcupar.focus();
+}
+
+
+function cerrarOcupacion() {
+  dialogoOcupar.close();
+  mesaEnOcupacion = null;
+  errorOcupar.textContent = "";
 }
 
 
@@ -488,6 +533,75 @@ botonCerrarSesion.addEventListener("click", () => {
   sessionStorage.removeItem(claveSesion);
   campoClave.value = "";
   mostrarAcceso();
+});
+
+
+mesasLibresContenedor.addEventListener("click", (evento) => {
+  const boton = evento.target.closest("button[data-mesa-id]");
+
+  if (!boton) {
+    return;
+  }
+
+  const mesa = mesasLibresActuales.find((item) =>
+    item.id === boton.dataset.mesaId
+  );
+
+  if (mesa) {
+    abrirOcupacion(mesa);
+  }
+});
+
+
+formularioOcupar.addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+  errorOcupar.textContent = "";
+
+  if (!mesaEnOcupacion) {
+    errorOcupar.textContent = "La mesa seleccionada ya no está disponible.";
+    return;
+  }
+
+  const numeroPersonas = Number(personasOcupar.value);
+
+  if (
+    !Number.isInteger(numeroPersonas) ||
+    numeroPersonas <= 0 ||
+    numeroPersonas > mesaEnOcupacion.capacidad
+  ) {
+    errorOcupar.textContent =
+      `Indica entre 1 y ${mesaEnOcupacion.capacidad} personas.`;
+    return;
+  }
+
+  confirmarOcupacion.disabled = true;
+  confirmarOcupacion.textContent = "Comprobando mesa…";
+
+  try {
+    const resultado = await ejecutarAccionReserva({
+      accion: "ocupar_mesa",
+      mesa_id: mesaEnOcupacion.id,
+      fecha: campoFecha.value,
+      hora: horaMesas.value,
+      personas: numeroPersonas,
+      nombre: nombreOcupar.value.trim()
+    });
+
+    if (!resultado.ocupada) {
+      throw new Error(
+        resultado.motivo || "La mesa ya no está disponible."
+      );
+    }
+
+    cerrarOcupacion();
+    await cargarReservas(sessionStorage.getItem(claveSesion));
+    estadoCarga.textContent = "Mesa ocupada y añadida a la agenda.";
+  } catch (error) {
+    errorOcupar.textContent = error.message;
+  } finally {
+    confirmarOcupacion.disabled = false;
+    confirmarOcupacion.textContent = "Marcar como ocupada";
+  }
 });
 
 
@@ -736,6 +850,14 @@ document.getElementById("cerrar-dialogo-mesas").addEventListener(
 document.getElementById("cancelar-dialogo-mesas").addEventListener(
   "click",
   cerrarCambioMesas
+);
+document.getElementById("cerrar-dialogo-ocupar").addEventListener(
+  "click",
+  cerrarOcupacion
+);
+document.getElementById("cancelar-dialogo-ocupar").addEventListener(
+  "click",
+  cerrarOcupacion
 );
 
 
