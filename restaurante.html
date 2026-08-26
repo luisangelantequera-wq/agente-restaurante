@@ -42,6 +42,9 @@
       <div class="barra-fecha tarjeta">
         <label for="fecha">Reservas del día</label>
         <input id="fecha" type="date">
+        <button id="nueva-reserva" class="boton-nueva-reserva" type="button">
+          Nueva reserva
+        </button>
         <button id="actualizar" type="button">Actualizar</button>
       </div>
 
@@ -232,6 +235,95 @@
         </button>
         <button id="confirmar-ocupacion" type="submit">
           Marcar como ocupada
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dialogo-nueva-reserva" class="dialogo dialogo-reserva-panel">
+    <form id="form-nueva-reserva">
+      <div class="dialogo-cabecera">
+        <div>
+          <p class="etiqueta">RESERVA TELEFÓNICA</p>
+          <h2>Nueva reserva</h2>
+        </div>
+        <button
+          id="cerrar-dialogo-nueva-reserva"
+          class="cerrar-dialogo"
+          type="button"
+          aria-label="Cerrar"
+        >×</button>
+      </div>
+
+      <div class="campos-reserva-panel">
+        <div>
+          <label for="fecha-nueva-reserva">Fecha</label>
+          <input id="fecha-nueva-reserva" type="date" required>
+        </div>
+        <div>
+          <label for="hora-nueva-reserva-horas">Hora</label>
+          <div class="selector-hora">
+            <select id="hora-nueva-reserva-horas" aria-label="Hora de la nueva reserva"></select>
+            <span aria-hidden="true">:</span>
+            <select id="hora-nueva-reserva-minutos" aria-label="Minutos de la nueva reserva">
+              <option value="00">00</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="45">45</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label for="personas-nueva-reserva">Personas</label>
+          <input id="personas-nueva-reserva" type="number" min="1" step="1" required>
+        </div>
+        <div>
+          <label for="nombre-nueva-reserva">Nombre</label>
+          <input id="nombre-nueva-reserva" type="text" maxlength="120" required>
+        </div>
+        <div>
+          <label for="telefono-nueva-reserva">Teléfono</label>
+          <input id="telefono-nueva-reserva" type="tel" maxlength="30" required>
+        </div>
+        <div>
+          <label for="email-nueva-reserva">Correo, si lo facilita</label>
+          <input id="email-nueva-reserva" type="email" maxlength="160">
+        </div>
+      </div>
+
+      <fieldset class="asignacion-reserva-panel">
+        <legend>Asignación de mesas</legend>
+        <div class="modos-asignacion">
+          <label>
+            <input type="radio" name="modo_asignacion" value="automatica" checked>
+            Automática
+          </label>
+          <label>
+            <input type="radio" name="modo_asignacion" value="manual">
+            Elegir varias mesas manualmente
+          </label>
+        </div>
+
+        <div id="seleccion-mesas-manual" hidden>
+          <p class="nota-formulario">
+            Solo pueden seleccionarse mesas libres de una misma zona.
+          </p>
+          <div id="mesas-reserva-manual" class="mesas-reserva-manual"></div>
+          <p id="capacidad-reserva-manual" class="capacidad-reserva-manual"></p>
+        </div>
+      </fieldset>
+
+      <p class="nota-formulario">
+        Si se indica un correo, el cliente recibirá la confirmación y su enlace de gestión.
+      </p>
+      <p id="error-nueva-reserva" class="mensaje-error" role="alert"></p>
+
+      <div class="dialogo-acciones">
+        <button id="cancelar-dialogo-nueva-reserva" class="boton-secundario" type="button">
+          Volver
+        </button>
+        <button id="guardar-nueva-reserva" type="submit">
+          Crear reserva
         </button>
       </div>
     </form>
