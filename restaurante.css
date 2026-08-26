@@ -147,7 +147,7 @@ select:focus {
 
 .barra-fecha {
   display: grid;
-  grid-template-columns: 1fr minmax(180px, 240px) auto;
+  grid-template-columns: 1fr minmax(180px, 240px) auto auto;
   align-items: end;
   gap: 14px;
   padding: 18px 20px;
@@ -628,6 +628,106 @@ select:focus {
   gap: 14px;
 }
 
+.campos-reserva-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.nota-formulario {
+  margin: 16px 0 0;
+  color: var(--suave);
+  font-size: 13px;
+}
+
+.asignacion-reserva-panel {
+  margin: 20px 0 0;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  padding: 15px;
+}
+
+.asignacion-reserva-panel legend {
+  padding: 0 7px;
+  font-weight: 800;
+}
+
+.modos-asignacion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.modos-asignacion label,
+.mesa-manual {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.modos-asignacion input,
+.mesa-manual input {
+  width: 18px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: var(--acento);
+}
+
+.mesas-reserva-manual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 300px;
+  margin-top: 12px;
+  overflow-y: auto;
+}
+
+.mesas-reserva-manual h3 {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  color: var(--acento-oscuro);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mesa-manual {
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.mesa-manual:has(input:checked) {
+  border-color: var(--acento);
+  background: #fffaf0;
+}
+
+.mesa-manual:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.mesa-manual strong,
+.mesa-manual small {
+  display: block;
+}
+
+.mesa-manual small {
+  margin-top: 2px;
+  color: var(--suave);
+  font-weight: 400;
+}
+
+.capacidad-reserva-manual {
+  min-height: 20px;
+  margin: 12px 0 0;
+  color: var(--acento-oscuro);
+  font-weight: 800;
+}
+
 @media (max-width: 760px) {
   .panel {
     width: min(100% - 20px, 640px);
@@ -702,6 +802,14 @@ select:focus {
   }
 
   .campos-ocupar {
+    grid-template-columns: 1fr;
+  }
+
+  .campos-reserva-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .mesas-reserva-manual {
     grid-template-columns: 1fr;
   }
 
