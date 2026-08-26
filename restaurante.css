@@ -248,7 +248,7 @@ select:focus {
   border-bottom: 0;
 }
 
-.reserva.cancelada {
+.reserva.estado-fila-cancelada {
   background: #fff8f7;
   color: #6e5e5e;
 }
@@ -307,7 +307,36 @@ select:focus {
   text-transform: uppercase;
 }
 
-.cancelada .estado {
+.selector-estado {
+  width: auto;
+  min-height: 32px;
+  border: 0;
+  padding: 6px 28px 6px 10px;
+  cursor: pointer;
+}
+
+.estado-confirmada,
+.estado-libre {
+  background: #e9f5e9;
+  color: #346734;
+}
+
+.estado-ocupada {
+  background: #e5eef9;
+  color: #315f91;
+}
+
+.estado-con-retraso {
+  background: #fff0cf;
+  color: #8b5d05;
+}
+
+.estado-cobrada {
+  background: #ece9f5;
+  color: #5c4a82;
+}
+
+.estado-cancelada {
   background: #f7dede;
   color: var(--cancelada);
 }
@@ -510,6 +539,77 @@ select:focus {
   text-align: center;
 }
 
+.mesas-libres-panel {
+  margin-top: 18px;
+  overflow: hidden;
+}
+
+.cabecera-mesas-libres {
+  align-items: end;
+}
+
+.hora-disponibilidad {
+  display: grid;
+  grid-template-columns: auto 94px;
+  align-items: center;
+  gap: 10px;
+}
+
+.hora-disponibilidad label {
+  margin: 0;
+  color: var(--suave);
+  font-size: 13px;
+}
+
+.resumen-mesas-libres {
+  margin: 0;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--borde);
+  background: #faf8f3;
+  color: var(--suave);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mesas-libres {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 24px 24px;
+}
+
+.mesa-libre {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--borde);
+  border-radius: 13px;
+  padding: 14px;
+  background: #fff;
+}
+
+.mesa-libre strong,
+.mesa-libre span {
+  display: block;
+}
+
+.mesa-libre div > span,
+.capacidad-mesa {
+  margin-top: 3px;
+  color: var(--suave);
+  font-size: 12px;
+}
+
+.mesa-libre .estado {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.capacidad-mesa {
+  grid-column: 1;
+}
+
 @media (max-width: 760px) {
   .panel {
     width: min(100% - 20px, 640px);
@@ -594,6 +694,21 @@ select:focus {
   .estado {
     grid-column: 3;
     grid-row: 1;
+  }
+
+  .cabecera-mesas-libres {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hora-disponibilidad {
+    width: 100%;
+    grid-template-columns: 1fr 100px;
+  }
+
+  .mesas-libres {
+    grid-template-columns: 1fr;
+    padding: 14px;
   }
 }
 
