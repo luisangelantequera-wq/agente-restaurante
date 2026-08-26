@@ -191,6 +191,52 @@
     </form>
   </dialog>
 
+  <dialog id="dialogo-ocupar" class="dialogo dialogo-ocupar">
+    <form id="form-ocupar">
+      <div class="dialogo-cabecera">
+        <div>
+          <p class="etiqueta">CLIENTE SIN RESERVA</p>
+          <h2>Ocupar mesa</h2>
+        </div>
+        <button
+          id="cerrar-dialogo-ocupar"
+          class="cerrar-dialogo"
+          type="button"
+          aria-label="Cerrar"
+        >×</button>
+      </div>
+
+      <p id="referencia-ocupar" class="referencia-reserva"></p>
+
+      <div class="campos-ocupar">
+        <div>
+          <label for="personas-ocupar">Número de personas</label>
+          <input id="personas-ocupar" type="number" min="1" step="1" required>
+        </div>
+        <div>
+          <label for="nombre-ocupar">Nombre, si lo conoces</label>
+          <input
+            id="nombre-ocupar"
+            type="text"
+            maxlength="120"
+            placeholder="Cliente sin reserva"
+          >
+        </div>
+      </div>
+
+      <p id="error-ocupar" class="mensaje-error" role="alert"></p>
+
+      <div class="dialogo-acciones">
+        <button id="cancelar-dialogo-ocupar" class="boton-secundario" type="button">
+          Volver
+        </button>
+        <button id="confirmar-ocupacion" type="submit">
+          Marcar como ocupada
+        </button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="restaurante.js"></script>
 </body>
 
