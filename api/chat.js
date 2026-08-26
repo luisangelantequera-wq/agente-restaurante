@@ -96,6 +96,22 @@ async function buscarAsignacionDisponible(
   const datosMesas = await consultarAirtable(urlMesas);
 
   const mesas = datosMesas.records || [];
+  const urlZonas =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/ZONA`;
+  const datosZonas = await consultarAirtable(urlZonas);
+  const zonasActivas = new Set(
+    (datosZonas.records || [])
+      .filter((zona) => {
+        const estado = String(zona.fields.estado || "activo")
+          .trim()
+          .toLowerCase();
+        return estado !== "inactivo" &&
+          Array.isArray(zona.fields.restaurante) &&
+          zona.fields.restaurante.includes(restauranteRecordId);
+      })
+      .map((zona) => zona.id)
+  );
 
 
   // Descartamos únicamente las mesas fuera de servicio
@@ -106,7 +122,12 @@ async function buscarAsignacionDisponible(
         .trim()
         .toLowerCase();
 
-    return estado !== "fuera de servicio";
+    const zona = Array.isArray(mesa.fields.zona) &&
+      mesa.fields.zona.length === 1
+      ? mesa.fields.zona[0]
+      : null;
+
+    return estado !== "fuera de servicio" && zonasActivas.has(zona);
   });
 
 
@@ -286,10 +307,6 @@ return (
     return combinacionesAdecuadas[0] || null;
   }
 
-  const urlZonas =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/ZONA`;
-  const datosZonas = await consultarAirtable(urlZonas);
   const nombresZonas = new Map(
     (datosZonas.records || []).map((zona) => [
       zona.id,
@@ -324,10 +341,30 @@ async function existeAsignacionCompatible(
     `${process.env.AIRTABLE_BASE_ID}/MESAS` +
     `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
   const datosMesas = await consultarAirtable(urlMesas);
-  const mesasOperativas = (datosMesas.records || []).filter((mesa) =>
-    String(mesa.fields.estado || "").trim().toLowerCase() !==
-    "fuera de servicio"
+  const urlZonas =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/ZONA`;
+  const datosZonas = await consultarAirtable(urlZonas);
+  const zonasActivas = new Set(
+    (datosZonas.records || [])
+      .filter((zona) => {
+        const estado = String(zona.fields.estado || "activo")
+          .trim()
+          .toLowerCase();
+        return estado !== "inactivo" &&
+          Array.isArray(zona.fields.restaurante) &&
+          zona.fields.restaurante.includes(restauranteRecordId);
+      })
+      .map((zona) => zona.id)
   );
+  const mesasOperativas = (datosMesas.records || []).filter((mesa) => {
+    const zona = Array.isArray(mesa.fields.zona) &&
+      mesa.fields.zona.length === 1
+      ? mesa.fields.zona[0]
+      : null;
+    return String(mesa.fields.estado || "").trim().toLowerCase() !==
+      "fuera de servicio" && zonasActivas.has(zona);
+  });
   const personasNum = Number(personas);
   const margenNum = Number(margenCapacidad || 0);
   const capacidadCompatible = (capacidad) =>
@@ -1444,7 +1481,12 @@ module.exports = async (req, res) => {
       clave_restaurante,
       mesa_ids,
       estado_nuevo,
-      mesa_id
+      mesa_id,
+      tipo_recurso,
+      recurso_id,
+      habilitar,
+      confirmar_afectadas,
+      fecha_desde
     } = body;
 
     if (accion === "actualizar_estado") {
@@ -1625,15 +1667,37 @@ module.exports = async (req, res) => {
         .trim()
         .toLowerCase();
       const capacidadMesa = Number(mesaOcupacion.fields.capacidad || 0);
+      const zonaMesaOcupacion = Array.isArray(mesaOcupacion.fields.zona) &&
+        mesaOcupacion.fields.zona.length === 1
+        ? mesaOcupacion.fields.zona[0]
+        : null;
 
       if (
         !restaurantesMesa.includes(restauranteOcupacion.id) ||
-        estadoMesa === "fuera de servicio"
+        estadoMesa === "fuera de servicio" ||
+        !zonaMesaOcupacion
       ) {
         return responder(res, 200, {
           ok: true,
           ocupada: false,
           motivo: "La mesa no pertenece al restaurante o está fuera de servicio."
+        });
+      }
+
+      const zonaOcupacion = await consultarAirtable(
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+        `ZONA/${zonaMesaOcupacion}`
+      );
+
+      if (
+        String(zonaOcupacion.fields.estado || "activo")
+          .trim()
+          .toLowerCase() === "inactivo"
+      ) {
+        return responder(res, 200, {
+          ok: true,
+          ocupada: false,
+          motivo: "La zona de esa mesa está fuera de servicio."
         });
       }
 
@@ -1710,6 +1774,163 @@ module.exports = async (req, res) => {
           nombre: mesaOcupacion.fields.nombre_mesa || "Mesa",
           capacidad: capacidadMesa
         }
+      });
+    }
+
+    if (accion === "actualizar_disponibilidad") {
+      const restauranteIdDisponibilidad = Number(restaurante_id);
+      const tipoRecurso = String(tipo_recurso || "").trim().toLowerCase();
+      const recursoId = String(recurso_id || "").trim();
+      const fechaDesde = /^\d{4}-\d{2}-\d{2}$/.test(String(fecha_desde || ""))
+        ? String(fecha_desde)
+        : new Date().toISOString().slice(0, 10);
+
+      if (
+        !Number.isInteger(restauranteIdDisponibilidad) ||
+        restauranteIdDisponibilidad <= 0 ||
+        !["mesa", "zona"].includes(tipoRecurso) ||
+        !/^rec[a-zA-Z0-9]{14}$/.test(recursoId) ||
+        typeof habilitar !== "boolean"
+      ) {
+        return responder(res, 400, {
+          ok: false,
+          error: "Los datos de disponibilidad no son válidos."
+        });
+      }
+
+      if (!clave_restaurante) {
+        return responder(res, 401, {
+          ok: false,
+          error: "Esta operación requiere la clave del restaurante."
+        });
+      }
+
+      const restauranteDisponibilidad = await buscarRestaurante(
+        restauranteIdDisponibilidad
+      );
+
+      if (
+        !restauranteDisponibilidad ||
+        !clavesRestauranteCoinciden(
+          clave_restaurante,
+          restauranteDisponibilidad.fields.api_key_restaurante
+        )
+      ) {
+        return responder(res, 401, {
+          ok: false,
+          error: "La clave del restaurante no es correcta."
+        });
+      }
+
+      const tablaRecurso = tipoRecurso === "mesa" ? "MESAS" : "ZONA";
+      const recurso = await consultarAirtable(
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+        `${tablaRecurso}/${recursoId}`
+      );
+      const restaurantesRecurso = Array.isArray(recurso.fields.restaurante)
+        ? recurso.fields.restaurante
+        : [];
+
+      if (!restaurantesRecurso.includes(restauranteDisponibilidad.id)) {
+        return responder(res, 404, {
+          ok: false,
+          error: "El recurso no pertenece al restaurante."
+        });
+      }
+
+      let mesasAfectadasIds = [];
+
+      if (tipoRecurso === "mesa") {
+        mesasAfectadasIds = [recursoId];
+      } else {
+        const formulaMesasZona =
+          `FIND('${String(restauranteIdDisponibilidad)}',` +
+          `ARRAYJOIN({id (from restaurante)}))`;
+        const datosMesasZona = await consultarAirtable(
+          `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS` +
+          `?filterByFormula=${encodeURIComponent(formulaMesasZona)}`
+        );
+        mesasAfectadasIds = (datosMesasZona.records || [])
+          .filter((mesa) =>
+            Array.isArray(mesa.fields.zona) &&
+            mesa.fields.zona.includes(recursoId)
+          )
+          .map((mesa) => mesa.id);
+      }
+
+      let reservasAfectadas = [];
+
+      if (!habilitar && mesasAfectadasIds.length) {
+        const formulaReservasAfectadas =
+          `AND(` +
+          `OR(` +
+          `LOWER(TRIM({estado}))='confirmada',` +
+          `LOWER(TRIM({estado}))='ocupada',` +
+          `LOWER(TRIM({estado}))='con retraso',` +
+          `LOWER(TRIM({estado}))='cobrada'` +
+          `),` +
+          `FIND('${String(restauranteIdDisponibilidad)}',` +
+          `ARRAYJOIN({id (from restaurante)}))` +
+          `)`;
+        const datosReservasAfectadas = await consultarAirtable(
+          `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
+          `?filterByFormula=${encodeURIComponent(formulaReservasAfectadas)}`
+        );
+        const idsObjetivo = new Set(mesasAfectadasIds);
+        reservasAfectadas = (datosReservasAfectadas.records || [])
+          .filter((reserva) => {
+            const fechaReserva = String(reserva.fields.fecha || "");
+            const mesasReserva = Array.isArray(reserva.fields.mesa)
+              ? reserva.fields.mesa
+              : [];
+            return fechaReserva >= fechaDesde &&
+              mesasReserva.some((id) => idsObjetivo.has(id));
+          })
+          .sort((a, b) =>
+            String(a.fields.fecha || "").localeCompare(
+              String(b.fields.fecha || "")
+            ) ||
+            String(a.fields.hora || "").localeCompare(
+              String(b.fields.hora || "")
+            )
+          )
+          .map((reserva) => ({
+            localizador: reserva.fields.id_reserva || "",
+            fecha: reserva.fields.fecha || "",
+            hora: reserva.fields.hora || "",
+            nombre: reserva.fields.nombre_completo || "",
+            personas: Number(reserva.fields.personas || 0)
+          }));
+
+        if (reservasAfectadas.length && !confirmar_afectadas) {
+          return responder(res, 200, {
+            ok: true,
+            disponibilidad_actualizada: false,
+            requiere_confirmacion: true,
+            reservas_afectadas: reservasAfectadas
+          });
+        }
+      }
+
+      const estadoRecurso = tipoRecurso === "mesa"
+        ? (habilitar ? "libre" : "fuera de servicio")
+        : (habilitar ? "activo" : "inactivo");
+      const recursoActualizado = await consultarAirtable(
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+        `${tablaRecurso}/${recursoId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { estado: estadoRecurso } })
+        }
+      );
+
+      return responder(res, 200, {
+        ok: true,
+        disponibilidad_actualizada: true,
+        tipo_recurso: tipoRecurso,
+        estado: recursoActualizado.fields.estado,
+        reservas_afectadas: reservasAfectadas
       });
     }
 
@@ -2569,6 +2790,24 @@ await buscarAsignacionDisponible(
             reservado: false,
             disponible: false,
             motivo: "Las mesas seleccionadas deben pertenecer a la misma zona."
+          });
+        }
+
+        const zonaManual = await consultarAirtable(
+          `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+          `ZONA/${zonasSeleccionadas[0]}`
+        );
+
+        if (
+          String(zonaManual.fields.estado || "activo")
+            .trim()
+            .toLowerCase() === "inactivo"
+        ) {
+          return responder(res, 200, {
+            ok: true,
+            reservado: false,
+            disponible: false,
+            motivo: "La zona seleccionada está fuera de servicio."
           });
         }
 
