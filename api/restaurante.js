@@ -102,7 +102,7 @@ function horaAMinutos(hora) {
 
 
 function estadoBloqueaMesa(estado) {
-  return ["confirmada", "ocupada", "con retraso"].includes(
+  return ["confirmada", "ocupada", "con retraso", "cobrada"].includes(
     normalizarEstado(estado)
   );
 }
@@ -202,6 +202,7 @@ module.exports = async (req, res) => {
       "ocupada",
       "con retraso",
       "cobrada",
+      "libre",
       "cancelada"
     ]);
     const reservas = (datos.records || [])
