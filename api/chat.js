@@ -305,6 +305,80 @@ return (
 }
 
 
+async function existeAsignacionCompatible(
+  restaurante_id,
+  restauranteRecordId,
+  personas,
+  margenCapacidad
+) {
+  const formulaMesas =
+    `FIND('${String(restaurante_id)}',` +
+    `ARRAYJOIN({id (from restaurante)}))`;
+  const urlMesas =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/MESAS` +
+    `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
+  const datosMesas = await consultarAirtable(urlMesas);
+  const mesasOperativas = (datosMesas.records || []).filter((mesa) =>
+    String(mesa.fields.estado || "").trim().toLowerCase() !==
+    "fuera de servicio"
+  );
+  const personasNum = Number(personas);
+  const margenNum = Number(margenCapacidad || 0);
+  const capacidadCompatible = (capacidad) =>
+    capacidad >= personasNum && capacidad <= personasNum + margenNum;
+
+  if (mesasOperativas.some((mesa) =>
+    capacidadCompatible(Number(mesa.fields.capacidad || 0))
+  )) {
+    return true;
+  }
+
+  const urlCombinaciones =
+    `https://api.airtable.com/v0/` +
+    `${process.env.AIRTABLE_BASE_ID}/COMBINACIONES_MESAS`;
+  const datosCombinaciones = await consultarAirtable(urlCombinaciones);
+  const mesasPorId = new Map(mesasOperativas.map((mesa) => [mesa.id, mesa]));
+
+  return (datosCombinaciones.records || []).some((combinacion) => {
+    const estado = String(combinacion.fields.estado || "").trim().toLowerCase();
+    const restaurantes = combinacion.fields.restaurante;
+    const idsMesas = combinacion.fields.mesas;
+
+    if (
+      estado !== "activa" ||
+      !Array.isArray(restaurantes) ||
+      !restaurantes.includes(restauranteRecordId) ||
+      !Array.isArray(idsMesas) ||
+      idsMesas.length < 2
+    ) {
+      return false;
+    }
+
+    const mesasCombinacion = idsMesas.map((id) => mesasPorId.get(id));
+
+    if (mesasCombinacion.some((mesa) => !mesa)) {
+      return false;
+    }
+
+    const zonas = mesasCombinacion.map((mesa) => {
+      const zona = mesa.fields.zona;
+      return Array.isArray(zona) && zona.length === 1 ? zona[0] : null;
+    });
+
+    if (!zonas[0] || zonas.some((zona) => zona !== zonas[0])) {
+      return false;
+    }
+
+    const capacidad = mesasCombinacion.reduce(
+      (total, mesa) => total + Number(mesa.fields.capacidad || 0),
+      0
+    );
+    return capacidadCompatible(capacidad);
+  });
+}
+
+
 async function confirmarReservaSinConflictos(
   reservaCreada,
   restaurante_id,
@@ -978,6 +1052,22 @@ function obtenerNombreRestaurante(restaurante) {
 }
 
 
+function obtenerTelefonoRestaurante(restaurante) {
+  const campos = restaurante?.fields || {};
+  const telefonos = [campos.telefono1, campos.telefono2];
+
+  for (const telefono of telefonos) {
+    const valor = normalizarTexto(telefono);
+
+    if (valor) {
+      return valor;
+    }
+  }
+
+  return "";
+}
+
+
 async function enviarCorreoResend({
   destinatario,
   asunto,
@@ -1568,9 +1658,14 @@ await buscarAsignacionDisponible(
 
 
       if (!mesaLibre) {
-
-        const alternativas =
-          await buscarHorariosAlternativos(
+        const hayAsignacionCompatible = await existeAsignacionCompatible(
+          restaurante_id,
+          restaurante.id,
+          numeroPersonas,
+          margenCapacidad
+        );
+        const alternativas = hayAsignacionCompatible
+          ? await buscarHorariosAlternativos(
             restaurante_id,
             restaurante.id,
             fecha,
@@ -1580,14 +1675,21 @@ await buscarAsignacionDisponible(
             duracionReservaMinutos,
             intervaloMinutos,
             restaurante.fields
-          );
+          )
+          : [];
 
         return responder(res, 200, {
           ok: true,
           disponible: false,
           alternativas,
+          requiere_contacto_restaurante: !hayAsignacionCompatible,
+          telefono_restaurante: !hayAsignacionCompatible
+            ? obtenerTelefonoRestaurante(restaurante)
+            : "",
           motivo:
-            "No hay una mesa disponible con capacidad suficiente."
+            hayAsignacionCompatible
+              ? "No hay una mesa disponible con capacidad suficiente."
+              : "No existe una mesa o combinación automática adecuada para ese número de personas."
         });
       }
 
