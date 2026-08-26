@@ -118,7 +118,8 @@ const formulaReservas =
   `OR(` +
   `LOWER(TRIM({estado}))='confirmada',` +
   `LOWER(TRIM({estado}))='ocupada',` +
-  `LOWER(TRIM({estado}))='con retraso'` +
+  `LOWER(TRIM({estado}))='con retraso',` +
+  `LOWER(TRIM({estado}))='cobrada'` +
   `),` +
   `FIND('${String(restaurante_id)}',` +
   `ARRAYJOIN({id (from restaurante)}))` +
@@ -400,6 +401,7 @@ async function confirmarReservaSinConflictos(
     `LOWER(TRIM({estado}))='confirmada',` +
     `LOWER(TRIM({estado}))='ocupada',` +
     `LOWER(TRIM({estado}))='con retraso',` +
+    `LOWER(TRIM({estado}))='cobrada',` +
     `LOWER(TRIM({estado}))='pendiente'` +
     `),` +
     `FIND('${String(restaurante_id)}',` +
@@ -471,7 +473,8 @@ async function confirmarReservaSinConflictos(
   const estadosQueBloquean = new Set([
     "confirmada",
     "ocupada",
-    "con retraso"
+    "con retraso",
+    "cobrada"
   ]);
   const hayConfirmadaAnterior = conflictos.some((reserva) =>
     reserva.id !== reservaCreada.id &&
@@ -1451,7 +1454,8 @@ module.exports = async (req, res) => {
         "confirmada",
         "ocupada",
         "con retraso",
-        "cobrada"
+        "cobrada",
+        "libre"
       ]);
 
       if (
@@ -1505,13 +1509,13 @@ module.exports = async (req, res) => {
         .trim()
         .toLowerCase();
 
-      if (!estadosOperativos.has(estadoAnterior) || estadoAnterior === "cobrada") {
+      if (!estadosOperativos.has(estadoAnterior) || estadoAnterior === "libre") {
         return responder(res, 200, {
           ok: true,
           estado_actualizado: false,
           motivo:
-            estadoAnterior === "cobrada"
-              ? "Una reserva cobrada ya está finalizada."
+            estadoAnterior === "libre"
+              ? "Una reserva libre ya está finalizada."
               : "Ese estado no se puede cambiar desde el panel."
         });
       }
