@@ -1443,7 +1443,8 @@ module.exports = async (req, res) => {
       token_gestion,
       clave_restaurante,
       mesa_ids,
-      estado_nuevo
+      estado_nuevo,
+      mesa_id
     } = body;
 
     if (accion === "actualizar_estado") {
@@ -1562,6 +1563,153 @@ module.exports = async (req, res) => {
         estado_actualizado: true,
         correo_enviado: correoEnviado,
         reserva: resumirReserva(reservaActualizadaEstado)
+      });
+    }
+
+    if (accion === "ocupar_mesa") {
+      const restauranteIdOcupacion = Number(restaurante_id);
+      const mesaIdOcupacion = String(mesa_id || "").trim();
+      const fechaOcupacion = String(fecha || "").trim();
+      const horaOcupacion = String(hora || "").trim();
+      const personasOcupacion = Number(personas);
+      const nombreOcupacion = String(nombre || "").trim().slice(0, 120) ||
+        "Cliente sin reserva";
+
+      if (
+        !Number.isInteger(restauranteIdOcupacion) ||
+        restauranteIdOcupacion <= 0 ||
+        !/^rec[a-zA-Z0-9]{14}$/.test(mesaIdOcupacion) ||
+        !obtenerDiaSemana(fechaOcupacion) ||
+        horaAMinutos(horaOcupacion) === null ||
+        !Number.isInteger(personasOcupacion) ||
+        personasOcupacion <= 0
+      ) {
+        return responder(res, 400, {
+          ok: false,
+          error: "Los datos de la ocupación no son válidos."
+        });
+      }
+
+      if (!clave_restaurante) {
+        return responder(res, 401, {
+          ok: false,
+          error: "Esta operación requiere la clave del restaurante."
+        });
+      }
+
+      const restauranteOcupacion = await buscarRestaurante(
+        restauranteIdOcupacion
+      );
+
+      if (
+        !restauranteOcupacion ||
+        !clavesRestauranteCoinciden(
+          clave_restaurante,
+          restauranteOcupacion.fields.api_key_restaurante
+        )
+      ) {
+        return responder(res, 401, {
+          ok: false,
+          error: "La clave del restaurante no es correcta."
+        });
+      }
+
+      const urlMesaOcupacion =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/MESAS/${mesaIdOcupacion}`;
+      const mesaOcupacion = await consultarAirtable(urlMesaOcupacion);
+      const restaurantesMesa = Array.isArray(mesaOcupacion.fields.restaurante)
+        ? mesaOcupacion.fields.restaurante
+        : [];
+      const estadoMesa = String(mesaOcupacion.fields.estado || "")
+        .trim()
+        .toLowerCase();
+      const capacidadMesa = Number(mesaOcupacion.fields.capacidad || 0);
+
+      if (
+        !restaurantesMesa.includes(restauranteOcupacion.id) ||
+        estadoMesa === "fuera de servicio"
+      ) {
+        return responder(res, 200, {
+          ok: true,
+          ocupada: false,
+          motivo: "La mesa no pertenece al restaurante o está fuera de servicio."
+        });
+      }
+
+      if (personasOcupacion > capacidadMesa) {
+        return responder(res, 200, {
+          ok: true,
+          ocupada: false,
+          motivo: `La mesa admite un máximo de ${capacidadMesa} personas.`
+        });
+      }
+
+      const duracionOcupacion = Number(
+        restauranteOcupacion.fields.duracion_reserva_minutos
+      );
+
+      if (!Number.isInteger(duracionOcupacion) || duracionOcupacion <= 0) {
+        throw new Error(
+          "El campo duracion_reserva_minutos del restaurante no es válido."
+        );
+      }
+
+      const idOcupacion =
+        `PASO-${fechaOcupacion.replaceAll("-", "")}-` +
+        Math.floor(1000 + Math.random() * 9000);
+      const urlReservasOcupacion =
+        `https://api.airtable.com/v0/` +
+        `${process.env.AIRTABLE_BASE_ID}/RESERVAS`;
+      const ocupacionPendiente = await consultarAirtable(
+        urlReservasOcupacion,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fields: {
+              id_reserva: idOcupacion,
+              restaurante: [restauranteOcupacion.id],
+              mesa: [mesaIdOcupacion],
+              fecha: fechaOcupacion,
+              hora: horaOcupacion,
+              personas: personasOcupacion,
+              nombre_completo: nombreOcupacion,
+              mensaje: "Cliente sin reserva añadido desde el panel.",
+              estado: "pendiente"
+            }
+          })
+        }
+      );
+      const resultadoOcupacion = await confirmarReservaSinConflictos(
+        ocupacionPendiente,
+        restauranteIdOcupacion,
+        fechaOcupacion,
+        horaOcupacion,
+        duracionOcupacion,
+        [mesaIdOcupacion],
+        [],
+        "ocupada"
+      );
+
+      if (!resultadoOcupacion.confirmada) {
+        return responder(res, 200, {
+          ok: true,
+          ocupada: false,
+          motivo:
+            "Otra reserva acaba de ocupar esa mesa. Actualiza el panel y elige otra."
+        });
+      }
+
+      return responder(res, 200, {
+        ok: true,
+        ocupada: true,
+        reserva: resumirReserva(resultadoOcupacion.reserva),
+        mesa: {
+          id: mesaOcupacion.id,
+          nombre: mesaOcupacion.fields.nombre_mesa || "Mesa",
+          capacidad: capacidadMesa
+        }
       });
     }
 
