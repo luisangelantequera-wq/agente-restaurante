@@ -296,6 +296,11 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
+.contacto-vacio {
+  color: var(--suave);
+  font-style: italic;
+}
+
 .estado {
   justify-self: end;
   border-radius: 999px;
@@ -610,6 +615,19 @@ select:focus {
   grid-column: 1;
 }
 
+.ocupar-mesa {
+  grid-column: 2;
+  grid-row: 2;
+  padding: 7px 11px;
+  font-size: 12px;
+}
+
+.campos-ocupar {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1.3fr);
+  gap: 14px;
+}
+
 @media (max-width: 760px) {
   .panel {
     width: min(100% - 20px, 640px);
@@ -680,6 +698,10 @@ select:focus {
   }
 
   .campos-modificar {
+    grid-template-columns: 1fr;
+  }
+
+  .campos-ocupar {
     grid-template-columns: 1fr;
   }
 
