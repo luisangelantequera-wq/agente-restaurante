@@ -142,12 +142,18 @@ function renderizarReservas(reservas) {
   }
 
   reservasContenedor.innerHTML = reservas.map((reserva) => {
-    const estadosEditables = ["confirmada", "ocupada", "con retraso"];
+    const estadosEditables = [
+      "confirmada",
+      "ocupada",
+      "con retraso",
+      "cobrada"
+    ];
     const etiquetasEstado = {
       confirmada: "Confirmada",
       ocupada: "Ocupada",
       "con retraso": "Con retraso",
       cobrada: "Cobrada",
+      libre: "Libre",
       cancelada: "Cancelada"
     };
     const selectorEstado = estadosEditables.includes(reserva.estado)
@@ -157,7 +163,7 @@ function renderizarReservas(reservas) {
           data-localizador="${escaparHtml(reserva.localizador)}"
           aria-label="Estado de la reserva ${escaparHtml(reserva.localizador)}"
         >
-          ${["confirmada", "ocupada", "con retraso", "cobrada"]
+          ${["confirmada", "ocupada", "con retraso", "cobrada", "libre"]
             .map((estado) => `
               <option value="${estado}" ${estado === reserva.estado ? "selected" : ""}>
                 ${etiquetasEstado[estado]}
@@ -179,7 +185,7 @@ function renderizarReservas(reservas) {
           data-localizador="${escaparHtml(reserva.localizador)}"
         >Reactivar</button>
       `;
-    } else if (reserva.estado !== "cobrada") {
+    } else if (!["cobrada", "libre"].includes(reserva.estado)) {
       acciones += `
         <button
           class="accion mesas"
@@ -514,8 +520,21 @@ reservasContenedor.addEventListener("change", async (evento) => {
 
   if (selector.value === "cobrada") {
     const confirmado = window.confirm(
-      `Al marcar la reserva ${reserva.localizador} como cobrada, ` +
-      "sus mesas quedarán libres. ¿Confirmas?"
+      `Se marcará la cuenta de ${reserva.localizador} como cobrada. ` +
+      "La mesa seguirá ocupada hasta que la marques como libre. ¿Confirmas?"
+    );
+
+    if (!confirmado) {
+      selector.value = reserva.estado;
+      return;
+    }
+  }
+
+  if (selector.value === "libre") {
+    const confirmado = window.confirm(
+      `Al marcar la reserva ${reserva.localizador} como libre, ` +
+      "sus mesas volverán a estar disponibles. ¿Confirmas que los clientes " +
+      "ya se han levantado?"
     );
 
     if (!confirmado) {
