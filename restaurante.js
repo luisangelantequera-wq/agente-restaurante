@@ -54,8 +54,20 @@ const guardarNuevaReserva = document.getElementById("guardar-nueva-reserva");
 const seleccionMesasManual = document.getElementById("seleccion-mesas-manual");
 const mesasReservaManual = document.getElementById("mesas-reserva-manual");
 const capacidadReservaManual = document.getElementById("capacidad-reserva-manual");
+const botonGestionarDisponibilidad = document.getElementById(
+  "gestionar-disponibilidad"
+);
+const dialogoDisponibilidad = document.getElementById(
+  "dialogo-disponibilidad"
+);
+const recursosDisponibilidad = document.getElementById(
+  "recursos-disponibilidad"
+);
+const errorDisponibilidad = document.getElementById("error-disponibilidad");
 let reservasActuales = [];
 let mesasLibresActuales = [];
+let zonasConfiguracionActuales = [];
+let mesasConfiguracionActuales = [];
 let localizadorEnEdicion = "";
 let accionEnEdicion = "modificar";
 let reservaMesasEnEdicion = null;
@@ -327,6 +339,168 @@ function renderizarMesasLibres(mesas, hora) {
       >Ocupar</button>
     </article>
   `).join("");
+}
+
+
+function etiquetaEstadoRecurso(estado, tipo) {
+  if (tipo === "zona") {
+    return estado === "inactivo" ? "Cerrada" : "Abierta";
+  }
+
+  return estado === "fuera de servicio" ? "Fuera de servicio" : "Disponible";
+}
+
+
+function renderizarDisponibilidad() {
+  if (!zonasConfiguracionActuales.length) {
+    recursosDisponibilidad.innerHTML = `
+      <p class="sin-reservas">No hay zonas configuradas.</p>
+    `;
+    return;
+  }
+
+  recursosDisponibilidad.innerHTML = zonasConfiguracionActuales.map((zona) => {
+    const zonaCerrada = zona.estado === "inactivo";
+    const mesasZona = mesasConfiguracionActuales.filter((mesa) =>
+      mesa.zona_id === zona.id
+    );
+    const contenidoMesas = mesasZona.length
+      ? mesasZona.map((mesa) => {
+        const mesaCerrada = mesa.estado === "fuera de servicio";
+        return `
+          <article class="recurso-mesa${mesaCerrada ? " recurso-cerrado" : ""}">
+            <div>
+              <strong>${escaparHtml(mesa.nombre)}</strong>
+              <small>${escaparHtml(mesa.capacidad)} plazas</small>
+            </div>
+            <span class="estado-recurso ${mesaCerrada ? "cerrado" : "abierto"}">
+              ${etiquetaEstadoRecurso(mesa.estado, "mesa")}
+            </span>
+            <button
+              class="boton-estado-recurso ${mesaCerrada ? "boton-reabrir" : "boton-cerrar"}"
+              type="button"
+              data-tipo-recurso="mesa"
+              data-recurso-id="${escaparHtml(mesa.id)}"
+              data-habilitar="${mesaCerrada}"
+            >${mesaCerrada ? "Reabrir mesa" : "Fuera de servicio"}</button>
+          </article>
+        `;
+      }).join("")
+      : '<p class="sin-mesas-zona">Esta zona no tiene mesas.</p>';
+
+    return `
+      <section class="grupo-zona${zonaCerrada ? " zona-cerrada" : ""}">
+        <header class="cabecera-zona">
+          <div>
+            <h3>${escaparHtml(zona.nombre)}</h3>
+            <span class="estado-recurso ${zonaCerrada ? "cerrado" : "abierto"}">
+              ${etiquetaEstadoRecurso(zona.estado, "zona")}
+            </span>
+          </div>
+          <button
+            class="boton-estado-recurso ${zonaCerrada ? "boton-reabrir" : "boton-cerrar"}"
+            type="button"
+            data-tipo-recurso="zona"
+            data-recurso-id="${escaparHtml(zona.id)}"
+            data-habilitar="${zonaCerrada}"
+          >${zonaCerrada ? "Reabrir zona" : "Cerrar zona"}</button>
+        </header>
+        ${zonaCerrada ? `
+          <p class="aviso-zona-cerrada">
+            Todas las mesas de esta zona están temporalmente fuera de la disponibilidad.
+          </p>
+        ` : ""}
+        <div class="mesas-configuracion">${contenidoMesas}</div>
+      </section>
+    `;
+  }).join("");
+}
+
+
+function abrirGestionDisponibilidad() {
+  errorDisponibilidad.textContent = "";
+  renderizarDisponibilidad();
+  dialogoDisponibilidad.showModal();
+}
+
+
+function cerrarGestionDisponibilidad() {
+  dialogoDisponibilidad.close();
+  errorDisponibilidad.textContent = "";
+}
+
+
+function describirReservasAfectadas(reservas) {
+  const visibles = reservas.slice(0, 6).map((reserva) =>
+    `${formatearFecha(reserva.fecha)} a las ${reserva.hora} · ` +
+    `${reserva.nombre || reserva.localizador} · ${reserva.personas} personas`
+  );
+  const restantes = reservas.length - visibles.length;
+
+  if (restantes > 0) {
+    visibles.push(`…y ${restantes} reserva${restantes === 1 ? " más" : "s más"}.`);
+  }
+
+  return visibles.join("\n");
+}
+
+
+async function actualizarDisponibilidadRecurso(tipo, id, habilitar, boton) {
+  errorDisponibilidad.textContent = "";
+  boton.disabled = true;
+  const textoOriginal = boton.textContent;
+  boton.textContent = habilitar ? "Reabriendo…" : "Comprobando…";
+  const datosAccion = {
+    accion: "actualizar_disponibilidad",
+    tipo_recurso: tipo,
+    recurso_id: id,
+    habilitar,
+    confirmar_afectadas: false,
+    fecha_desde: fechaLocalISO()
+  };
+
+  try {
+    let resultado = await ejecutarAccionReserva(datosAccion);
+
+    if (resultado.requiere_confirmacion) {
+      const reservas = resultado.reservas_afectadas || [];
+      const detalle = describirReservasAfectadas(reservas);
+      const etiqueta = tipo === "zona" ? "esta zona" : "esta mesa";
+      const confirmado = window.confirm(
+        `Atención: ${reservas.length} reserva${reservas.length === 1 ? "" : "s"} ` +
+        `${reservas.length === 1 ? "utiliza" : "utilizan"} ${etiqueta}:\n\n` +
+        `${detalle}\n\nCerrar ${etiqueta} no cambia ni cancela esas reservas. ` +
+        "Será necesario reorganizarlas manualmente. ¿Quieres continuar?"
+      );
+
+      if (!confirmado) {
+        return;
+      }
+
+      boton.textContent = "Cerrando…";
+      resultado = await ejecutarAccionReserva({
+        ...datosAccion,
+        confirmar_afectadas: true
+      });
+    }
+
+    if (!resultado.disponibilidad_actualizada) {
+      throw new Error("No se pudo actualizar la disponibilidad.");
+    }
+
+    await cargarReservas(sessionStorage.getItem(claveSesion));
+    renderizarDisponibilidad();
+    estadoCarga.textContent = tipo === "zona"
+      ? `Zona ${habilitar ? "reabierta" : "cerrada"} correctamente.`
+      : `Mesa ${habilitar ? "reabierta" : "puesta fuera de servicio"}.`;
+  } catch (error) {
+    errorDisponibilidad.textContent = error.message;
+  } finally {
+    if (boton.isConnected) {
+      boton.disabled = false;
+      boton.textContent = textoOriginal;
+    }
+  }
 }
 
 
@@ -645,6 +819,8 @@ async function cargarReservas(clave) {
       datos.resumen.personas;
     document.getElementById("total-canceladas").textContent =
       datos.resumen.canceladas;
+    zonasConfiguracionActuales = datos.zonas || [];
+    mesasConfiguracionActuales = datos.mesas_configuracion || [];
     renderizarReservas(datos.reservas);
     renderizarMesasLibres(datos.mesas_disponibles || [], datos.hora_mesas);
     estadoCarga.textContent = `${datos.reservas.length} reservas`;
@@ -765,6 +941,28 @@ formularioOcupar.addEventListener("submit", async (evento) => {
 
 
 botonNuevaReserva.addEventListener("click", abrirNuevaReserva);
+
+
+botonGestionarDisponibilidad.addEventListener(
+  "click",
+  abrirGestionDisponibilidad
+);
+
+
+recursosDisponibilidad.addEventListener("click", (evento) => {
+  const boton = evento.target.closest("button[data-tipo-recurso]");
+
+  if (!boton) {
+    return;
+  }
+
+  actualizarDisponibilidadRecurso(
+    boton.dataset.tipoRecurso,
+    boton.dataset.recursoId,
+    boton.dataset.habilitar === "true",
+    boton
+  );
+});
 
 
 formularioNuevaReserva.querySelectorAll("input[name='modo_asignacion']")
@@ -1138,6 +1336,14 @@ document.getElementById("cerrar-dialogo-nueva-reserva").addEventListener(
 document.getElementById("cancelar-dialogo-nueva-reserva").addEventListener(
   "click",
   cerrarNuevaReserva
+);
+document.getElementById("cerrar-dialogo-disponibilidad").addEventListener(
+  "click",
+  cerrarGestionDisponibilidad
+);
+document.getElementById("volver-dialogo-disponibilidad").addEventListener(
+  "click",
+  cerrarGestionDisponibilidad
 );
 
 
