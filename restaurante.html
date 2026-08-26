@@ -47,7 +47,7 @@
 
       <section class="resumen" aria-label="Resumen del día">
         <article class="tarjeta resumen-item">
-          <span>Confirmadas</span>
+          <span>Reservas</span>
           <strong id="total-confirmadas">0</strong>
         </article>
         <article class="tarjeta resumen-item">
@@ -81,6 +81,22 @@
         </div>
 
         <div id="reservas" class="reservas"></div>
+      </section>
+
+      <section class="tarjeta listado mesas-libres-panel">
+        <div class="listado-cabecera cabecera-mesas-libres">
+          <div>
+            <p class="etiqueta">DISPONIBILIDAD</p>
+            <h2>Mesas libres</h2>
+          </div>
+          <div class="hora-disponibilidad">
+            <label for="hora-mesas">Libres para una reserva a las</label>
+            <select id="hora-mesas" aria-label="Hora para consultar mesas libres"></select>
+          </div>
+        </div>
+
+        <p id="resumen-mesas-libres" class="resumen-mesas-libres"></p>
+        <div id="mesas-libres" class="mesas-libres"></div>
       </section>
     </section>
   </main>
