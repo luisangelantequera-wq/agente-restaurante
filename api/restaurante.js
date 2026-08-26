@@ -83,6 +83,31 @@ function normalizarEstado(valor) {
 }
 
 
+function horaAMinutos(hora) {
+  const partes = String(hora || "").match(/^(\d{2}):(\d{2})$/);
+
+  if (!partes) {
+    return null;
+  }
+
+  const horas = Number(partes[1]);
+  const minutos = Number(partes[2]);
+
+  if (horas > 23 || minutos > 59) {
+    return null;
+  }
+
+  return horas * 60 + minutos;
+}
+
+
+function estadoBloqueaMesa(estado) {
+  return ["confirmada", "ocupada", "con retraso"].includes(
+    normalizarEstado(estado)
+  );
+}
+
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     return responder(res, 405, {
@@ -97,12 +122,14 @@ module.exports = async (req, res) => {
       : (req.body || {});
     const restauranteId = Number(body.restaurante_id);
     const fecha = String(body.fecha || "").trim();
+    const horaMesas = String(body.hora_mesas || "14:00").trim();
     const clave = body.clave;
 
     if (
       !Number.isInteger(restauranteId) ||
       restauranteId <= 0 ||
-      !fechaValida(fecha)
+      !fechaValida(fecha) ||
+      horaAMinutos(horaMesas) === null
     ) {
       return responder(res, 400, {
         ok: false,
@@ -129,10 +156,6 @@ module.exports = async (req, res) => {
     const formula =
       `AND(` +
       `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
-      `OR(` +
-      `LOWER(TRIM({estado}))='confirmada',` +
-      `LOWER(TRIM({estado}))='cancelada'` +
-      `),` +
       `FIND('${String(restauranteId)}',` +
       `ARRAYJOIN({id (from restaurante)}))` +
       `)`;
@@ -147,17 +170,44 @@ module.exports = async (req, res) => {
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS` +
       `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
     const datosMesas = await consultarAirtable(urlMesas);
+    const urlZonas =
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/ZONA`;
+    const datosZonas = await consultarAirtable(urlZonas);
+    const zonasPorId = new Map(
+      (datosZonas.records || [])
+        .filter((zona) =>
+          Array.isArray(zona.fields.restaurante) &&
+          zona.fields.restaurante.includes(restaurante.id)
+        )
+        .map((zona) => [
+          zona.id,
+          zona.fields.nombre || zona.fields.zona || "Sin zona"
+        ])
+    );
     const datosMesasPorId = new Map(
       (datosMesas.records || []).map((mesa) => [
         mesa.id,
         {
+          id: mesa.id,
           nombre:
             mesa.fields.nombre_mesa || String(mesa.fields.id || "Mesa"),
-          capacidad: Number(mesa.fields.capacidad || 0)
+          capacidad: Number(mesa.fields.capacidad || 0),
+          estado: normalizarEstado(mesa.fields.estado),
+          zona: zonasPorId.get(mesa.fields.zona?.[0]) || "Sin zona"
         }
       ])
     );
+    const estadosVisibles = new Set([
+      "confirmada",
+      "ocupada",
+      "con retraso",
+      "cobrada",
+      "cancelada"
+    ]);
     const reservas = (datos.records || [])
+      .filter((reserva) => estadosVisibles.has(
+        normalizarEstado(reserva.fields.estado)
+      ))
       .map((reserva) => {
         const mesasAsignadas = (reserva.fields.mesa || []).map((mesaId) =>
           datosMesasPorId.get(mesaId) || { nombre: "Mesa", capacidad: 0 }
@@ -187,9 +237,55 @@ module.exports = async (req, res) => {
         String(a.hora).localeCompare(String(b.hora)) ||
         String(a.localizador).localeCompare(String(b.localizador))
       );
-    const confirmadas = reservas.filter((reserva) =>
-      reserva.estado === "confirmada"
+    const noCanceladas = reservas.filter((reserva) =>
+      reserva.estado !== "cancelada"
     );
+    const inicioConsulta = horaAMinutos(horaMesas);
+    const duracion = Number(restaurante.fields.duracion_reserva_minutos);
+
+    if (!Number.isInteger(duracion) || duracion <= 0) {
+      throw new Error(
+        "El campo duracion_reserva_minutos del restaurante no es válido."
+      );
+    }
+
+    const finConsulta = inicioConsulta + duracion;
+    const mesasOcupadas = new Set();
+
+    for (const reserva of reservas) {
+      if (!estadoBloqueaMesa(reserva.estado)) {
+        continue;
+      }
+
+      const inicioReserva = horaAMinutos(reserva.hora);
+
+      if (inicioReserva === null) {
+        continue;
+      }
+
+      const finReserva = inicioReserva + duracion;
+
+      if (inicioConsulta < finReserva && finConsulta > inicioReserva) {
+        reserva.mesa_ids.forEach((mesaId) => mesasOcupadas.add(mesaId));
+      }
+    }
+
+    const mesasDisponibles = Array.from(datosMesasPorId.values())
+      .filter((mesa) =>
+        mesa.estado !== "fuera de servicio" && !mesasOcupadas.has(mesa.id)
+      )
+      .sort((a, b) =>
+        String(a.zona).localeCompare(String(b.zona), "es") ||
+        String(a.nombre).localeCompare(String(b.nombre), "es", {
+          numeric: true
+        })
+      )
+      .map(({ id, nombre, capacidad, zona }) => ({
+        id,
+        nombre,
+        capacidad,
+        zona
+      }));
 
     return responder(res, 200, {
       ok: true,
@@ -198,13 +294,15 @@ module.exports = async (req, res) => {
         nombre: restaurante.fields.nombre || "Restaurante"
       },
       fecha,
+      hora_mesas: horaMesas,
       resumen: {
-        confirmadas: confirmadas.length,
-        canceladas: reservas.length - confirmadas.length,
-        personas: confirmadas.reduce((total, reserva) =>
+        reservas: noCanceladas.length,
+        canceladas: reservas.length - noCanceladas.length,
+        personas: noCanceladas.reduce((total, reserva) =>
           total + reserva.personas, 0)
       },
-      reservas
+      reservas,
+      mesas_disponibles: mesasDisponibles
     });
   } catch (error) {
     console.error("ERROR PANEL RESTAURANTE:", error);
