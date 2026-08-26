@@ -92,9 +92,16 @@
             <p class="etiqueta">DISPONIBILIDAD</p>
             <h2>Mesas libres</h2>
           </div>
-          <div class="hora-disponibilidad">
-            <label for="hora-mesas">Libres para una reserva a las</label>
-            <select id="hora-mesas" aria-label="Hora para consultar mesas libres"></select>
+          <div class="controles-disponibilidad">
+            <button
+              id="gestionar-disponibilidad"
+              class="boton-secundario"
+              type="button"
+            >Gestionar mesas y zonas</button>
+            <div class="hora-disponibilidad">
+              <label for="hora-mesas">Libres para una reserva a las</label>
+              <select id="hora-mesas" aria-label="Hora para consultar mesas libres"></select>
+            </div>
           </div>
         </div>
 
@@ -327,6 +334,38 @@
         </button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="dialogo-disponibilidad" class="dialogo dialogo-disponibilidad">
+    <div class="dialogo-cabecera">
+      <div>
+        <p class="etiqueta">CONFIGURACIÓN TEMPORAL</p>
+        <h2>Gestionar mesas y zonas</h2>
+      </div>
+      <button
+        id="cerrar-dialogo-disponibilidad"
+        class="cerrar-dialogo"
+        type="button"
+        aria-label="Cerrar"
+      >×</button>
+    </div>
+
+    <p class="nota-disponibilidad">
+      Cierra una mesa por avería o una zona completa, por ejemplo la terraza
+      en un día de lluvia. Dejarán de ofrecerse en nuevas reservas hasta que
+      las vuelvas a abrir.
+    </p>
+
+    <div id="recursos-disponibilidad" class="recursos-disponibilidad"></div>
+    <p id="error-disponibilidad" class="mensaje-error" role="alert"></p>
+
+    <div class="dialogo-acciones">
+      <button
+        id="volver-dialogo-disponibilidad"
+        class="boton-secundario"
+        type="button"
+      >Volver al panel</button>
+    </div>
   </dialog>
 
   <script src="restaurante.js"></script>
