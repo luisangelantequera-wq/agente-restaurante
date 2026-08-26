@@ -356,12 +356,11 @@ async function comprobarDisponibilidad() {
       }
     } else {
       agregarMensaje(
-        "No hay otros horarios disponibles en la hora anterior o posterior. Puedes indicarme otra hora.",
+        "No hay otros horarios disponibles en la hora anterior o posterior. Puedes indicarme otra hora, otro día o un número diferente de personas.",
         "bot"
       );
     }
 
-    datosReserva.hora = "";
     paso = "hora";
 
   } catch (error) {
@@ -965,18 +964,49 @@ async function procesarMensaje(texto) {
 
   // HORA
   if (paso === "hora") {
-    const horaExtraida = extraerHora(mensaje);
+    const correcciones = extraerDatosIniciales(mensaje);
 
-    if (!horaExtraida) {
+    if (
+      !correcciones.hora &&
+      !correcciones.fecha &&
+      !correcciones.personas
+    ) {
       agregarMensaje(
-        "No he podido identificar la hora. Puedes escribir, por ejemplo: 14:00 o Sí, me viene bien a las 14:00.",
+        "No he podido identificar el cambio. Puedes indicarme otra hora, otro día o un número diferente de personas.",
         "bot"
       );
 
       return;
     }
 
-    datosReserva.hora = horaExtraida;
+    if (correcciones.hora) {
+      datosReserva.hora = correcciones.hora;
+    }
+
+    if (correcciones.fecha) {
+      datosReserva.fecha = correcciones.fecha;
+    }
+
+    if (correcciones.personas) {
+      datosReserva.personas = correcciones.personas;
+    }
+
+    if (!datosReserva.fecha) {
+      paso = "fecha";
+      agregarMensaje(
+        "¿Qué día deseas reservar? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
+        "bot"
+      );
+      return;
+    }
+
+    if (!datosReserva.hora) {
+      agregarMensaje(
+        "¿A qué hora deseas reservar? Por ejemplo: 14:00.",
+        "bot"
+      );
+      return;
+    }
 
     await comprobarDisponibilidad();
 
