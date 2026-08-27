@@ -27,7 +27,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -108,7 +109,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--borde);
@@ -119,9 +121,15 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--acento);
   outline: 3px solid rgba(200, 138, 24, 0.16);
+}
+
+textarea {
+  min-height: 82px;
+  resize: vertical;
 }
 
 .acceso button {
@@ -251,6 +259,29 @@ select:focus {
 .reserva.estado-fila-cancelada {
   background: #fff8f7;
   color: #6e5e5e;
+}
+
+.observaciones-reserva {
+  grid-column: 2 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  border: 1px solid #ead9ae;
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: #fff9e9;
+  color: #654d13;
+  font-size: 12px;
+}
+
+.observaciones-reserva span {
+  white-space: pre-wrap;
+}
+
+.observaciones-reserva.observaciones-prioritarias {
+  border-color: #e6a5a5;
+  background: #fff0f0;
+  color: #9f2424;
 }
 
 .hora {
@@ -453,6 +484,18 @@ select:focus {
   display: grid;
   grid-template-columns: 1.4fr 1fr 0.8fr;
   gap: 14px;
+}
+
+.campo-observaciones {
+  margin-top: 14px;
+}
+
+.campos-reserva-panel .campo-observaciones {
+  margin-top: 0;
+}
+
+.campo-ancho {
+  grid-column: 1 / -1;
 }
 
 .selector-hora {
@@ -1033,8 +1076,13 @@ select:focus {
   .acciones-reserva,
   .sin-acciones {
     grid-column: 2 / -1;
-    grid-row: 6;
+    grid-row: 7;
     justify-self: start;
+  }
+
+  .observaciones-reserva {
+    grid-column: 2 / -1;
+    grid-row: 6;
   }
 
   .campos-modificar {
