@@ -3076,6 +3076,52 @@ await buscarAsignacionDisponible(
         });
       }
 
+      let solicitudEsperaConversion = null;
+
+      if (registro_espera_id) {
+        const registroEsperaId = String(registro_espera_id).trim();
+
+        if (
+          !esReservaPanel ||
+          !/^rec[a-zA-Z0-9]{14}$/.test(registroEsperaId)
+        ) {
+          return responder(res, 400, {
+            ok: false,
+            error: "La solicitud de lista de espera no es válida."
+          });
+        }
+
+        solicitudEsperaConversion = await consultarAirtable(
+          `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+          `LISTA_ESPERA/${registroEsperaId}`
+        );
+        const restaurantesSolicitud = Array.isArray(
+          solicitudEsperaConversion.fields.restaurante
+        )
+          ? solicitudEsperaConversion.fields.restaurante
+          : [];
+        const estadoSolicitud = String(
+          solicitudEsperaConversion.fields.estado || ""
+        ).trim().toLowerCase();
+
+        if (!restaurantesSolicitud.includes(restaurante.id)) {
+          return responder(res, 404, {
+            ok: false,
+            error: "La solicitud no pertenece al restaurante."
+          });
+        }
+
+        if (!["pendiente", "avisado"].includes(estadoSolicitud)) {
+          return responder(res, 409, {
+            ok: false,
+            error:
+              estadoSolicitud === "convertida"
+                ? "Esta solicitud ya se convirtió en una reserva."
+                : "Esta solicitud ya no está activa."
+          });
+        }
+      }
+
 
       // IMPORTANTE:
       // Volvemos a comprobar disponibilidad.
@@ -3306,6 +3352,34 @@ await buscarAsignacionDisponible(
         });
       }
 
+      let listaEsperaConvertida = null;
+
+      if (solicitudEsperaConversion) {
+        try {
+          await consultarAirtable(
+            `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+            `LISTA_ESPERA/${solicitudEsperaConversion.id}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fields: {
+                  estado: "convertida",
+                  reserva: [reservaCreada.id]
+                }
+              })
+            }
+          );
+          listaEsperaConvertida = true;
+        } catch (errorListaEspera) {
+          listaEsperaConvertida = false;
+          console.error(
+            "La reserva se creó, pero no se pudo cerrar su lista de espera:",
+            errorListaEspera
+          );
+        }
+      }
+
 
       console.log(
         "RESERVA CREADA:",
@@ -3359,6 +3433,8 @@ await buscarAsignacionDisponible(
         correo_enviado: correoEnviado,
 
         correo_restaurante_enviado: correoRestauranteEnviado,
+
+        lista_espera_convertida: listaEsperaConvertida,
 
         airtable_record_id:
           reservaCreada.id,
