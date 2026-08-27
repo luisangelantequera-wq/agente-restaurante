@@ -45,6 +45,8 @@ const confirmarOcupacion = document.getElementById("confirmar-ocupacion");
 const botonNuevaReserva = document.getElementById("nueva-reserva");
 const dialogoNuevaReserva = document.getElementById("dialogo-nueva-reserva");
 const formularioNuevaReserva = document.getElementById("form-nueva-reserva");
+const etiquetaNuevaReserva = dialogoNuevaReserva.querySelector(".etiqueta");
+const tituloNuevaReserva = dialogoNuevaReserva.querySelector("h2");
 const fechaNuevaReserva = document.getElementById("fecha-nueva-reserva");
 const horaNuevaReservaHoras = document.getElementById("hora-nueva-reserva-horas");
 const horaNuevaReservaMinutos = document.getElementById("hora-nueva-reserva-minutos");
@@ -82,6 +84,7 @@ let reservaMesasEnEdicion = null;
 let opcionesMesasActuales = [];
 let mesaEnOcupacion = null;
 let mesasDisponiblesReservaPanel = [];
+let solicitudEsperaConversion = null;
 
 
 function fechaLocalISO() {
@@ -389,6 +392,12 @@ function renderizarListaEspera(solicitudes) {
     if (solicitud.estado === "pendiente") {
       acciones += `
         <button
+          class="accion-espera convertir"
+          type="button"
+          data-espera-id="${escaparHtml(solicitud.id)}"
+          data-accion-espera="convertir"
+        >Crear reserva</button>
+        <button
           class="accion-espera avisar"
           type="button"
           data-espera-id="${escaparHtml(solicitud.id)}"
@@ -403,6 +412,12 @@ function renderizarListaEspera(solicitudes) {
       `;
     } else if (solicitud.estado === "avisado") {
       acciones += `
+        <button
+          class="accion-espera convertir"
+          type="button"
+          data-espera-id="${escaparHtml(solicitud.id)}"
+          data-accion-espera="convertir"
+        >Crear reserva</button>
         <button
           class="accion-espera pendiente"
           type="button"
@@ -703,26 +718,41 @@ function cerrarOcupacion() {
 }
 
 
-function abrirNuevaReserva() {
+function abrirNuevaReserva(solicitud = null) {
+  solicitudEsperaConversion = solicitud;
   formularioNuevaReserva.reset();
   seleccionMesasManual.hidden = true;
   mesasDisponiblesReservaPanel = [];
   mesasReservaManual.innerHTML = "";
   capacidadReservaManual.textContent = "";
-  fechaNuevaReserva.value = campoFecha.value;
-  mostrarHoraNuevaReserva(horaMesas.value);
+  etiquetaNuevaReserva.textContent = solicitud
+    ? "LISTA DE ESPERA"
+    : "RESERVA TELEFÓNICA";
+  tituloNuevaReserva.textContent = solicitud
+    ? "Convertir en reserva"
+    : "Nueva reserva";
+  fechaNuevaReserva.value = solicitud?.fecha || campoFecha.value;
+  mostrarHoraNuevaReserva(solicitud?.hora || horaMesas.value);
+  personasNuevaReserva.value = solicitud?.personas || "";
+  nombreNuevaReserva.value = solicitud?.nombre || "";
+  telefonoNuevaReserva.value = solicitud?.telefono || "";
+  emailNuevaReserva.value = solicitud?.email || "";
+  observacionesNuevaReserva.value = solicitud?.observaciones || "";
   errorNuevaReserva.textContent = "";
   dialogoNuevaReserva.showModal();
-  personasNuevaReserva.focus();
+  (solicitud ? guardarNuevaReserva : personasNuevaReserva).focus();
 }
 
 
 function cerrarNuevaReserva() {
   dialogoNuevaReserva.close();
+  solicitudEsperaConversion = null;
   mesasDisponiblesReservaPanel = [];
   mesasReservaManual.innerHTML = "";
   capacidadReservaManual.textContent = "";
   errorNuevaReserva.textContent = "";
+  etiquetaNuevaReserva.textContent = "RESERVA TELEFÓNICA";
+  tituloNuevaReserva.textContent = "Nueva reserva";
 }
 
 
@@ -1122,7 +1152,7 @@ formularioOcupar.addEventListener("submit", async (evento) => {
 });
 
 
-botonNuevaReserva.addEventListener("click", abrirNuevaReserva);
+botonNuevaReserva.addEventListener("click", () => abrirNuevaReserva());
 
 
 botonGestionarDisponibilidad.addEventListener(
@@ -1199,6 +1229,7 @@ formularioNuevaReserva.addEventListener("submit", async (evento) => {
   const fechaReserva = fechaNuevaReserva.value;
   const horaReserva = horaFormularioNuevaReserva();
   const emailReserva = emailNuevaReserva.value.trim();
+  const solicitudConvertida = solicitudEsperaConversion;
   const mesasManuales = esAsignacionManual()
     ? Array.from(
       mesasReservaManual.querySelectorAll("input[type='checkbox']:checked")
@@ -1223,7 +1254,8 @@ formularioNuevaReserva.addEventListener("submit", async (evento) => {
       telefono: telefonoNuevaReserva.value.trim(),
       email: emailReserva,
       mesa_ids: mesasManuales,
-      mensaje: observacionesNuevaReserva.value.trim()
+      mensaje: observacionesNuevaReserva.value.trim(),
+      registro_espera_id: solicitudConvertida?.id
     });
 
     if (!resultado.reservado) {
@@ -1241,7 +1273,23 @@ formularioNuevaReserva.addEventListener("submit", async (evento) => {
     horaMesas.value = horaReserva;
     await cargarReservas(sessionStorage.getItem(claveSesion));
 
-    if (emailReserva) {
+    if (
+      solicitudConvertida &&
+      resultado.lista_espera_convertida === false
+    ) {
+      estadoCarga.textContent =
+        `Reserva ${resultado.id_reserva} creada, pero no se pudo cerrar ` +
+        `automáticamente la solicitud ${solicitudConvertida.id_espera}.`;
+    } else if (solicitudConvertida) {
+      estadoCarga.textContent = emailReserva
+        ? resultado.correo_enviado
+          ? `Solicitud ${solicitudConvertida.id_espera} convertida en la ` +
+            `reserva ${resultado.id_reserva}; correo enviado al cliente.`
+          : `Solicitud ${solicitudConvertida.id_espera} convertida en la ` +
+            `reserva ${resultado.id_reserva}, pero no se pudo enviar el correo.`
+        : `Solicitud ${solicitudConvertida.id_espera} convertida en la ` +
+          `reserva ${resultado.id_reserva}.`;
+    } else if (emailReserva) {
       estadoCarga.textContent = resultado.correo_enviado
         ? `Reserva ${resultado.id_reserva} creada y correo enviado.`
         : `Reserva ${resultado.id_reserva} creada, pero el correo no pudo enviarse.`;
@@ -1513,9 +1561,19 @@ listaEsperaContenedor.addEventListener("click", async (evento) => {
   const solicitud = listaEsperaActual.find((item) =>
     item.id === boton.dataset.esperaId
   );
+  const accionEspera = boton.dataset.accionEspera;
   const estadoNuevo = boton.dataset.estadoEspera;
 
-  if (!solicitud || !estadoNuevo) {
+  if (!solicitud) {
+    return;
+  }
+
+  if (accionEspera === "convertir") {
+    abrirNuevaReserva(solicitud);
+    return;
+  }
+
+  if (!estadoNuevo) {
     return;
   }
 
