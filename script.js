@@ -27,6 +27,8 @@ let datosReserva = {
 let localizadorGestion = "";
 let reservaGestion = null;
 let reservaGestionOriginal = null;
+let solicitudEspera = null;
+let datosListaEspera = null;
 let tokenGestionActivo = new URLSearchParams(window.location.search)
   .get("gestion") || "";
 
@@ -122,6 +124,15 @@ function normalizarTexto(texto) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+}
+
+function quiereListaEspera(texto) {
+  const normalizado = normalizarTexto(texto);
+
+  return /lista\s+de\s+espera/.test(normalizado) ||
+    /\bapunt(?:ame|arme|a)\b/.test(normalizado) ||
+    /\bponme\s+en\s+(?:la\s+)?lista\b/.test(normalizado) ||
+    /\bquiero\s+esperar\b/.test(normalizado);
 }
 
 function extraerPersonas(texto) {
@@ -315,6 +326,7 @@ async function comprobarDisponibilidad() {
     }
 
     if (data.disponible) {
+      solicitudEspera = null;
       agregarMensaje(
         `¡Sí! Tenemos disponibilidad para ${datosReserva.personas} personas el ${mostrarFecha(datosReserva.fecha)} a las ${datosReserva.hora}.`,
         "bot"
@@ -341,6 +353,7 @@ async function comprobarDisponibilidad() {
       : [];
 
     if (data.requiere_contacto_restaurante) {
+      solicitudEspera = null;
       const telefono = telefonoParaEnlace(data.telefono_restaurante);
       const contacto = telefono
         ? `Puedes llamar directamente al restaurante: tel:${telefono}`
@@ -355,6 +368,7 @@ async function comprobarDisponibilidad() {
     }
 
     if (data.cambio_requerido === "fecha") {
+      solicitudEspera = null;
       agregarMensaje(
         "¿Qué otro día te viene bien? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
         "bot"
@@ -365,6 +379,13 @@ async function comprobarDisponibilidad() {
       paso = "fecha";
       return;
     }
+
+    solicitudEspera = {
+      restaurante_id: datosReserva.restaurante_id,
+      personas: datosReserva.personas,
+      fecha: datosReserva.fecha,
+      hora: datosReserva.hora
+    };
 
     if (alternativas.length > 0) {
       if (alternativas.length === 1) {
@@ -386,6 +407,12 @@ async function comprobarDisponibilidad() {
         "bot"
       );
     }
+
+    agregarMensaje(
+      `Si prefieres mantener las ${solicitudEspera.hora}, puedo apuntarte ` +
+      "a la lista de espera. Escribe: lista de espera.",
+      "bot"
+    );
 
     paso = "hora";
 
@@ -423,6 +450,123 @@ function mostrarConfirmacionNuevaReserva() {
     `\n¿Confirmas la reserva? Responde Sí o No.`,
     "bot"
   );
+}
+
+
+function iniciarListaEspera() {
+  datosListaEspera = {
+    ...solicitudEspera,
+    nombre: "",
+    email: "",
+    telefono: "",
+    observaciones: ""
+  };
+  paso = "espera_nombre";
+  agregarMensaje(
+    "De acuerdo. La lista de espera no bloquea ninguna mesa, pero el " +
+    "restaurante podrá avisarte si se libera una. ¿A qué nombre te apunto?",
+    "bot"
+  );
+}
+
+
+function mostrarConfirmacionListaEspera() {
+  paso = "confirmacion_espera";
+  const lineaObservaciones = datosListaEspera.observaciones
+    ? `📝 Observaciones: ${datosListaEspera.observaciones}\n`
+    : "";
+
+  agregarMensaje(
+    `Voy a apuntarte en la lista de espera:\n\n` +
+    `📅 Fecha: ${mostrarFecha(datosListaEspera.fecha)}\n` +
+    `🕒 Hora solicitada: ${datosListaEspera.hora}\n` +
+    `👥 Personas: ${datosListaEspera.personas}\n` +
+    `🧑 Nombre: ${datosListaEspera.nombre}\n` +
+    `📧 Email: ${datosListaEspera.email}\n` +
+    `📱 Teléfono: ${datosListaEspera.telefono}\n` +
+    lineaObservaciones +
+    `\n¿Confirmas que quieres entrar en la lista de espera? Responde Sí o No.`,
+    "bot"
+  );
+}
+
+
+async function crearListaEspera() {
+  agregarMensaje(
+    "Un momento, voy a comprobar de nuevo la disponibilidad...",
+    "bot"
+  );
+
+  try {
+    const respuesta = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accion: "lista_espera_crear",
+        restaurante_id: datosListaEspera.restaurante_id,
+        personas: datosListaEspera.personas,
+        fecha: datosListaEspera.fecha,
+        hora: datosListaEspera.hora,
+        nombre: datosListaEspera.nombre,
+        email: datosListaEspera.email,
+        telefono: datosListaEspera.telefono,
+        mensaje: datosListaEspera.observaciones
+      })
+    });
+    const data = await respuesta.json();
+
+    if (!respuesta.ok || data.ok === false) {
+      throw new Error(data.error || "No se pudo crear la solicitud.");
+    }
+
+    if (data.disponible_ahora) {
+      datosReserva = { ...datosListaEspera };
+      solicitudEspera = null;
+      datosListaEspera = null;
+      agregarMensaje(
+        "¡Se acaba de liberar una mesa adecuada! No te he añadido a la " +
+        "lista de espera; puedes confirmar ahora la reserva.",
+        "bot"
+      );
+      mostrarConfirmacionNuevaReserva();
+      return;
+    }
+
+    if (data.requiere_contacto_restaurante) {
+      const telefonoRestaurante = telefonoParaEnlace(data.telefono_restaurante);
+      agregarMensaje(
+        data.motivo +
+        (telefonoRestaurante
+          ? ` Puedes llamar al restaurante: tel:${telefonoRestaurante}`
+          : " Contacta directamente con el restaurante."),
+        "bot"
+      );
+      reiniciarReserva();
+      return;
+    }
+
+    if (!data.lista_espera_creada) {
+      throw new Error(data.motivo || "No se pudo crear la solicitud.");
+    }
+
+    agregarMensaje(
+      data.ya_existia
+        ? `Ya estabas en la lista de espera con el código ${data.id_espera}. ` +
+          "El restaurante conserva tu solicitud."
+        : `✅ Te he apuntado a la lista de espera. Tu código es: ${data.id_espera}.\n\n` +
+          "Esto no es una reserva confirmada. El restaurante utilizará tus " +
+          "datos de contacto si se libera una mesa.",
+      "bot"
+    );
+    reiniciarReserva();
+  } catch (error) {
+    console.error("Error al crear la lista de espera:", error);
+    agregarMensaje(
+      `No se ha podido crear la solicitud: ${error.message}`,
+      "bot"
+    );
+    paso = "confirmacion_espera";
+  }
 }
 
 
@@ -688,6 +832,106 @@ async function procesarMensaje(texto) {
   }
 
   agregarMensaje(mensaje, "user");
+
+  if (paso === "hora" && solicitudEspera && quiereListaEspera(mensaje)) {
+    iniciarListaEspera();
+    return;
+  }
+
+  if (paso === "espera_nombre") {
+    if (mensaje.length < 2) {
+      agregarMensaje("Indícame un nombre válido.", "bot");
+      return;
+    }
+
+    datosListaEspera.nombre = mensaje;
+    paso = "espera_email";
+    agregarMensaje("¿Cuál es tu correo electrónico?", "bot");
+    return;
+  }
+
+  if (paso === "espera_email") {
+    if (!emailValido(mensaje)) {
+      agregarMensaje(
+        "Ese correo no parece válido. Por ejemplo: nombre@email.com",
+        "bot"
+      );
+      return;
+    }
+
+    datosListaEspera.email = mensaje;
+    paso = "espera_telefono";
+    agregarMensaje("¿Cuál es tu número de teléfono móvil?", "bot");
+    return;
+  }
+
+  if (paso === "espera_telefono") {
+    if (!telefonoValido(mensaje)) {
+      agregarMensaje(
+        "Ese número no parece válido. Puedes escribir, por ejemplo: 612345678.",
+        "bot"
+      );
+      return;
+    }
+
+    datosListaEspera.telefono = normalizarTelefono(mensaje);
+    paso = "espera_observaciones";
+    agregarMensaje(
+      "¿Quieres añadir alguna observación para el restaurante? Si no, responde: no.",
+      "bot"
+    );
+    return;
+  }
+
+  if (paso === "espera_observaciones") {
+    const respuesta = normalizarTexto(mensaje);
+    const sinObservaciones =
+      /^(?:no|n|ninguna|ninguno|nada|sin observaciones|no\s+gracias)[.!]?$/
+        .test(respuesta.trim());
+
+    if (mensaje.length > 1000) {
+      agregarMensaje(
+        "La observación es demasiado larga. Resúmela en un máximo de 1000 caracteres.",
+        "bot"
+      );
+      return;
+    }
+
+    datosListaEspera.observaciones = sinObservaciones ? "" : mensaje;
+    mostrarConfirmacionListaEspera();
+    return;
+  }
+
+  if (paso === "confirmacion_espera") {
+    const respuesta = normalizarTexto(mensaje).trim();
+
+    if (respuesta === "si" || respuesta === "s") {
+      paso = "procesando_espera";
+      await crearListaEspera();
+      return;
+    }
+
+    if (respuesta === "no" || respuesta === "n") {
+      datosListaEspera = null;
+      paso = "hora";
+      agregarMensaje(
+        "De acuerdo. No te he añadido a la lista de espera. Puedes indicarme otra hora, otro día o un número diferente de personas.",
+        "bot"
+      );
+      return;
+    }
+
+    agregarMensaje("Por favor, responde Sí o No.", "bot");
+    return;
+  }
+
+  if (paso === "procesando_espera") {
+    agregarMensaje(
+      "Estoy procesando tu solicitud de lista de espera. Espera un momento.",
+      "bot"
+    );
+    return;
+  }
 
   if (
     paso === "localizador_consulta" ||
@@ -1234,6 +1478,8 @@ function reiniciarReserva() {
   localizadorGestion = "";
   reservaGestion = null;
   reservaGestionOriginal = null;
+  solicitudEspera = null;
+  datosListaEspera = null;
 
   datosReserva = {
     restaurante_id: 1,
