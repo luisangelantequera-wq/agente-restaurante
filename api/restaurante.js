@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { registroDebeAnonimizarse } = require("../lib/privacidad");
 
 
 function responder(res, status, datos) {
@@ -191,6 +192,29 @@ module.exports = async (req, res) => {
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/LISTA_ESPERA` +
       `?filterByFormula=${encodeURIComponent(formulaListaEspera)}`;
     const datosListaEspera = await consultarAirtable(urlListaEspera);
+    const duracion = Number(restaurante.fields.duracion_reserva_minutos);
+
+    if (!Number.isInteger(duracion) || duracion <= 0) {
+      throw new Error(
+        "El campo duracion_reserva_minutos del restaurante no es válido."
+      );
+    }
+
+    const ahora = new Date();
+    const idsReservasVencidas = new Set(
+      (datos.records || [])
+        .filter((reserva) =>
+          registroDebeAnonimizarse(reserva.fields, duracion, ahora)
+        )
+        .map((reserva) => reserva.id)
+    );
+    const idsEsperasVencidas = new Set(
+      (datosListaEspera.records || [])
+        .filter((solicitud) =>
+          registroDebeAnonimizarse(solicitud.fields, duracion, ahora)
+        )
+        .map((solicitud) => solicitud.id)
+    );
     const zonasRestaurante = (datosZonas.records || [])
       .filter((zona) =>
         Array.isArray(zona.fields.restaurante) &&
@@ -235,13 +259,16 @@ module.exports = async (req, res) => {
         normalizarEstado(reserva.fields.estado)
       ))
       .map((reserva) => {
+        const anonimizada = Boolean(
+          reserva.fields.anonimizada || idsReservasVencidas.has(reserva.id)
+        );
         const mesasAsignadas = (reserva.fields.mesa || []).map((mesaId) =>
           datosMesasPorId.get(mesaId) || { nombre: "Mesa", capacidad: 0 }
         );
 
         return {
-          id: reserva.id,
-          localizador: reserva.fields.id_reserva || "",
+          id: anonimizada ? null : reserva.id,
+          localizador: anonimizada ? "" : (reserva.fields.id_reserva || ""),
           fecha: reserva.fields.fecha || fecha,
           hora: reserva.fields.hora || "",
           personas: Number(reserva.fields.personas || 0),
@@ -253,11 +280,16 @@ module.exports = async (req, res) => {
             (total, mesa) => total + mesa.capacidad,
             0
           ),
-          nombre: reserva.fields.nombre_completo || "",
-          email: reserva.fields.email || "",
-          telefono: reserva.fields.telefono || "",
-          observaciones: normalizarObservaciones(reserva.fields.mensaje),
-          estado: normalizarEstado(reserva.fields.estado)
+          nombre: anonimizada
+            ? "Datos personales eliminados"
+            : (reserva.fields.nombre_completo || ""),
+          email: anonimizada ? "" : (reserva.fields.email || ""),
+          telefono: anonimizada ? "" : (reserva.fields.telefono || ""),
+          observaciones: anonimizada
+            ? ""
+            : normalizarObservaciones(reserva.fields.mensaje),
+          estado: normalizarEstado(reserva.fields.estado),
+          anonimizada
         };
       })
       .sort((a, b) =>
@@ -268,14 +300,6 @@ module.exports = async (req, res) => {
       reserva.estado !== "cancelada"
     );
     const inicioConsulta = horaAMinutos(horaMesas);
-    const duracion = Number(restaurante.fields.duracion_reserva_minutos);
-
-    if (!Number.isInteger(duracion) || duracion <= 0) {
-      throw new Error(
-        "El campo duracion_reserva_minutos del restaurante no es válido."
-      );
-    }
-
     const finConsulta = inicioConsulta + duracion;
     const mesasOcupadas = new Set();
 
@@ -342,21 +366,31 @@ module.exports = async (req, res) => {
         Array.isArray(solicitud.fields.restaurante) &&
         solicitud.fields.restaurante.includes(restaurante.id)
       )
-      .map((solicitud) => ({
-        id: solicitud.id,
-        id_espera: solicitud.fields.id_espera || "",
-        fecha: solicitud.fields.fecha || fecha,
-        hora: solicitud.fields.hora || "",
-        personas: Number(solicitud.fields.personas || 0),
-        nombre: solicitud.fields.nombre_completo || "",
-        telefono: solicitud.fields.telefono || "",
-        email: solicitud.fields.email || "",
-        observaciones: normalizarObservaciones(
-          solicitud.fields.observaciones
-        ),
-        estado: normalizarEstado(solicitud.fields.estado || "pendiente"),
-        creada_en: solicitud.createdTime || ""
-      }))
+      .map((solicitud) => {
+        const anonimizada = Boolean(
+          solicitud.fields.anonimizada ||
+          idsEsperasVencidas.has(solicitud.id)
+        );
+
+        return {
+          id: anonimizada ? null : solicitud.id,
+          id_espera: anonimizada ? "" : (solicitud.fields.id_espera || ""),
+          fecha: solicitud.fields.fecha || fecha,
+          hora: solicitud.fields.hora || "",
+          personas: Number(solicitud.fields.personas || 0),
+          nombre: anonimizada
+            ? "Datos personales eliminados"
+            : (solicitud.fields.nombre_completo || ""),
+          telefono: anonimizada ? "" : (solicitud.fields.telefono || ""),
+          email: anonimizada ? "" : (solicitud.fields.email || ""),
+          observaciones: anonimizada
+            ? ""
+            : normalizarObservaciones(solicitud.fields.observaciones),
+          estado: normalizarEstado(solicitud.fields.estado || "pendiente"),
+          creada_en: solicitud.createdTime || "",
+          anonimizada
+        };
+      })
       .sort((a, b) =>
         (prioridadEstadoEspera[a.estado] ?? 9) -
           (prioridadEstadoEspera[b.estado] ?? 9) ||
