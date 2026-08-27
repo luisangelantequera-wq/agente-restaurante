@@ -20,7 +20,8 @@ let datosReserva = {
   hora: "",
   nombre: "",
   email: "",
-  telefono: ""
+  telefono: "",
+  observaciones: ""
 };
 
 let localizadorGestion = "";
@@ -404,6 +405,27 @@ async function comprobarDisponibilidad() {
 }
 
 
+function mostrarConfirmacionNuevaReserva() {
+  paso = "confirmacion";
+  const lineaObservaciones = datosReserva.observaciones
+    ? `📝 Observaciones: ${datosReserva.observaciones}\n`
+    : "";
+
+  agregarMensaje(
+    `Por favor, revisa tu reserva:\n\n` +
+    `📅 Fecha: ${mostrarFecha(datosReserva.fecha)}\n` +
+    `🕒 Hora: ${datosReserva.hora}\n` +
+    `👥 Personas: ${datosReserva.personas}\n` +
+    `🧑 Nombre: ${datosReserva.nombre}\n` +
+    `📧 Email: ${datosReserva.email}\n` +
+    `📱 Teléfono: ${datosReserva.telefono}\n` +
+    lineaObservaciones +
+    `\n¿Confirmas la reserva? Responde Sí o No.`,
+    "bot"
+  );
+}
+
+
 // 9️⃣ CREAR LA RESERVA REAL
 async function crearReserva() {
   agregarMensaje(
@@ -426,7 +448,7 @@ async function crearReserva() {
         nombre: datosReserva.nombre,
         email: datosReserva.email,
         telefono: datosReserva.telefono,
-        mensaje: ""
+        mensaje: datosReserva.observaciones
       })
     });
 
@@ -534,11 +556,16 @@ async function solicitarGestionReserva(accion, localizador, datosAdicionales = {
 
 
 function mostrarResumenReserva(reserva) {
+  const observaciones = reserva.observaciones
+    ? `Observaciones: ${reserva.observaciones}\n`
+    : "";
+
   return `Localizador: ${reserva.localizador}\n` +
     `Fecha: ${mostrarFecha(reserva.fecha)}\n` +
     `Hora: ${reserva.hora}\n` +
     `Personas: ${reserva.personas}\n` +
     `Nombre: ${reserva.nombre}\n` +
+    observaciones +
     `Estado: ${reserva.estado}`;
 }
 
@@ -1099,20 +1126,35 @@ async function procesarMensaje(texto) {
     datosReserva.telefono =
       normalizarTelefono(mensaje);
 
-    paso = "confirmacion";
+    paso = "observaciones";
 
     agregarMensaje(
-      `Por favor, revisa tu reserva:\n\n` +
-      `📅 Fecha: ${mostrarFecha(datosReserva.fecha)}\n` +
-      `🕒 Hora: ${datosReserva.hora}\n` +
-      `👥 Personas: ${datosReserva.personas}\n` +
-      `🧑 Nombre: ${datosReserva.nombre}\n` +
-      `📧 Email: ${datosReserva.email}\n` +
-      `📱 Teléfono: ${datosReserva.telefono}\n\n` +
-      `¿Confirmas la reserva? Responde Sí o No.`,
+      "¿Quieres añadir alguna observación? Por ejemplo: alergias, trona, " +
+      "accesibilidad o una ubicación preferida. Si no, responde: no.",
       "bot"
     );
 
+    return;
+  }
+
+
+  // OBSERVACIONES
+  if (paso === "observaciones") {
+    const respuesta = normalizarTexto(mensaje);
+    const sinObservaciones =
+      /^(?:no|n|ninguna|ninguno|nada|sin observaciones|no\s+gracias)[.!]?$/
+        .test(respuesta.trim());
+
+    if (mensaje.length > 1000) {
+      agregarMensaje(
+        "La observación es demasiado larga. Resúmela en un máximo de 1000 caracteres.",
+        "bot"
+      );
+      return;
+    }
+
+    datosReserva.observaciones = sinObservaciones ? "" : mensaje;
+    mostrarConfirmacionNuevaReserva();
     return;
   }
 
@@ -1200,7 +1242,8 @@ function reiniciarReserva() {
     hora: "",
     nombre: "",
     email: "",
-    telefono: ""
+    telefono: "",
+    observaciones: ""
   };
 }
 
