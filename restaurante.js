@@ -11,6 +11,8 @@ const campoFecha = document.getElementById("fecha");
 const botonActualizar = document.getElementById("actualizar");
 const botonCerrarSesion = document.getElementById("cerrar-sesion");
 const reservasContenedor = document.getElementById("reservas");
+const listaEsperaContenedor = document.getElementById("lista-espera");
+const totalListaEspera = document.getElementById("total-lista-espera");
 const estadoCarga = document.getElementById("estado-carga");
 const dialogoModificar = document.getElementById("dialogo-modificar");
 const formularioModificar = document.getElementById("form-modificar");
@@ -69,6 +71,7 @@ const recursosDisponibilidad = document.getElementById(
 );
 const errorDisponibilidad = document.getElementById("error-disponibilidad");
 let reservasActuales = [];
+let listaEsperaActual = [];
 let mesasLibresActuales = [];
 let zonasConfiguracionActuales = [];
 let mesasConfiguracionActuales = [];
@@ -336,6 +339,105 @@ function renderizarReservas(reservas) {
       ${observaciones}
     </article>
   `;
+  }).join("");
+}
+
+
+function renderizarListaEspera(solicitudes) {
+  listaEsperaActual = solicitudes;
+  const activas = solicitudes.filter((solicitud) =>
+    ["pendiente", "avisado"].includes(solicitud.estado)
+  ).length;
+  totalListaEspera.textContent = activas === 1
+    ? "1 solicitud activa"
+    : `${activas} solicitudes activas`;
+
+  if (!solicitudes.length) {
+    listaEsperaContenedor.innerHTML = `
+      <p class="sin-reservas">No hay solicitudes en lista de espera para este día.</p>
+    `;
+    return;
+  }
+
+  const etiquetasEstado = {
+    pendiente: "Pendiente",
+    avisado: "Avisado",
+    convertida: "Convertida",
+    cancelada: "Cancelada"
+  };
+
+  listaEsperaContenedor.innerHTML = solicitudes.map((solicitud) => {
+    const contacto = `
+      ${solicitud.email
+        ? `<a href="mailto:${encodeURIComponent(solicitud.email)}">${escaparHtml(solicitud.email)}</a>`
+        : ""}
+      ${solicitud.telefono
+        ? `<a href="tel:${encodeURIComponent(solicitud.telefono)}">${escaparHtml(solicitud.telefono)}</a>`
+        : ""}
+    `;
+    const observaciones = solicitud.observaciones
+      ? `<span class="texto-observaciones-espera${
+          observacionEsPrioritaria(solicitud.observaciones)
+            ? " prioritarias"
+            : ""
+        }">${
+          observacionEsPrioritaria(solicitud.observaciones) ? "⚠ " : ""
+        }${escaparHtml(solicitud.observaciones)}</span>`
+      : '<span class="contacto-vacio">Sin observaciones</span>';
+    let acciones = '<div class="acciones-espera">';
+
+    if (solicitud.estado === "pendiente") {
+      acciones += `
+        <button
+          class="accion-espera avisar"
+          type="button"
+          data-espera-id="${escaparHtml(solicitud.id)}"
+          data-estado-espera="avisado"
+        >Marcar avisado</button>
+        <button
+          class="accion-espera cancelar"
+          type="button"
+          data-espera-id="${escaparHtml(solicitud.id)}"
+          data-estado-espera="cancelada"
+        >Cancelar</button>
+      `;
+    } else if (solicitud.estado === "avisado") {
+      acciones += `
+        <button
+          class="accion-espera pendiente"
+          type="button"
+          data-espera-id="${escaparHtml(solicitud.id)}"
+          data-estado-espera="pendiente"
+        >Volver a pendiente</button>
+        <button
+          class="accion-espera cancelar"
+          type="button"
+          data-espera-id="${escaparHtml(solicitud.id)}"
+          data-estado-espera="cancelada"
+        >Cancelar</button>
+      `;
+    } else {
+      acciones += '<span class="sin-acciones">—</span>';
+    }
+
+    acciones += "</div>";
+
+    return `
+      <article class="solicitud-espera estado-espera-${escaparHtml(solicitud.estado)}">
+        <div class="hora hora-espera">${escaparHtml(solicitud.hora)}</div>
+        <div class="cliente cliente-espera">
+          <strong>${escaparHtml(solicitud.nombre)}</strong>
+          <span><b>${escaparHtml(solicitud.personas)}</b> personas</span>
+          <small>${escaparHtml(solicitud.id_espera)}</small>
+        </div>
+        <div class="contacto contacto-espera">${contacto}</div>
+        <div class="observaciones-espera">${observaciones}</div>
+        <span class="estado estado-espera estado-espera-${escaparHtml(solicitud.estado)}">
+          ${escaparHtml(etiquetasEstado[solicitud.estado] || solicitud.estado)}
+        </span>
+        ${acciones}
+      </article>
+    `;
   }).join("");
 }
 
@@ -901,6 +1003,7 @@ async function cargarReservas(clave) {
     zonasConfiguracionActuales = datos.zonas || [];
     mesasConfiguracionActuales = datos.mesas_configuracion || [];
     renderizarReservas(datos.reservas);
+    renderizarListaEspera(datos.lista_espera || []);
     renderizarMesasLibres(datos.mesas_disponibles || [], datos.hora_mesas);
     estadoCarga.textContent = `${datos.reservas.length} reservas`;
 
@@ -1396,6 +1499,58 @@ formularioMesas.addEventListener("submit", async (evento) => {
   } finally {
     guardarMesas.disabled = false;
     guardarMesas.textContent = "Guardar mesas";
+  }
+});
+
+
+listaEsperaContenedor.addEventListener("click", async (evento) => {
+  const boton = evento.target.closest("button[data-espera-id]");
+
+  if (!boton) {
+    return;
+  }
+
+  const solicitud = listaEsperaActual.find((item) =>
+    item.id === boton.dataset.esperaId
+  );
+  const estadoNuevo = boton.dataset.estadoEspera;
+
+  if (!solicitud || !estadoNuevo) {
+    return;
+  }
+
+  if (
+    estadoNuevo === "cancelada" &&
+    !window.confirm(
+      `¿Quieres retirar de la lista de espera la solicitud ${solicitud.id_espera}?`
+    )
+  ) {
+    return;
+  }
+
+  boton.disabled = true;
+  estadoCarga.textContent = "Actualizando lista de espera…";
+
+  try {
+    const resultado = await ejecutarAccionReserva({
+      accion: "actualizar_lista_espera",
+      registro_espera_id: solicitud.id,
+      estado_espera: estadoNuevo
+    });
+
+    if (!resultado.lista_espera_actualizada) {
+      throw new Error("No se pudo actualizar la solicitud.");
+    }
+
+    await cargarReservas(sessionStorage.getItem(claveSesion));
+    estadoCarga.textContent = estadoNuevo === "avisado"
+      ? "Cliente marcado como avisado."
+      : estadoNuevo === "cancelada"
+        ? "Solicitud retirada de la lista de espera."
+        : "Solicitud devuelta a pendiente.";
+  } catch (error) {
+    boton.disabled = false;
+    estadoCarga.textContent = error.message;
   }
 });
 
