@@ -20,6 +20,7 @@ const nuevaHora = document.getElementById("nueva-hora");
 const nuevaHoraHoras = document.getElementById("nueva-hora-horas");
 const nuevaHoraMinutos = document.getElementById("nueva-hora-minutos");
 const nuevasPersonas = document.getElementById("nuevas-personas");
+const nuevasObservaciones = document.getElementById("nuevas-observaciones");
 const errorModificar = document.getElementById("error-modificar");
 const guardarModificacion = document.getElementById("guardar-modificacion");
 const tituloDialogo = document.getElementById("titulo-dialogo");
@@ -49,6 +50,9 @@ const personasNuevaReserva = document.getElementById("personas-nueva-reserva");
 const nombreNuevaReserva = document.getElementById("nombre-nueva-reserva");
 const telefonoNuevaReserva = document.getElementById("telefono-nueva-reserva");
 const emailNuevaReserva = document.getElementById("email-nueva-reserva");
+const observacionesNuevaReserva = document.getElementById(
+  "observaciones-nueva-reserva"
+);
 const errorNuevaReserva = document.getElementById("error-nueva-reserva");
 const guardarNuevaReserva = document.getElementById("guardar-nueva-reserva");
 const seleccionMesasManual = document.getElementById("seleccion-mesas-manual");
@@ -69,6 +73,7 @@ let mesasLibresActuales = [];
 let zonasConfiguracionActuales = [];
 let mesasConfiguracionActuales = [];
 let localizadorEnEdicion = "";
+let reservaEnEdicion = null;
 let accionEnEdicion = "modificar";
 let reservaMesasEnEdicion = null;
 let opcionesMesasActuales = [];
@@ -100,6 +105,16 @@ function escaparHtml(valor) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+
+function observacionEsPrioritaria(valor) {
+  const texto = String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return /alerg|anafil|celiac|gluten|intoleran/.test(texto);
 }
 
 
@@ -236,6 +251,20 @@ function renderizarReservas(reservas) {
           : ""}
       `
       : '<span class="contacto-vacio">Sin datos de contacto</span>';
+    const observaciones = reserva.observaciones
+      ? `
+        <div class="observaciones-reserva${
+          observacionEsPrioritaria(reserva.observaciones)
+            ? " observaciones-prioritarias"
+            : ""
+        }">
+          <strong>${
+            observacionEsPrioritaria(reserva.observaciones) ? "⚠ " : ""
+          }Observaciones:</strong>
+          <span>${escaparHtml(reserva.observaciones)}</span>
+        </div>
+      `
+      : "";
     let acciones = '<div class="acciones-reserva">';
 
     if (reserva.estado === "cancelada") {
@@ -304,6 +333,7 @@ function renderizarReservas(reservas) {
       </div>
       ${selectorEstado}
       ${acciones}
+      ${observaciones}
     </article>
   `;
   }).join("");
@@ -726,6 +756,7 @@ async function ejecutarAccionReserva(datos) {
 function abrirModificacion(reserva, accion = "modificar") {
   accionEnEdicion = accion;
   localizadorEnEdicion = reserva.localizador;
+  reservaEnEdicion = reserva;
   const esReactivacion = accion === "reactivar";
   tituloDialogo.textContent = esReactivacion
     ? "Reactivar reserva"
@@ -735,9 +766,10 @@ function abrirModificacion(reserva, accion = "modificar") {
     : "Guardar cambios";
   referenciaModificar.textContent =
     `${reserva.localizador} · ${reserva.nombre}`;
-  nuevaFecha.value = campoFecha.value;
+  nuevaFecha.value = reserva.fecha;
   mostrarHoraEnSelector(reserva.hora);
   nuevasPersonas.value = reserva.personas;
+  nuevasObservaciones.value = reserva.observaciones || "";
   errorModificar.textContent = "";
   dialogoModificar.showModal();
 }
@@ -746,6 +778,7 @@ function abrirModificacion(reserva, accion = "modificar") {
 function cerrarModificacion() {
   dialogoModificar.close();
   localizadorEnEdicion = "";
+  reservaEnEdicion = null;
   errorModificar.textContent = "";
 }
 
@@ -1087,7 +1120,7 @@ formularioNuevaReserva.addEventListener("submit", async (evento) => {
       telefono: telefonoNuevaReserva.value.trim(),
       email: emailReserva,
       mesa_ids: mesasManuales,
-      mensaje: "Reserva telefónica añadida desde el panel."
+      mensaje: observacionesNuevaReserva.value.trim()
     });
 
     if (!resultado.reservado) {
@@ -1269,20 +1302,33 @@ formularioModificar.addEventListener("submit", async (evento) => {
   actualizarHoraSeleccionada();
   guardarModificacion.disabled = true;
   const esReactivacion = accionEnEdicion === "reactivar";
+  const soloObservaciones = !esReactivacion && reservaEnEdicion &&
+    nuevaFecha.value === reservaEnEdicion.fecha &&
+    nuevaHora.value === reservaEnEdicion.hora &&
+    Number(nuevasPersonas.value) === Number(reservaEnEdicion.personas);
   guardarModificacion.textContent = esReactivacion
     ? "Comprobando disponibilidad…"
     : "Comprobando…";
 
   try {
     const resultado = await ejecutarAccionReserva({
-      accion: accionEnEdicion,
+      accion: soloObservaciones
+        ? "actualizar_observaciones"
+        : accionEnEdicion,
       localizador: localizadorEnEdicion,
-      fecha: nuevaFecha.value,
-      hora: nuevaHora.value,
-      personas: Number(nuevasPersonas.value)
+      ...(soloObservaciones ? {} : {
+        fecha: nuevaFecha.value,
+        hora: nuevaHora.value,
+        personas: Number(nuevasPersonas.value)
+      }),
+      mensaje: nuevasObservaciones.value.trim()
     });
 
-    if (esReactivacion ? !resultado.reactivada : !resultado.modificada) {
+    const operacionCorrecta = soloObservaciones
+      ? resultado.observaciones_actualizadas
+      : (esReactivacion ? resultado.reactivada : resultado.modificada);
+
+    if (!operacionCorrecta) {
       const alternativas = resultado.alternativas?.length
         ? ` Horarios disponibles: ${resultado.alternativas.join(", ")}.`
         : "";
@@ -1296,6 +1342,9 @@ formularioModificar.addEventListener("submit", async (evento) => {
     cerrarModificacion();
     campoFecha.value = fechaActualizada;
     await cargarReservas(sessionStorage.getItem(claveSesion));
+    if (soloObservaciones) {
+      estadoCarga.textContent = "Observaciones actualizadas correctamente.";
+    }
   } catch (error) {
     errorModificar.textContent = error.message;
   } finally {
