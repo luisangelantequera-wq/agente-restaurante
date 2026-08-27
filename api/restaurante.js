@@ -83,6 +83,18 @@ function normalizarEstado(valor) {
 }
 
 
+function normalizarObservaciones(valor) {
+  const texto = String(valor || "").trim().slice(0, 1000);
+  const mensajesInternos = [
+    /^reserva telefónica añadida desde el panel\.?$/i,
+    /^cliente sin reserva añadido desde el panel\.?$/i,
+    /^bloqueo temporal para /i
+  ];
+
+  return mensajesInternos.some((patron) => patron.test(texto)) ? "" : texto;
+}
+
+
 function horaAMinutos(hora) {
   const partes = String(hora || "").match(/^(\d{2}):(\d{2})$/);
 
@@ -238,6 +250,7 @@ module.exports = async (req, res) => {
           nombre: reserva.fields.nombre_completo || "",
           email: reserva.fields.email || "",
           telefono: reserva.fields.telefono || "",
+          observaciones: normalizarObservaciones(reserva.fields.mensaje),
           estado: normalizarEstado(reserva.fields.estado)
         };
       })
