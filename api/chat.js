@@ -1,6 +1,13 @@
 // ============================================================
 
 const crypto = require("crypto");
+const {
+  calcularPrivacidadHastaDesdeAhora,
+  crearMetadatosPrivacidadListaEspera,
+  crearMetadatosPrivacidadReserva,
+  numeroEnteroPositivo,
+  registroDebeAnonimizarse
+} = require("../lib/privacidad");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
 // CONTACTIA V2 - api/chat.js
 // FASE 2: comprobar disponibilidad + crear reserva
@@ -475,7 +482,12 @@ async function confirmarReservaSinConflictos(
     return consultarAirtable(urlPendiente, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fields: { estado: "expirada" } })
+      body: JSON.stringify({
+        fields: {
+          estado: "expirada",
+          privacidad_hasta: calcularPrivacidadHastaDesdeAhora()
+        }
+      })
     });
   }));
 
@@ -536,7 +548,14 @@ async function confirmarReservaSinConflictos(
   const actualizada = await consultarAirtable(urlReserva, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fields: { estado: estadoFinal } })
+    body: JSON.stringify({
+      fields: {
+        estado: estadoFinal,
+        ...(!esGanadora
+          ? { privacidad_hasta: calcularPrivacidadHastaDesdeAhora() }
+          : {})
+      }
+    })
   });
 
   return { confirmada: esGanadora, reserva: actualizada };
@@ -578,6 +597,8 @@ async function buscarReservaPorToken(restaurante_id, tokenGestion) {
 
 
 async function buscarReservaGestion(restaurante_id, localizador, tokenGestion) {
+  let reserva;
+
   if (tokenGestion) {
     const tokenNormalizado = String(tokenGestion).trim().toLowerCase();
 
@@ -585,16 +606,38 @@ async function buscarReservaGestion(restaurante_id, localizador, tokenGestion) {
       throw new Error("El token de gestión no tiene un formato válido.");
     }
 
-    return buscarReservaPorToken(restaurante_id, tokenNormalizado);
+    reserva = await buscarReservaPorToken(restaurante_id, tokenNormalizado);
+  } else {
+    const localizadorNormalizado = String(localizador || "").trim().toUpperCase();
+
+    if (!/^[A-Z0-9-]{8,40}$/.test(localizadorNormalizado)) {
+      throw new Error("El localizador no tiene un formato válido.");
+    }
+
+    reserva = await buscarReservaPorLocalizador(
+      restaurante_id,
+      localizadorNormalizado
+    );
   }
 
-  const localizadorNormalizado = String(localizador || "").trim().toUpperCase();
-
-  if (!/^[A-Z0-9-]{8,40}$/.test(localizadorNormalizado)) {
-    throw new Error("El localizador no tiene un formato válido.");
+  if (!reserva) {
+    return null;
   }
 
-  return buscarReservaPorLocalizador(restaurante_id, localizadorNormalizado);
+  let duracion = numeroEnteroPositivo(
+    reserva.fields.duracion_reserva_minutos
+  );
+
+  if (!duracion) {
+    const restaurante = await buscarRestaurante(restaurante_id);
+    duracion = numeroEnteroPositivo(
+      restaurante?.fields?.duracion_reserva_minutos
+    );
+  }
+
+  return registroDebeAnonimizarse(reserva.fields, duracion)
+    ? null
+    : reserva;
 }
 
 
@@ -1716,12 +1759,18 @@ module.exports = async (req, res) => {
       const urlReservaEstado =
         `https://api.airtable.com/v0/` +
         `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaEstado.id}`;
+      const camposEstado = {
+        estado: estadoNuevo,
+        ...(estadoNuevo === "libre"
+          ? { privacidad_hasta: calcularPrivacidadHastaDesdeAhora() }
+          : {})
+      };
       const reservaActualizadaEstado = await consultarAirtable(
         urlReservaEstado,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fields: { estado: estadoNuevo } })
+          body: JSON.stringify({ fields: camposEstado })
         }
       );
       let correoEnviado = null;
@@ -1881,7 +1930,12 @@ module.exports = async (req, res) => {
               personas: personasOcupacion,
               nombre_completo: nombreOcupacion,
               mensaje: "Cliente sin reserva añadido desde el panel.",
-              estado: "pendiente"
+              estado: "pendiente",
+              ...crearMetadatosPrivacidadReserva({
+                fecha: fechaOcupacion,
+                hora: horaOcupacion,
+                duracionReservaMinutos: duracionOcupacion
+              })
             }
           })
         }
@@ -2143,7 +2197,14 @@ module.exports = async (req, res) => {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fields: { estado: estadoEspera } })
+          body: JSON.stringify({
+            fields: {
+              estado: estadoEspera,
+              ...(estadoEspera === "cancelada"
+                ? { privacidad_hasta: calcularPrivacidadHastaDesdeAhora() }
+                : {})
+            }
+          })
         }
       );
 
@@ -2246,7 +2307,12 @@ module.exports = async (req, res) => {
       const reservaActualizada = await consultarAirtable(urlReserva, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields: { estado: "cancelada" } })
+        body: JSON.stringify({
+          fields: {
+            estado: "cancelada",
+            privacidad_hasta: calcularPrivacidadHastaDesdeAhora()
+          }
+        })
       });
 
       let restauranteCancelacion = null;
@@ -2532,7 +2598,12 @@ Number(restaurante.fields.duracion_reserva_minutos);
               telefono: telefonoEspera,
               email: emailEspera,
               observaciones: normalizarObservaciones(mensaje),
-              estado: "pendiente"
+              estado: "pendiente",
+              ...crearMetadatosPrivacidadListaEspera({
+                fecha,
+                hora,
+                duracionReservaMinutos
+              })
             }
           })
         }
@@ -2728,13 +2799,15 @@ await buscarAsignacionDisponible(
             fecha,
             hora,
             personas: numeroPersonas,
-            nombre_completo: reservaActual.fields.nombre_completo,
-            telefono: reservaActual.fields.telefono,
-            email: reservaActual.fields.email,
-            mensaje:
-              `Bloqueo temporal para ${esReactivacion ? "reactivar" : "modificar"} ` +
-              reservaActual.fields.id_reserva,
-            estado: "pendiente"
+            mensaje: `Bloqueo temporal para ${
+              esReactivacion ? "reactivar" : "modificar"
+            }`,
+            estado: "pendiente",
+            ...crearMetadatosPrivacidadReserva({
+              fecha,
+              hora,
+              duracionReservaMinutos
+            })
           }
         })
       });
@@ -2776,6 +2849,11 @@ await buscarAsignacionDisponible(
             hora,
             personas: numeroPersonas,
             mesa: asignacion.ids,
+            ...crearMetadatosPrivacidadReserva({
+              fecha,
+              hora,
+              duracionReservaMinutos
+            }),
             ...(mensajeIncluido
               ? { mensaje: normalizarObservaciones(mensaje) }
               : {}),
@@ -2987,14 +3065,13 @@ await buscarAsignacionDisponible(
             fecha: fechaReserva,
             hora: horaReserva,
             personas: personasReserva,
-            nombre_completo: reservaActual.fields.nombre_completo,
-            telefono: reservaActual.fields.telefono,
-            email: reservaActual.fields.email,
-            mensaje:
-              `Bloqueo temporal para reorganizar ${
-                reservaActual.fields.id_reserva
-              }`,
-            estado: "pendiente"
+            mensaje: "Bloqueo temporal para reorganizar mesas",
+            estado: "pendiente",
+            ...crearMetadatosPrivacidadReserva({
+              fecha: fechaReserva,
+              hora: horaReserva,
+              duracionReservaMinutos
+            })
           }
         })
       });
@@ -3312,7 +3389,13 @@ await buscarAsignacionDisponible(
 
           mensaje: normalizarObservaciones(mensaje),
 
-          estado: "pendiente"
+          estado: "pendiente",
+
+          ...crearMetadatosPrivacidadReserva({
+            fecha,
+            hora,
+            duracionReservaMinutos
+          })
         }
       };
 
