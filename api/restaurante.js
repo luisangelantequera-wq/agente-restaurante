@@ -185,6 +185,12 @@ module.exports = async (req, res) => {
     const urlZonas =
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/ZONA`;
     const datosZonas = await consultarAirtable(urlZonas);
+    const formulaListaEspera =
+      `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}'`;
+    const urlListaEspera =
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/LISTA_ESPERA` +
+      `?filterByFormula=${encodeURIComponent(formulaListaEspera)}`;
+    const datosListaEspera = await consultarAirtable(urlListaEspera);
     const zonasRestaurante = (datosZonas.records || [])
       .filter((zona) =>
         Array.isArray(zona.fields.restaurante) &&
@@ -325,6 +331,38 @@ module.exports = async (req, res) => {
         zona,
         zona_estado
       }));
+    const prioridadEstadoEspera = {
+      pendiente: 0,
+      avisado: 1,
+      convertida: 2,
+      cancelada: 3
+    };
+    const listaEspera = (datosListaEspera.records || [])
+      .filter((solicitud) =>
+        Array.isArray(solicitud.fields.restaurante) &&
+        solicitud.fields.restaurante.includes(restaurante.id)
+      )
+      .map((solicitud) => ({
+        id: solicitud.id,
+        id_espera: solicitud.fields.id_espera || "",
+        fecha: solicitud.fields.fecha || fecha,
+        hora: solicitud.fields.hora || "",
+        personas: Number(solicitud.fields.personas || 0),
+        nombre: solicitud.fields.nombre_completo || "",
+        telefono: solicitud.fields.telefono || "",
+        email: solicitud.fields.email || "",
+        observaciones: normalizarObservaciones(
+          solicitud.fields.observaciones
+        ),
+        estado: normalizarEstado(solicitud.fields.estado || "pendiente"),
+        creada_en: solicitud.createdTime || ""
+      }))
+      .sort((a, b) =>
+        (prioridadEstadoEspera[a.estado] ?? 9) -
+          (prioridadEstadoEspera[b.estado] ?? 9) ||
+        String(a.hora).localeCompare(String(b.hora)) ||
+        String(a.creada_en).localeCompare(String(b.creada_en))
+      );
 
     return responder(res, 200, {
       ok: true,
@@ -341,6 +379,7 @@ module.exports = async (req, res) => {
           total + reserva.personas, 0)
       },
       reservas,
+      lista_espera: listaEspera,
       mesas_disponibles: mesasDisponibles,
       zonas: zonasRestaurante.sort((a, b) =>
         a.nombre.localeCompare(b.nombre, "es")
