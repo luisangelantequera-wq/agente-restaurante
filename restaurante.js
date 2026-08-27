@@ -351,6 +351,15 @@ function etiquetaEstadoRecurso(estado, tipo) {
 }
 
 
+function formatearListaHoras(horas) {
+  if (horas.length <= 1) {
+    return horas[0] || "";
+  }
+
+  return `${horas.slice(0, -1).join(", ")} y ${horas.at(-1)}`;
+}
+
+
 function renderizarDisponibilidad() {
   if (!zonasConfiguracionActuales.length) {
     recursosDisponibilidad.innerHTML = `
@@ -359,19 +368,53 @@ function renderizarDisponibilidad() {
     return;
   }
 
+  const estadosReservasActivas = new Set([
+    "confirmada",
+    "ocupada",
+    "con retraso",
+    "cobrada"
+  ]);
+  const horasReservadasPorMesa = new Map();
+
+  reservasActuales
+    .filter((reserva) => estadosReservasActivas.has(reserva.estado))
+    .forEach((reserva) => {
+      (reserva.mesa_ids || []).forEach((mesaId) => {
+        const horas = horasReservadasPorMesa.get(mesaId) || new Set();
+        horas.add(reserva.hora);
+        horasReservadasPorMesa.set(mesaId, horas);
+      });
+    });
+
   recursosDisponibilidad.innerHTML = zonasConfiguracionActuales.map((zona) => {
     const zonaCerrada = zona.estado === "inactivo";
     const mesasZona = mesasConfiguracionActuales.filter((mesa) =>
       mesa.zona_id === zona.id
     );
+    const zonaConReservas = mesasZona.some((mesa) =>
+      horasReservadasPorMesa.has(mesa.id)
+    );
     const contenidoMesas = mesasZona.length
       ? mesasZona.map((mesa) => {
         const mesaCerrada = mesa.estado === "fuera de servicio";
+        const horasReservadas = Array.from(
+          horasReservadasPorMesa.get(mesa.id) || []
+        ).sort();
+        const avisoReserva = horasReservadas.length
+          ? `
+            <span class="aviso-mesa-reservada">
+              RESERVADA A LAS ${escaparHtml(
+                formatearListaHoras(horasReservadas)
+              )} HORAS.
+            </span>
+          `
+          : "";
         return `
           <article class="recurso-mesa${mesaCerrada ? " recurso-cerrado" : ""}">
             <div>
               <strong>${escaparHtml(mesa.nombre)}</strong>
               <small>${escaparHtml(mesa.capacidad)} plazas</small>
+              ${avisoReserva}
             </div>
             <span class="estado-recurso ${mesaCerrada ? "cerrado" : "abierto"}">
               ${etiquetaEstadoRecurso(mesa.estado, "mesa")}
@@ -396,6 +439,9 @@ function renderizarDisponibilidad() {
             <span class="estado-recurso ${zonaCerrada ? "cerrado" : "abierto"}">
               ${etiquetaEstadoRecurso(zona.estado, "zona")}
             </span>
+            ${zonaConReservas
+              ? '<span class="aviso-reservas-activas">Reservas activas</span>'
+              : ""}
           </div>
           <button
             class="boton-estado-recurso ${zonaCerrada ? "boton-reabrir" : "boton-cerrar"}"
