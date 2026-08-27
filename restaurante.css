@@ -432,6 +432,142 @@ textarea {
   color: var(--suave);
 }
 
+.lista-espera-panel {
+  margin-top: 18px;
+}
+
+.cabecera-lista-espera {
+  background: #fffaf0;
+}
+
+.total-lista-espera {
+  margin: 0;
+  color: var(--suave);
+  font-weight: 700;
+}
+
+.lista-espera {
+  display: grid;
+}
+
+.lista-espera-cabecera,
+.solicitud-espera {
+  display: grid;
+  grid-template-columns:
+    70px minmax(130px, 0.9fr) minmax(170px, 1.15fr)
+    minmax(160px, 1.2fr) 95px minmax(155px, 0.9fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.lista-espera-cabecera {
+  padding: 11px 24px;
+  border-bottom: 1px solid var(--borde);
+  background: #faf8f3;
+  color: var(--suave);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lista-espera-cabecera span:last-child {
+  justify-self: end;
+}
+
+.solicitud-espera {
+  padding: 17px 24px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.solicitud-espera:last-child {
+  border-bottom: 0;
+}
+
+.solicitud-espera.estado-espera-cancelada,
+.solicitud-espera.estado-espera-convertida {
+  background: #fbfaf7;
+  color: #746d63;
+}
+
+.cliente-espera small,
+.contacto-espera a {
+  display: block;
+}
+
+.cliente-espera small {
+  margin-top: 3px;
+  color: var(--suave);
+}
+
+.contacto-espera a {
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+.observaciones-espera {
+  color: var(--suave);
+  font-size: 13px;
+}
+
+.texto-observaciones-espera {
+  white-space: pre-wrap;
+}
+
+.texto-observaciones-espera.prioritarias {
+  color: #9f2424;
+  font-weight: 700;
+}
+
+.estado.estado-espera-pendiente {
+  background: #fff0cf;
+  color: #8b5d05;
+}
+
+.estado.estado-espera-avisado {
+  background: #e5eef9;
+  color: #315f91;
+}
+
+.estado.estado-espera-convertida {
+  background: #e9f5e9;
+  color: #346734;
+}
+
+.estado.estado-espera-cancelada {
+  background: #f7dede;
+  color: var(--cancelada);
+}
+
+.acciones-espera {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.accion-espera {
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+
+.accion-espera.avisar {
+  background: #e5eef9;
+  color: #315f91;
+}
+
+.accion-espera.pendiente {
+  border: 1px solid var(--borde);
+  background: #fff;
+  color: var(--texto);
+}
+
+.accion-espera.cancelar {
+  background: #f7dede;
+  color: var(--cancelada);
+}
+
 .dialogo {
   width: min(620px, calc(100% - 28px));
   border: 1px solid var(--borde);
@@ -1046,6 +1182,42 @@ textarea {
 
   .tabla-cabecera {
     display: none;
+  }
+
+  .lista-espera-cabecera {
+    display: none;
+  }
+
+  .cabecera-lista-espera {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .solicitud-espera {
+    grid-template-columns: 70px 1fr auto;
+    gap: 12px;
+    padding: 17px;
+  }
+
+  .contacto-espera {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+
+  .observaciones-espera {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+
+  .acciones-espera {
+    grid-column: 2 / -1;
+    grid-row: 4;
+    justify-self: start;
+  }
+
+  .estado-espera {
+    grid-column: 3;
+    grid-row: 1;
   }
 
   .mesas {
