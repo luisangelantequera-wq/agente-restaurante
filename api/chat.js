@@ -982,6 +982,21 @@ function generarIdReserva(fecha) {
 }
 
 
+function generarIdEspera(fecha) {
+  const fechaLimpia = String(fecha || "").replaceAll("-", "");
+  const aleatorio = Math.floor(1000 + Math.random() * 9000);
+
+  return `ESP-${fechaLimpia}-${aleatorio}`;
+}
+
+
+function escaparFormulaAirtable(valor) {
+  return String(valor || "")
+    .replaceAll("\\", "\\\\")
+    .replaceAll("'", "\\'");
+}
+
+
 function generarTokenGestion() {
   return crypto.randomBytes(24).toString("hex");
 }
@@ -1531,7 +1546,9 @@ module.exports = async (req, res) => {
       recurso_id,
       habilitar,
       confirmar_afectadas,
-      fecha_desde
+      fecha_desde,
+      registro_espera_id,
+      estado_espera
     } = body;
     const mensajeIncluido = Object.prototype.hasOwnProperty.call(
       body,
@@ -2058,6 +2075,89 @@ module.exports = async (req, res) => {
       });
     }
 
+    if (accion === "actualizar_lista_espera") {
+      const restauranteIdEspera = Number(restaurante_id);
+      const registroEsperaId = String(registro_espera_id || "").trim();
+      const estadoEspera = String(estado_espera || "").trim().toLowerCase();
+      const estadosPermitidos = new Set([
+        "pendiente",
+        "avisado",
+        "convertida",
+        "cancelada"
+      ]);
+
+      if (
+        !Number.isInteger(restauranteIdEspera) ||
+        restauranteIdEspera <= 0 ||
+        !/^rec[a-zA-Z0-9]{14}$/.test(registroEsperaId) ||
+        !estadosPermitidos.has(estadoEspera)
+      ) {
+        return responder(res, 400, {
+          ok: false,
+          error: "La solicitud de lista de espera o el estado no son válidos."
+        });
+      }
+
+      if (!clave_restaurante) {
+        return responder(res, 401, {
+          ok: false,
+          error: "Esta operación requiere la clave del restaurante."
+        });
+      }
+
+      const restauranteEspera = await buscarRestaurante(restauranteIdEspera);
+
+      if (
+        !restauranteEspera ||
+        !clavesRestauranteCoinciden(
+          clave_restaurante,
+          restauranteEspera.fields.api_key_restaurante
+        )
+      ) {
+        return responder(res, 401, {
+          ok: false,
+          error: "La clave del restaurante no es correcta."
+        });
+      }
+
+      const solicitudEspera = await consultarAirtable(
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+        `LISTA_ESPERA/${registroEsperaId}`
+      );
+      const restaurantesSolicitud = Array.isArray(
+        solicitudEspera.fields.restaurante
+      )
+        ? solicitudEspera.fields.restaurante
+        : [];
+
+      if (!restaurantesSolicitud.includes(restauranteEspera.id)) {
+        return responder(res, 404, {
+          ok: false,
+          error: "La solicitud no pertenece al restaurante."
+        });
+      }
+
+      const solicitudActualizada = await consultarAirtable(
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+        `LISTA_ESPERA/${registroEsperaId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { estado: estadoEspera } })
+        }
+      );
+
+      return responder(res, 200, {
+        ok: true,
+        lista_espera_actualizada: true,
+        solicitud: {
+          id: solicitudActualizada.id,
+          id_espera: solicitudActualizada.fields.id_espera || "",
+          estado: solicitudActualizada.fields.estado || estadoEspera
+        }
+      });
+    }
+
     // Consulta y cancelación no necesitan fecha, hora ni comensales.
     if (accion === "consultar" || accion === "cancelar") {
       if (!restaurante_id || (!localizador && !token_gestion)) {
@@ -2320,6 +2420,129 @@ Number(restaurante.fields.duracion_reserva_minutos);
       return responder(res, 401, {
         ok: false,
         error: "Esta operación requiere la clave del restaurante."
+      });
+    }
+
+    if (accion === "lista_espera_crear") {
+      const nombreEspera = String(nombre || "").trim();
+      const emailEspera = String(email || "").trim().toLowerCase();
+      const telefonoEspera = String(telefono || "").trim();
+
+      if (
+        nombreEspera.length < 2 ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailEspera) ||
+        !/^[+0-9\s-]{7,18}$/.test(telefonoEspera)
+      ) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El nombre, el correo electrónico o el teléfono no son válidos."
+        });
+      }
+
+      const hayAsignacionCompatible = await existeAsignacionCompatible(
+        restaurante_id,
+        restaurante.id,
+        numeroPersonas,
+        margenCapacidad
+      );
+
+      if (!hayAsignacionCompatible) {
+        return responder(res, 200, {
+          ok: true,
+          lista_espera_creada: false,
+          requiere_contacto_restaurante: true,
+          telefono_restaurante: obtenerTelefonoRestaurante(restaurante),
+          motivo:
+            "No existe una mesa o combinación automática adecuada para ese número de personas."
+        });
+      }
+
+      const asignacionDisponible = await buscarAsignacionDisponible(
+        restaurante_id,
+        restaurante.id,
+        fecha,
+        hora,
+        numeroPersonas,
+        margenCapacidad,
+        duracionReservaMinutos
+      );
+
+      if (asignacionDisponible) {
+        return responder(res, 200, {
+          ok: true,
+          lista_espera_creada: false,
+          disponible_ahora: true,
+          motivo: "Se acaba de liberar una mesa adecuada."
+        });
+      }
+
+      const formulaListaEspera =
+        `AND(` +
+        `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${escaparFormulaAirtable(fecha)}',` +
+        `{hora}='${escaparFormulaAirtable(hora)}',` +
+        `OR(` +
+        `LOWER(TRIM({estado}))='pendiente',` +
+        `LOWER(TRIM({estado}))='avisado'` +
+        `)` +
+        `)`;
+      const solicitudesCoincidentes = await consultarAirtable(
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+        `LISTA_ESPERA?filterByFormula=${encodeURIComponent(formulaListaEspera)}`
+      );
+      const telefonoComparable = telefonoEspera.replace(/\D/g, "");
+      const solicitudExistente = (solicitudesCoincidentes.records || []).find(
+        (solicitud) => {
+          const restaurantes = Array.isArray(solicitud.fields.restaurante)
+            ? solicitud.fields.restaurante
+            : [];
+          const mismoEmail = String(solicitud.fields.email || "")
+            .trim()
+            .toLowerCase() === emailEspera;
+          const mismoTelefono = String(solicitud.fields.telefono || "")
+            .replace(/\D/g, "") === telefonoComparable;
+
+          return restaurantes.includes(restaurante.id) &&
+            (mismoEmail || mismoTelefono);
+        }
+      );
+
+      if (solicitudExistente) {
+        return responder(res, 200, {
+          ok: true,
+          lista_espera_creada: true,
+          ya_existia: true,
+          id_espera: solicitudExistente.fields.id_espera || ""
+        });
+      }
+
+      const idEspera = generarIdEspera(fecha);
+      const solicitudCreada = await consultarAirtable(
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/LISTA_ESPERA`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fields: {
+              id_espera: idEspera,
+              restaurante: [restaurante.id],
+              fecha,
+              hora,
+              personas: numeroPersonas,
+              nombre_completo: nombreEspera,
+              telefono: telefonoEspera,
+              email: emailEspera,
+              observaciones: normalizarObservaciones(mensaje),
+              estado: "pendiente"
+            }
+          })
+        }
+      );
+
+      return responder(res, 200, {
+        ok: true,
+        lista_espera_creada: true,
+        id_espera: idEspera,
+        airtable_record_id: solicitudCreada.id
       });
     }
 
