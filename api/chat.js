@@ -605,7 +605,8 @@ function resumirReserva(reserva) {
     hora: reserva.fields.hora,
     personas: reserva.fields.personas,
     nombre: reserva.fields.nombre_completo,
-    estado: reserva.fields.estado
+    estado: reserva.fields.estado,
+    observaciones: normalizarObservaciones(reserva.fields.mensaje)
   };
 }
 
@@ -1085,6 +1086,28 @@ function normalizarTexto(valor) {
 }
 
 
+function normalizarObservaciones(valor) {
+  const texto = normalizarTexto(valor).slice(0, 1000);
+  const mensajesInternos = [
+    /^reserva telefónica añadida desde el panel\.?$/i,
+    /^cliente sin reserva añadido desde el panel\.?$/i,
+    /^bloqueo temporal para /i
+  ];
+
+  return mensajesInternos.some((patron) => patron.test(texto)) ? "" : texto;
+}
+
+
+function observacionEsPrioritaria(valor) {
+  const texto = normalizarObservaciones(valor)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return /alerg|anafil|celiac|gluten|intoleran/.test(texto);
+}
+
+
 function obtenerNombreRestaurante(restaurante) {
   const campos = restaurante?.fields || {};
   const candidatos = [
@@ -1388,6 +1411,7 @@ async function enviarAvisoRestaurante({
   nombreCliente,
   emailCliente,
   telefonoCliente,
+  observaciones,
   enlaceGestion
 }) {
   nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
@@ -1400,6 +1424,10 @@ async function enviarAvisoRestaurante({
     cancelada: "Reserva cancelada"
   };
   const titulo = titulos[tipo] || "Actualización de reserva";
+  const observacionesLimpias = normalizarObservaciones(observaciones);
+  const observacionesPrioritarias = observacionEsPrioritaria(
+    observacionesLimpias
+  );
   const asunto =
     `${titulo} · ${fechaLarga} a las ${hora} · ${personas} personas`;
   const textoEnlace = enlaceGestion
@@ -1412,6 +1440,21 @@ async function enviarAvisoRestaurante({
       </p>
     `
     : "";
+  const textoObservaciones = observacionesLimpias
+    ? `Observaciones: ${observacionesLimpias}\n`
+    : "";
+  const htmlObservaciones = observacionesLimpias
+    ? `
+      <div style="margin: 16px 0; border: 1px solid ${
+        observacionesPrioritarias ? "#d94a4a" : "#dfc88d"
+      }; border-radius: 10px; padding: 12px 14px; background: ${
+        observacionesPrioritarias ? "#fff0f0" : "#fff9e9"
+      }; color: ${observacionesPrioritarias ? "#9f2424" : "#5f4a18"};">
+        <strong>${observacionesPrioritarias ? "⚠ " : ""}Observaciones:</strong><br>
+        ${escaparHtml(observacionesLimpias).replace(/\n/g, "<br>")}
+      </div>
+    `
+    : "";
   const texto =
     `${titulo}\n\n` +
     `${diaSemana} ${fechaCorta} / Hora: ${hora} / ${personas} personas\n` +
@@ -1419,6 +1462,7 @@ async function enviarAvisoRestaurante({
     `Email: ${emailCliente}\n` +
     `Teléfono: ${telefonoCliente}\n` +
     `Localizador: ${localizador}\n` +
+    textoObservaciones +
     textoEnlace;
   const html = `
     <h2>${escaparHtml(titulo)}</h2>
@@ -1433,6 +1477,7 @@ async function enviarAvisoRestaurante({
       <li><strong>Teléfono:</strong> ${escaparHtml(telefonoCliente)}</li>
       <li><strong>Localizador:</strong> ${escaparHtml(localizador)}</li>
     </ul>
+    ${htmlObservaciones}
     <div style="margin-left: 2rem;">${htmlEnlace}</div>
   `;
 
@@ -1488,6 +1533,85 @@ module.exports = async (req, res) => {
       confirmar_afectadas,
       fecha_desde
     } = body;
+    const mensajeIncluido = Object.prototype.hasOwnProperty.call(
+      body,
+      "mensaje"
+    );
+
+    if (accion === "actualizar_observaciones") {
+      const restauranteIdObservaciones = Number(restaurante_id);
+      const localizadorObservaciones = String(localizador || "")
+        .trim()
+        .toUpperCase();
+
+      if (
+        !Number.isInteger(restauranteIdObservaciones) ||
+        restauranteIdObservaciones <= 0 ||
+        !/^[A-Z0-9-]{8,40}$/.test(localizadorObservaciones) ||
+        !mensajeIncluido
+      ) {
+        return responder(res, 400, {
+          ok: false,
+          error: "La reserva o las observaciones no son válidas."
+        });
+      }
+
+      if (!clave_restaurante) {
+        return responder(res, 401, {
+          ok: false,
+          error: "Esta operación requiere la clave del restaurante."
+        });
+      }
+
+      const restauranteObservaciones = await buscarRestaurante(
+        restauranteIdObservaciones
+      );
+
+      if (
+        !restauranteObservaciones ||
+        !clavesRestauranteCoinciden(
+          clave_restaurante,
+          restauranteObservaciones.fields.api_key_restaurante
+        )
+      ) {
+        return responder(res, 401, {
+          ok: false,
+          error: "La clave del restaurante no es correcta."
+        });
+      }
+
+      const reservaObservaciones = await buscarReservaGestion(
+        restauranteIdObservaciones,
+        localizadorObservaciones,
+        null
+      );
+
+      if (!reservaObservaciones) {
+        return responder(res, 404, {
+          ok: false,
+          error: "No se ha encontrado una reserva con ese localizador."
+        });
+      }
+
+      const observacionesActualizadas = normalizarObservaciones(mensaje);
+      const reservaConObservaciones = await consultarAirtable(
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+        `RESERVAS/${reservaObservaciones.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fields: { mensaje: observacionesActualizadas }
+          })
+        }
+      );
+
+      return responder(res, 200, {
+        ok: true,
+        observaciones_actualizadas: true,
+        reserva: resumirReserva(reservaConObservaciones)
+      });
+    }
 
     if (accion === "actualizar_estado") {
       const restauranteIdEstado = Number(restaurante_id);
@@ -2060,6 +2184,7 @@ module.exports = async (req, res) => {
           nombreCliente: reservaActualizada.fields.nombre_completo,
           emailCliente: reservaActualizada.fields.email,
           telefonoCliente: reservaActualizada.fields.telefono,
+          observaciones: reservaActualizada.fields.mensaje,
           enlaceGestion: generarEnlacePanelRestaurante(
             reservaActualizada.fields.fecha,
             restaurante_id
@@ -2428,6 +2553,9 @@ await buscarAsignacionDisponible(
             hora,
             personas: numeroPersonas,
             mesa: asignacion.ids,
+            ...(mensajeIncluido
+              ? { mensaje: normalizarObservaciones(mensaje) }
+              : {}),
             ...(esReactivacion ? { estado: "confirmada" } : {})
           }
         })
@@ -2484,6 +2612,7 @@ await buscarAsignacionDisponible(
           nombreCliente: reservaModificada.fields.nombre_completo,
           emailCliente: reservaModificada.fields.email,
           telefonoCliente: reservaModificada.fields.telefono,
+          observaciones: reservaModificada.fields.mensaje,
           enlaceGestion: generarEnlacePanelRestaurante(
             reservaModificada.fields.fecha,
             restaurante_id
@@ -2912,9 +3041,7 @@ await buscarAsignacionDisponible(
 
           ...(email ? { email: email } : {}),
 
-          mensaje: mensaje || (esReservaPanel
-            ? "Reserva telefónica añadida desde el panel."
-            : ""),
+          mensaje: normalizarObservaciones(mensaje),
 
           estado: "pendiente"
         }
@@ -2986,6 +3113,7 @@ await buscarAsignacionDisponible(
           nombreCliente: nombre,
           emailCliente: email,
           telefonoCliente: telefono,
+          observaciones: mensaje,
           enlaceGestion: generarEnlacePanelRestaurante(fecha, restaurante_id)
         })
       ]);
