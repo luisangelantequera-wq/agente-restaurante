@@ -229,7 +229,8 @@ function renderizarReservas(reservas) {
       libre: "Libre",
       cancelada: "Cancelada"
     };
-    const selectorEstado = estadosEditables.includes(reserva.estado)
+    const selectorEstado = !reserva.anonimizada &&
+      estadosEditables.includes(reserva.estado)
       ? `
         <select
           class="selector-estado estado estado-${reserva.estado.replace(" ", "-")}"
@@ -256,7 +257,11 @@ function renderizarReservas(reservas) {
           ? `<a href="tel:${encodeURIComponent(reserva.telefono)}">${escaparHtml(reserva.telefono)}</a>`
           : ""}
       `
-      : '<span class="contacto-vacio">Sin datos de contacto</span>';
+      : `<span class="contacto-vacio">${
+          reserva.anonimizada
+            ? "Datos personales eliminados"
+            : "Sin datos de contacto"
+        }</span>`;
     const observaciones = reserva.observaciones
       ? `
         <div class="observaciones-reserva${
@@ -273,7 +278,9 @@ function renderizarReservas(reservas) {
       : "";
     let acciones = '<div class="acciones-reserva">';
 
-    if (reserva.estado === "cancelada") {
+    if (reserva.anonimizada) {
+      acciones += '<span class="sin-acciones">—</span>';
+    } else if (reserva.estado === "cancelada") {
       acciones += `
         <button
           class="accion reactivar"
@@ -389,7 +396,9 @@ function renderizarListaEspera(solicitudes) {
       : '<span class="contacto-vacio">Sin observaciones</span>';
     let acciones = '<div class="acciones-espera">';
 
-    if (solicitud.estado === "pendiente") {
+    if (solicitud.anonimizada) {
+      acciones += '<span class="sin-acciones">—</span>';
+    } else if (solicitud.estado === "pendiente") {
       acciones += `
         <button
           class="accion-espera convertir"
