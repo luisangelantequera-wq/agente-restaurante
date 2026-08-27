@@ -4,7 +4,8 @@
   "description": "Asistente virtual Contactia para reservas y cancelaciones de restaurantes con Airtable y Gmail.",
   "main": "index.js",
   "scripts": {
-    "start": "vercel dev"
+    "start": "vercel dev",
+    "test": "node --test"
   },
   "dependencies": {
     "node-fetch": "^3.3.2",
@@ -16,3 +17,4 @@
   },
   "license": "MIT"
 }
+
