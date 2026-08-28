@@ -1,5 +1,5 @@
 const BACKUP_FOLDER_NAME = "Contactia Backups";
-const BACKUP_FILE_PATTERN = /^contactia-backup-\d{4}-\d{2}-\d{2}\.json\.enc$/;
+const BACKUP_FILE_PATTERN = /^contactia-backup-\d{4}-\d{2}-\d{2}(?:-antes-restaurar-\d{6})?\.json\.enc$/;
 const MAX_CONTENT_LENGTH = 9 * 1024 * 1024;
 
 
@@ -44,6 +44,56 @@ function deleteExistingFile(folder, filename) {
 }
 
 
+function listBackupFiles(folder) {
+  const files = folder.getFiles();
+  const result = [];
+
+  while (files.hasNext()) {
+    const file = files.next();
+
+    if (BACKUP_FILE_PATTERN.test(file.getName())) {
+      result.push({
+        filename: file.getName(),
+        created_at: file.getDateCreated().toISOString(),
+        updated_at: file.getLastUpdated().toISOString(),
+        size: file.getSize()
+      });
+    }
+  }
+
+  return result
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 50);
+}
+
+
+function readBackupFile(folder, filename) {
+  const files = folder.getFilesByName(filename);
+  let selected = null;
+
+  while (files.hasNext()) {
+    const current = files.next();
+
+    if (
+      !selected ||
+      current.getDateCreated().getTime() > selected.getDateCreated().getTime()
+    ) {
+      selected = current;
+    }
+  }
+
+  if (!selected) {
+    throw new Error("La copia solicitada no existe.");
+  }
+
+  if (selected.getSize() > MAX_CONTENT_LENGTH) {
+    throw new Error("La copia solicitada supera el tamaño permitido.");
+  }
+
+  return selected.getBlob().getDataAsString("UTF-8");
+}
+
+
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents || "{}");
@@ -59,6 +109,28 @@ function doPost(e) {
       return jsonResponse({ ok: false, error: "No autorizado." });
     }
 
+    const action = String(data.action || "upload");
+    const folder = getOrCreateBackupFolder();
+
+    if (action === "list") {
+      return jsonResponse({ ok: true, files: listBackupFiles(folder) });
+    }
+
+    if (action === "read") {
+      if (!BACKUP_FILE_PATTERN.test(String(data.filename || ""))) {
+        return jsonResponse({ ok: false, error: "Nombre de archivo no válido." });
+      }
+
+      return jsonResponse({
+        ok: true,
+        content: readBackupFile(folder, data.filename)
+      });
+    }
+
+    if (action !== "upload") {
+      return jsonResponse({ ok: false, error: "Acción no válida." });
+    }
+
     if (!BACKUP_FILE_PATTERN.test(String(data.filename || ""))) {
       return jsonResponse({ ok: false, error: "Nombre de archivo no válido." });
     }
@@ -70,8 +142,6 @@ function doPost(e) {
     ) {
       return jsonResponse({ ok: false, error: "Contenido no válido." });
     }
-
-    const folder = getOrCreateBackupFolder();
 
     deleteExistingFile(folder, data.filename);
     const file = folder.createFile(
