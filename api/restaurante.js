@@ -1,11 +1,13 @@
 const crypto = require("crypto");
 const { registroDebeAnonimizarse } = require("../lib/privacidad");
+const MAX_REQUEST_BODY_BYTES = 16 * 1024;
 
 
 function responder(res, status, datos) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
   return res.end(JSON.stringify(datos));
 }
 
@@ -129,10 +131,53 @@ module.exports = async (req, res) => {
     });
   }
 
+  const tipoContenido = String(req.headers?.["content-type"] || "")
+    .toLowerCase();
+
+  if (!tipoContenido.startsWith("application/json")) {
+    return responder(res, 415, {
+      ok: false,
+      error: "El contenido debe enviarse en formato JSON."
+    });
+  }
+
+  const longitudDeclarada = Number(req.headers?.["content-length"] || 0);
+  const longitudCalculada = typeof req.body === "string"
+    ? Buffer.byteLength(req.body, "utf8")
+    : Buffer.byteLength(JSON.stringify(req.body || {}), "utf8");
+
+  if (
+    (Number.isFinite(longitudDeclarada) &&
+      longitudDeclarada > MAX_REQUEST_BODY_BYTES) ||
+    longitudCalculada > MAX_REQUEST_BODY_BYTES
+  ) {
+    return responder(res, 413, {
+      ok: false,
+      error: "La solicitud es demasiado grande."
+    });
+  }
+
   try {
-    const body = typeof req.body === "string"
-      ? JSON.parse(req.body || "{}")
-      : (req.body || {});
+    let body;
+
+    try {
+      body = typeof req.body === "string"
+        ? JSON.parse(req.body || "{}")
+        : (req.body || {});
+    } catch {
+      return responder(res, 400, {
+        ok: false,
+        error: "El contenido JSON no es válido."
+      });
+    }
+
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return responder(res, 400, {
+        ok: false,
+        error: "La solicitud no tiene un formato válido."
+      });
+    }
+
     const restauranteId = Number(body.restaurante_id);
     const fecha = String(body.fecha || "").trim();
     const horaMesas = String(body.hora_mesas || "14:00").trim();
@@ -142,7 +187,10 @@ module.exports = async (req, res) => {
       !Number.isInteger(restauranteId) ||
       restauranteId <= 0 ||
       !fechaValida(fecha) ||
-      horaAMinutos(horaMesas) === null
+      horaAMinutos(horaMesas) === null ||
+      typeof clave !== "string" ||
+      clave.length === 0 ||
+      clave.length > 256
     ) {
       return responder(res, 400, {
         ok: false,

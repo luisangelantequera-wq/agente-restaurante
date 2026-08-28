@@ -29,8 +29,37 @@ let reservaGestion = null;
 let reservaGestionOriginal = null;
 let solicitudEspera = null;
 let datosListaEspera = null;
-let tokenGestionActivo = new URLSearchParams(window.location.search)
-  .get("gestion") || "";
+
+
+function obtenerTokenGestionInicial() {
+  const parametrosHash = new URLSearchParams(
+    window.location.hash.replace(/^#/, "")
+  );
+  const parametrosConsulta = new URLSearchParams(window.location.search);
+  const token = parametrosHash.get("gestion") ||
+    parametrosConsulta.get("gestion") || "";
+
+  if (token) {
+    parametrosConsulta.delete("gestion");
+    const consultaRestante = parametrosConsulta.toString();
+    const urlLimpia = window.location.pathname +
+      (consultaRestante ? `?${consultaRestante}` : "");
+    window.history.replaceState(null, document.title, urlLimpia);
+  }
+
+  return /^[a-f0-9]{48}$/i.test(token) ? token.toLowerCase() : "";
+}
+
+
+let tokenGestionActivo = obtenerTokenGestionInicial();
+
+
+function avisarGestionSegura() {
+  agregarMensaje(
+    "Por seguridad, para consultar, modificar o cancelar una reserva debes abrir el enlace de gestión que recibiste en el correo de confirmación.",
+    "bot"
+  );
+}
 
 
 // 3️⃣ MOSTRAR MENSAJES
@@ -249,7 +278,7 @@ function extraerDatosIniciales(texto) {
 function extraerLocalizador(texto) {
   const coincidencia = String(texto)
     .toUpperCase()
-    .match(/\b[A-Z]{2,10}-\d{8}-\d{4}\b/);
+    .match(/\b[A-Z]{2,10}-\d{8}-(?:\d{4}|[A-F0-9]{10})\b/);
 
   return coincidencia ? coincidencia[0] : null;
 }
@@ -938,10 +967,16 @@ async function procesarMensaje(texto) {
     paso === "localizador_cancelacion" ||
     paso === "localizador_modificacion"
   ) {
+    if (!tokenGestionActivo) {
+      avisarGestionSegura();
+      paso = "inicio";
+      return;
+    }
+
     const localizador = extraerLocalizador(mensaje);
 
     if (!localizador) {
-      agregarMensaje("No he reconocido el localizador. Por ejemplo: SOL-20260825-8863.", "bot");
+      agregarMensaje("No he reconocido el localizador de la reserva.", "bot");
       return;
     }
 
@@ -1069,6 +1104,11 @@ async function procesarMensaje(texto) {
       normalizarTexto(mensaje);
 
     if (textoMinusculas.includes("modific") || textoMinusculas.includes("cambiar")) {
+      if (!tokenGestionActivo && !localizadorGestion) {
+        avisarGestionSegura();
+        return;
+      }
+
       const localizador = extraerLocalizador(mensaje);
 
       if (localizador) {
@@ -1084,6 +1124,11 @@ async function procesarMensaje(texto) {
     }
 
     if (textoMinusculas.includes("cancel")) {
+      if (!tokenGestionActivo && !localizadorGestion) {
+        avisarGestionSegura();
+        return;
+      }
+
       const localizador = extraerLocalizador(mensaje);
 
       if (localizador) {
@@ -1099,6 +1144,11 @@ async function procesarMensaje(texto) {
     }
 
     if (textoMinusculas.includes("consult") || textoMinusculas.includes("buscar")) {
+      if (!tokenGestionActivo && !localizadorGestion) {
+        avisarGestionSegura();
+        return;
+      }
+
       const localizador = extraerLocalizador(mensaje);
 
       if (localizador) {

@@ -9,6 +9,60 @@ const {
   registroDebeAnonimizarse
 } = require("../lib/privacidad");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
+const MAX_REQUEST_BODY_BYTES = 32 * 1024;
+const MAX_DIAS_ANTELACION_CONFIGURADO = Number(
+  process.env.MAX_RESERVA_DIAS || 730
+);
+const MAX_DIAS_ANTELACION =
+  Number.isInteger(MAX_DIAS_ANTELACION_CONFIGURADO) &&
+  MAX_DIAS_ANTELACION_CONFIGURADO > 0
+    ? MAX_DIAS_ANTELACION_CONFIGURADO
+    : 730;
+const ACCIONES_PERMITIDAS = new Set([
+  "actualizar_disponibilidad",
+  "actualizar_estado",
+  "actualizar_lista_espera",
+  "actualizar_observaciones",
+  "cambiar_mesas",
+  "cancelar",
+  "consultar",
+  "lista_espera_crear",
+  "modificar",
+  "ocupar_mesa",
+  "opciones_mesas",
+  "reactivar",
+  "reservar",
+  "reservar_panel",
+  "verificar"
+]);
+const ACCIONES_CON_FECHA_RESERVA = new Set([
+  "lista_espera_crear",
+  "modificar",
+  "ocupar_mesa",
+  "reactivar",
+  "reservar",
+  "reservar_panel",
+  "verificar"
+]);
+const LIMITES_CAMPOS_TEXTO = {
+  accion: 40,
+  clave_restaurante: 256,
+  email: 254,
+  estado_espera: 40,
+  estado_nuevo: 40,
+  fecha: 10,
+  fecha_desde: 10,
+  hora: 5,
+  localizador: 40,
+  mensaje: 1000,
+  mesa_id: 40,
+  nombre: 120,
+  recurso_id: 40,
+  registro_espera_id: 40,
+  telefono: 25,
+  tipo_recurso: 20,
+  token_gestion: 48
+};
 // CONTACTIA V2 - api/chat.js
 // FASE 2: comprobar disponibilidad + crear reserva
 // ============================================================
@@ -18,7 +72,97 @@ const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
 function responder(res, status, datos) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
   return res.end(JSON.stringify(datos));
+}
+
+
+function obtenerTamanoSolicitud(req) {
+  const longitudDeclarada = Number(req.headers?.["content-length"] || 0);
+
+  if (Number.isFinite(longitudDeclarada) && longitudDeclarada > 0) {
+    return longitudDeclarada;
+  }
+
+  if (typeof req.body === "string") {
+    return Buffer.byteLength(req.body, "utf8");
+  }
+
+  if (req.body && typeof req.body === "object") {
+    return Buffer.byteLength(JSON.stringify(req.body), "utf8");
+  }
+
+  return 0;
+}
+
+
+function validarCamposTexto(body) {
+  for (const [campo, limite] of Object.entries(LIMITES_CAMPOS_TEXTO)) {
+    if (body[campo] === undefined || body[campo] === null) {
+      continue;
+    }
+
+    if (typeof body[campo] !== "string" || body[campo].length > limite) {
+      return `El campo ${campo} no tiene un formato válido.`;
+    }
+  }
+
+  if (body.mesa_ids !== undefined) {
+    if (
+      !Array.isArray(body.mesa_ids) ||
+      body.mesa_ids.length > 20 ||
+      body.mesa_ids.some((id) =>
+        typeof id !== "string" || id.length > 40
+      )
+    ) {
+      return "La selección de mesas no tiene un formato válido.";
+    }
+  }
+
+  return "";
+}
+
+
+function datosContactoValidos(nombre, email, telefono, emailObligatorio = true) {
+  const nombreNormalizado = String(nombre || "").trim();
+  const emailNormalizado = String(email || "").trim().toLowerCase();
+  const telefonoNormalizado = String(telefono || "").trim();
+
+  return nombreNormalizado.length >= 2 &&
+    nombreNormalizado.length <= 120 &&
+    (!emailObligatorio || emailNormalizado.length > 0) &&
+    (!emailNormalizado || (
+      emailNormalizado.length <= 254 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalizado)
+    )) &&
+    /^[+0-9\s()-]{7,25}$/.test(telefonoNormalizado);
+}
+
+
+function fechaReservaDentroDeRango(fecha) {
+  const partes = String(fecha || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!partes || !obtenerDiaSemana(fecha)) {
+    return false;
+  }
+
+  const fechaSolicitada = Date.UTC(
+    Number(partes[1]),
+    Number(partes[2]) - 1,
+    Number(partes[3])
+  );
+  const ahora = new Date();
+  const hoy = Date.UTC(
+    ahora.getFullYear(),
+    ahora.getMonth(),
+    ahora.getDate()
+  );
+  const diferenciaDias = Math.floor(
+    (fechaSolicitada - hoy) / (24 * 60 * 60 * 1000)
+  );
+
+  return diferenciaDias >= 0 && diferenciaDias <= MAX_DIAS_ANTELACION;
 }
 
 
@@ -596,7 +740,12 @@ async function buscarReservaPorToken(restaurante_id, tokenGestion) {
 }
 
 
-async function buscarReservaGestion(restaurante_id, localizador, tokenGestion) {
+async function buscarReservaGestion(
+  restaurante_id,
+  localizador,
+  tokenGestion,
+  permitirLocalizador = false
+) {
   let reserva;
 
   if (tokenGestion) {
@@ -607,7 +756,7 @@ async function buscarReservaGestion(restaurante_id, localizador, tokenGestion) {
     }
 
     reserva = await buscarReservaPorToken(restaurante_id, tokenNormalizado);
-  } else {
+  } else if (permitirLocalizador) {
     const localizadorNormalizado = String(localizador || "").trim().toUpperCase();
 
     if (!/^[A-Z0-9-]{8,40}$/.test(localizadorNormalizado)) {
@@ -618,6 +767,8 @@ async function buscarReservaGestion(restaurante_id, localizador, tokenGestion) {
       restaurante_id,
       localizadorNormalizado
     );
+  } else {
+    return null;
   }
 
   if (!reserva) {
@@ -1013,21 +1164,34 @@ async function buscarHorariosAlternativos(
 
 
 // 6️⃣ GENERAR LOCALIZADOR
-function generarIdReserva(fecha) {
+function generarIdReserva(fecha, prefijo = "SOL") {
+  const fechaLimpia = String(fecha || "").replaceAll("-", "");
+  const aleatorio = crypto.randomBytes(5).toString("hex").toUpperCase();
 
-  const fechaLimpia =
-    fecha.replaceAll("-", "");
+  return `${prefijo}-${fechaLimpia}-${aleatorio}`;
+}
 
-  const aleatorio =
-    Math.floor(1000 + Math.random() * 9000);
 
-  return `SOL-${fechaLimpia}-${aleatorio}`;
+async function generarIdReservaUnico(restauranteId, fecha, prefijo = "SOL") {
+  for (let intento = 0; intento < 5; intento += 1) {
+    const localizador = generarIdReserva(fecha, prefijo);
+    const existente = await buscarReservaPorLocalizador(
+      restauranteId,
+      localizador
+    );
+
+    if (!existente) {
+      return localizador;
+    }
+  }
+
+  throw new Error("No se pudo generar un localizador único.");
 }
 
 
 function generarIdEspera(fecha) {
   const fechaLimpia = String(fecha || "").replaceAll("-", "");
-  const aleatorio = Math.floor(1000 + Math.random() * 9000);
+  const aleatorio = crypto.randomBytes(5).toString("hex").toUpperCase();
 
   return `ESP-${fechaLimpia}-${aleatorio}`;
 }
@@ -1067,7 +1231,7 @@ function generarEnlaceGestion(tokenGestion) {
   ).trim().replace(/\/+$/, "");
 
   return tokenGestion
-    ? `${urlPublica}/?gestion=${tokenGestion}`
+    ? `${urlPublica}/#gestion=${tokenGestion}`
     : urlPublica;
 }
 
@@ -1560,13 +1724,112 @@ module.exports = async (req, res) => {
     });
   }
 
+  const tipoContenido = String(req.headers?.["content-type"] || "")
+    .toLowerCase();
+
+  if (!tipoContenido.startsWith("application/json")) {
+    return responder(res, 415, {
+      ok: false,
+      error: "El contenido debe enviarse en formato JSON."
+    });
+  }
+
+  if (obtenerTamanoSolicitud(req) > MAX_REQUEST_BODY_BYTES) {
+    return responder(res, 413, {
+      ok: false,
+      error: "La solicitud es demasiado grande."
+    });
+  }
+
 
   try {
 
-    const body =
-      typeof req.body === "string"
+    let body;
+
+    try {
+      body = typeof req.body === "string"
         ? JSON.parse(req.body || "{}")
         : (req.body || {});
+    } catch {
+      return responder(res, 400, {
+        ok: false,
+        error: "El contenido JSON no es válido."
+      });
+    }
+
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return responder(res, 400, {
+        ok: false,
+        error: "La solicitud no tiene un formato válido."
+      });
+    }
+
+    const errorCampos = validarCamposTexto(body);
+
+    if (errorCampos) {
+      return responder(res, 400, { ok: false, error: errorCampos });
+    }
+
+    body.accion = String(body.accion || "").trim();
+
+    if (!ACCIONES_PERMITIDAS.has(body.accion)) {
+      return responder(res, 400, {
+        ok: false,
+        error: "Acción no reconocida."
+      });
+    }
+
+    const restauranteIdSolicitud = Number(body.restaurante_id);
+
+    if (
+      !Number.isInteger(restauranteIdSolicitud) ||
+      restauranteIdSolicitud <= 0 ||
+      restauranteIdSolicitud > 1000000000
+    ) {
+      return responder(res, 400, {
+        ok: false,
+        error: "El restaurante no es válido."
+      });
+    }
+
+    if (body.personas !== undefined) {
+      const personasSolicitud = Number(body.personas);
+
+      if (
+        !Number.isInteger(personasSolicitud) ||
+        personasSolicitud <= 0 ||
+        personasSolicitud > 1000
+      ) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El número de personas no es válido."
+        });
+      }
+    }
+
+    if (
+      ACCIONES_CON_FECHA_RESERVA.has(body.accion) &&
+      body.fecha !== undefined &&
+      !fechaReservaDentroDeRango(body.fecha)
+    ) {
+      return responder(res, 400, {
+        ok: false,
+        error:
+          `La fecha debe estar entre hoy y los próximos ` +
+          `${MAX_DIAS_ANTELACION} días.`
+      });
+    }
+
+    if (
+      ACCIONES_CON_FECHA_RESERVA.has(body.accion) &&
+      body.hora !== undefined &&
+      !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(body.hora)
+    ) {
+      return responder(res, 400, {
+        ok: false,
+        error: "La hora no tiene un formato válido."
+      });
+    }
 
 
     const {
@@ -1597,6 +1860,18 @@ module.exports = async (req, res) => {
       body,
       "mensaje"
     );
+
+    if (
+      ["consultar", "cancelar", "modificar"].includes(accion) &&
+      !token_gestion &&
+      !clave_restaurante
+    ) {
+      return responder(res, 401, {
+        ok: false,
+        error:
+          "Por seguridad, abre el enlace de gestión enviado en el correo de confirmación."
+      });
+    }
 
     if (accion === "actualizar_observaciones") {
       const restauranteIdObservaciones = Number(restaurante_id);
@@ -1643,7 +1918,8 @@ module.exports = async (req, res) => {
       const reservaObservaciones = await buscarReservaGestion(
         restauranteIdObservaciones,
         localizadorObservaciones,
-        null
+        null,
+        true
       );
 
       if (!reservaObservaciones) {
@@ -1722,7 +1998,8 @@ module.exports = async (req, res) => {
       const reservaEstado = await buscarReservaGestion(
         restauranteIdEstado,
         localizadorEstado,
-        null
+        null,
+        true
       );
 
       if (!reservaEstado) {
@@ -1909,9 +2186,11 @@ module.exports = async (req, res) => {
         );
       }
 
-      const idOcupacion =
-        `PASO-${fechaOcupacion.replaceAll("-", "")}-` +
-        Math.floor(1000 + Math.random() * 9000);
+      const idOcupacion = await generarIdReservaUnico(
+        restauranteIdOcupacion,
+        fechaOcupacion,
+        "PASO"
+      );
       const urlReservasOcupacion =
         `https://api.airtable.com/v0/` +
         `${process.env.AIRTABLE_BASE_ID}/RESERVAS`;
@@ -2228,6 +2507,14 @@ module.exports = async (req, res) => {
         });
       }
 
+      if (!token_gestion && !clave_restaurante) {
+        return responder(res, 401, {
+          ok: false,
+          error:
+            "Por seguridad, abre el enlace de gestión enviado en el correo de confirmación."
+        });
+      }
+
       if (token_gestion && !/^[a-f0-9]{48}$/i.test(String(token_gestion).trim())) {
         return responder(res, 400, {
           ok: false,
@@ -2262,7 +2549,8 @@ module.exports = async (req, res) => {
       const reserva = await buscarReservaGestion(
         restaurante_id,
         localizador,
-        token_gestion
+        token_gestion,
+        Boolean(clave_restaurante)
       );
 
       if (!reserva) {
@@ -2494,11 +2782,11 @@ Number(restaurante.fields.duracion_reserva_minutos);
       const emailEspera = String(email || "").trim().toLowerCase();
       const telefonoEspera = String(telefono || "").trim();
 
-      if (
-        nombreEspera.length < 2 ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailEspera) ||
-        !/^[+0-9\s-]{7,18}$/.test(telefonoEspera)
-      ) {
+      if (!datosContactoValidos(
+        nombreEspera,
+        emailEspera,
+        telefonoEspera
+      )) {
         return responder(res, 400, {
           ok: false,
           error: "El nombre, el correo electrónico o el teléfono no son válidos."
@@ -2702,6 +2990,14 @@ await buscarAsignacionDisponible(
         });
       }
 
+      if (!token_gestion && !clave_restaurante) {
+        return responder(res, 401, {
+          ok: false,
+          error:
+            "Por seguridad, abre el enlace de gestión enviado en el correo de confirmación."
+        });
+      }
+
       if (token_gestion && !/^[a-f0-9]{48}$/i.test(String(token_gestion).trim())) {
         return responder(res, 400, {
           ok: false,
@@ -2719,7 +3015,8 @@ await buscarAsignacionDisponible(
       const reservaActual = await buscarReservaGestion(
         restaurante_id,
         localizador,
-        token_gestion
+        token_gestion,
+        Boolean(clave_restaurante)
       );
 
       if (!reservaActual) {
@@ -2956,7 +3253,8 @@ await buscarAsignacionDisponible(
       const reservaActual = await buscarReservaGestion(
         restaurante_id,
         localizadorNormalizado,
-        null
+        null,
+        true
       );
 
       if (!reservaActual) {
@@ -3142,14 +3440,19 @@ await buscarAsignacionDisponible(
       const esReservaPanel = accion === "reservar_panel";
 
       // Para crear la reserva necesitamos estos datos.
-      if (!nombre || !telefono || (!esReservaPanel && !email)) {
+      if (!datosContactoValidos(
+        nombre,
+        email,
+        telefono,
+        !esReservaPanel
+      )) {
 
         return responder(res, 400, {
           ok: false,
           error:
             esReservaPanel
-              ? "Faltan el nombre o el teléfono."
-              : "Faltan nombre, email o teléfono."
+              ? "El nombre, el email o el teléfono no son válidos."
+              : "El nombre, el correo electrónico o el teléfono no son válidos."
         });
       }
 
@@ -3349,8 +3652,7 @@ await buscarAsignacionDisponible(
 
       // 1️⃣1️⃣ GENERAR LOCALIZADOR
 
-      const idReserva =
-        generarIdReserva(fecha);
+      const idReserva = await generarIdReservaUnico(restaurante_id, fecha);
       const tokenGestion = generarTokenGestion();
 
 
@@ -3544,17 +3846,23 @@ await buscarAsignacionDisponible(
 
   } catch (error) {
 
+    const idError = crypto.randomBytes(6).toString("hex");
+
     console.error(
-      "ERROR CONTACTIA:",
+      `ERROR CONTACTIA [${idError}]:`,
       error
     );
 
     return responder(res, 500, {
       ok: false,
-      error:
-        error.message ||
-        "Error interno del servidor."
+      error: `Error interno del servidor. Código: ${idError}`
     });
   }
+};
+
+
+module.exports._seguridad = {
+  generarEnlaceGestion,
+  generarIdReserva
 };
 
