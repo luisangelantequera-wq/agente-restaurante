@@ -11,6 +11,9 @@ const {
 const {
   sesionRestauranteValida
 } = require("../lib/sesion-restaurante");
+const {
+  registrarAuditoria
+} = require("../lib/auditoria");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
 const MAX_REQUEST_BODY_BYTES = 32 * 1024;
 const MAX_DIAS_ANTELACION_CONFIGURADO = Number(
@@ -2060,6 +2063,19 @@ module.exports = async (req, res) => {
           body: JSON.stringify({ fields: camposEstado })
         }
       );
+
+      await registrarAuditoria({
+        restauranteId: restauranteIdEstado,
+        reservaId: reservaActualizadaEstado.fields.id_reserva,
+        accion: "estado_actualizado",
+        origen: "panel_restaurante",
+        estadoAnterior,
+        estadoNuevo,
+        detalles: {
+          anterior: { estado: estadoAnterior },
+          nuevo: { estado: estadoNuevo }
+        }
+      });
       let correoEnviado = null;
 
       if (estadoNuevo === "con retraso") {
@@ -2249,6 +2265,23 @@ module.exports = async (req, res) => {
             "Otra reserva acaba de ocupar esa mesa. Actualiza el panel y elige otra."
         });
       }
+
+      await registrarAuditoria({
+        restauranteId: restauranteIdOcupacion,
+        reservaId: idOcupacion,
+        accion: "reserva_creada",
+        origen: "panel_restaurante",
+        estadoNuevo: "ocupada",
+        detalles: {
+          nuevo: {
+            fecha: fechaOcupacion,
+            hora: horaOcupacion,
+            personas: personasOcupacion,
+            mesas: [mesaIdOcupacion],
+            estado: "ocupada"
+          }
+        }
+      });
 
       return responder(res, 200, {
         ok: true,
@@ -2618,6 +2651,21 @@ module.exports = async (req, res) => {
             privacidad_hasta: calcularPrivacidadHastaDesdeAhora()
           }
         })
+      });
+
+      await registrarAuditoria({
+        restauranteId: restaurante_id,
+        reservaId: reservaActualizada.fields.id_reserva,
+        accion: "reserva_cancelada",
+        origen: (clave_restaurante || sesionRestauranteAutorizada)
+          ? "panel_restaurante"
+          : "web_cliente",
+        estadoAnterior: estadoActual,
+        estadoNuevo: "cancelada",
+        detalles: {
+          anterior: { estado: estadoActual },
+          nuevo: { estado: "cancelada" }
+        }
       });
 
       let restauranteCancelacion = null;
@@ -3182,6 +3230,43 @@ await buscarAsignacionDisponible(
         })
       });
 
+      await registrarAuditoria({
+        restauranteId: restaurante_id,
+        reservaId: reservaModificada.fields.id_reserva,
+        accion: esReactivacion
+          ? "reserva_reactivada"
+          : "reserva_modificada",
+        origen: (clave_restaurante || sesionRestauranteAutorizada)
+          ? "panel_restaurante"
+          : "web_cliente",
+        estadoAnterior: estadoReservaActual,
+        estadoNuevo: String(reservaModificada.fields.estado || estadoReservaActual)
+          .trim()
+          .toLowerCase(),
+        detalles: {
+          anterior: {
+            fecha: reservaActual.fields.fecha,
+            hora: reservaActual.fields.hora,
+            personas: Number(reservaActual.fields.personas || 0),
+            mesas: Array.isArray(reservaActual.fields.mesa)
+              ? reservaActual.fields.mesa
+              : [],
+            estado: estadoReservaActual
+          },
+          nuevo: {
+            fecha: reservaModificada.fields.fecha,
+            hora: reservaModificada.fields.hora,
+            personas: Number(reservaModificada.fields.personas || 0),
+            mesas: Array.isArray(reservaModificada.fields.mesa)
+              ? reservaModificada.fields.mesa
+              : [],
+            estado: String(
+              reservaModificada.fields.estado || estadoReservaActual
+            ).trim().toLowerCase()
+          }
+        }
+      });
+
       const urlBloqueo =
         `https://api.airtable.com/v0/` +
         `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${bloqueo.id}`;
@@ -3426,6 +3511,27 @@ await buscarAsignacionDisponible(
         body: JSON.stringify({
           fields: { mesa: asignacionElegida.ids }
         })
+      });
+
+      await registrarAuditoria({
+        restauranteId: restaurante_id,
+        reservaId: reservaActualizada.fields.id_reserva,
+        accion: "mesas_actualizadas",
+        origen: "panel_restaurante",
+        estadoAnterior: String(reservaActual.fields.estado || "")
+          .trim()
+          .toLowerCase(),
+        estadoNuevo: String(reservaActualizada.fields.estado || "")
+          .trim()
+          .toLowerCase(),
+        detalles: {
+          anterior: { mesas: mesasActuales },
+          nuevo: {
+            mesas: asignacionElegida.ids,
+            capacidad: asignacionElegida.capacidad,
+            tipo: asignacionElegida.tipo
+          }
+        }
       });
       const urlBloqueo =
         `https://api.airtable.com/v0/` +
@@ -3760,6 +3866,25 @@ await buscarAsignacionDisponible(
         });
       }
 
+      await registrarAuditoria({
+        restauranteId: restaurante_id,
+        reservaId: idReserva,
+        accion: "reserva_creada",
+        origen: esReservaPanel ? "panel_restaurante" : "web_cliente",
+        estadoNuevo: "confirmada",
+        detalles: {
+          nuevo: {
+            fecha,
+            hora,
+            personas: numeroPersonas,
+            mesas: mesaLibre.ids,
+            capacidad: mesaLibre.capacidad,
+            tipo: mesaLibre.tipo,
+            estado: "confirmada"
+          }
+        }
+      });
+
       let listaEsperaConvertida = null;
 
       if (solicitudEsperaConversion) {
@@ -3888,4 +4013,5 @@ module.exports._seguridad = {
   generarEnlaceGestion,
   generarIdReserva
 };
+
 
