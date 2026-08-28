@@ -29,10 +29,12 @@ function responder(res, status, datos) {
 
 
 function secretoValido(req) {
-  const recibido = String(req.headers.authorization || "");
-  const esperado = process.env.BACKUP_RESTORE_SECRET
-    ? `Bearer ${process.env.BACKUP_RESTORE_SECRET}`
-    : "";
+  const secretoCabecera = String(
+    req.headers["x-contactia-restore-secret"] || ""
+  );
+  const autorizado = String(req.headers.authorization || "");
+  const recibido = secretoCabecera || autorizado.replace(/^Bearer\s+/i, "");
+  const esperado = String(process.env.BACKUP_RESTORE_SECRET || "");
   const recibidoBuffer = Buffer.from(recibido);
   const esperadoBuffer = Buffer.from(esperado);
 
