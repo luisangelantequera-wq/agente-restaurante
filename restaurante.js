@@ -1,6 +1,5 @@
 const parametros = new URLSearchParams(window.location.search);
 const restauranteId = Number(parametros.get("restaurante") || 1);
-const claveSesion = `contactia_restaurante_${restauranteId}`;
 
 const acceso = document.getElementById("acceso");
 const contenido = document.getElementById("contenido");
@@ -690,7 +689,7 @@ async function actualizarDisponibilidadRecurso(tipo, id, habilitar, boton) {
       throw new Error("No se pudo actualizar la disponibilidad.");
     }
 
-    await cargarReservas(sessionStorage.getItem(claveSesion));
+    await cargarReservas();
     renderizarDisponibilidad();
     estadoCarga.textContent = tipo === "zona"
       ? `Zona ${habilitar ? "reabierta" : "cerrada"} correctamente.`
@@ -849,11 +848,12 @@ async function cargarMesasReservaManual() {
     const respuesta = await fetch("/api/restaurante", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({
+        accion: "cargar",
         restaurante_id: restauranteId,
         fecha,
-        hora_mesas: hora,
-        clave: sessionStorage.getItem(claveSesion)
+        hora_mesas: hora
       })
     });
     const datos = await respuesta.json();
@@ -874,16 +874,17 @@ async function ejecutarAccionReserva(datos) {
   const respuesta = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     body: JSON.stringify({
       restaurante_id: restauranteId,
-      clave_restaurante: sessionStorage.getItem(claveSesion),
       ...datos
     })
   });
   const resultado = await respuesta.json();
 
   if (respuesta.status === 401) {
-    sessionStorage.removeItem(claveSesion);
+    campoClave.value = "";
+    mostrarAcceso("La sesión ha caducado. Vuelve a identificarte.");
   }
 
   if (!respuesta.ok || !resultado.ok) {
@@ -1000,8 +1001,9 @@ async function abrirCambioMesas(reserva) {
 }
 
 
-async function cargarReservas(clave) {
+async function cargarReservas(clave = "") {
   const fecha = campoFecha.value;
+  const esInicioSesion = typeof clave === "string" && clave.length > 0;
   estadoCarga.textContent = "Cargando…";
   botonActualizar.disabled = true;
 
@@ -1009,18 +1011,20 @@ async function cargarReservas(clave) {
     const respuesta = await fetch("/api/restaurante", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({
+        accion: esInicioSesion ? "iniciar_sesion" : "cargar",
         restaurante_id: restauranteId,
         fecha,
         hora_mesas: horaMesas.value,
-        clave
+        ...(esInicioSesion ? { clave } : {})
       })
     });
     const datos = await respuesta.json();
 
     if (respuesta.status === 401) {
-      sessionStorage.removeItem(claveSesion);
-      mostrarAcceso(datos.error || "La clave no es correcta.");
+      campoClave.value = "";
+      mostrarAcceso(datos.error || "La sesión no es válida.");
       return;
     }
 
@@ -1028,7 +1032,7 @@ async function cargarReservas(clave) {
       throw new Error(datos.error || "No se pudieron cargar las reservas.");
     }
 
-    sessionStorage.setItem(claveSesion, clave);
+    campoClave.value = "";
     mostrarPanel();
     document.getElementById("nombre-restaurante").textContent =
       datos.restaurante.nombre;
@@ -1067,13 +1071,7 @@ formulario.addEventListener("submit", async (evento) => {
 
 
 botonActualizar.addEventListener("click", () => {
-  const clave = sessionStorage.getItem(claveSesion);
-
-  if (clave) {
-    cargarReservas(clave);
-  } else {
-    mostrarAcceso();
-  }
+  cargarReservas();
 });
 
 
@@ -1085,8 +1083,21 @@ nuevaHoraHoras.addEventListener("change", actualizarHoraSeleccionada);
 nuevaHoraMinutos.addEventListener("change", actualizarHoraSeleccionada);
 
 
-botonCerrarSesion.addEventListener("click", () => {
-  sessionStorage.removeItem(claveSesion);
+botonCerrarSesion.addEventListener("click", async () => {
+  try {
+    await fetch("/api/restaurante", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        accion: "cerrar_sesion",
+        restaurante_id: restauranteId
+      })
+    });
+  } catch (error) {
+    console.error("No se pudo cerrar la sesión en el servidor:", error);
+  }
+
   campoClave.value = "";
   mostrarAcceso();
 });
@@ -1150,7 +1161,7 @@ formularioOcupar.addEventListener("submit", async (evento) => {
     }
 
     cerrarOcupacion();
-    await cargarReservas(sessionStorage.getItem(claveSesion));
+    await cargarReservas();
     estadoCarga.textContent = "Mesa ocupada y añadida a la agenda.";
   } catch (error) {
     errorOcupar.textContent = error.message;
@@ -1280,7 +1291,7 @@ formularioNuevaReserva.addEventListener("submit", async (evento) => {
     cerrarNuevaReserva();
     campoFecha.value = fechaReserva;
     horaMesas.value = horaReserva;
-    await cargarReservas(sessionStorage.getItem(claveSesion));
+    await cargarReservas();
 
     if (
       solicitudConvertida &&
@@ -1381,7 +1392,7 @@ reservasContenedor.addEventListener("change", async (evento) => {
     }
 
     const nuevoEstado = selector.value;
-    await cargarReservas(sessionStorage.getItem(claveSesion));
+    await cargarReservas();
 
     if (nuevoEstado === "con retraso") {
       estadoCarga.textContent = resultado.correo_enviado
@@ -1448,7 +1459,7 @@ reservasContenedor.addEventListener("click", async (evento) => {
       throw new Error(resultado.motivo || "No se pudo cancelar la reserva.");
     }
 
-    await cargarReservas(sessionStorage.getItem(claveSesion));
+    await cargarReservas();
   } catch (error) {
     estadoCarga.textContent = error.message;
     boton.disabled = false;
@@ -1501,7 +1512,7 @@ formularioModificar.addEventListener("submit", async (evento) => {
     const fechaActualizada = nuevaFecha.value;
     cerrarModificacion();
     campoFecha.value = fechaActualizada;
-    await cargarReservas(sessionStorage.getItem(claveSesion));
+    await cargarReservas();
     if (soloObservaciones) {
       estadoCarga.textContent = "Observaciones actualizadas correctamente.";
     }
@@ -1550,7 +1561,7 @@ formularioMesas.addEventListener("submit", async (evento) => {
     }
 
     cerrarCambioMesas();
-    await cargarReservas(sessionStorage.getItem(claveSesion));
+    await cargarReservas();
   } catch (error) {
     errorMesas.textContent = error.message;
   } finally {
@@ -1609,7 +1620,7 @@ listaEsperaContenedor.addEventListener("click", async (evento) => {
       throw new Error("No se pudo actualizar la solicitud.");
     }
 
-    await cargarReservas(sessionStorage.getItem(claveSesion));
+    await cargarReservas();
     estadoCarga.textContent = estadoNuevo === "avisado"
       ? "Cliente marcado como avisado."
       : estadoNuevo === "cancelada"
@@ -1667,11 +1678,5 @@ document.getElementById("volver-dialogo-disponibilidad").addEventListener(
 configurarSelectorHora();
 configurarHoraMesas();
 campoFecha.value = fechaInicial();
-const claveGuardada = sessionStorage.getItem(claveSesion);
-
-if (claveGuardada) {
-  cargarReservas(claveGuardada);
-} else {
-  mostrarAcceso();
-}
+cargarReservas();
 

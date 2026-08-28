@@ -1,5 +1,11 @@
 const crypto = require("crypto");
 const { registroDebeAnonimizarse } = require("../lib/privacidad");
+const {
+  borrarSesionRestaurante,
+  establecerSesionRestaurante,
+  sesionRestauranteConfigurada,
+  sesionRestauranteValida
+} = require("../lib/sesion-restaurante");
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
 
 
@@ -179,22 +185,67 @@ module.exports = async (req, res) => {
     }
 
     const restauranteId = Number(body.restaurante_id);
+    const accion = String(body.accion || (body.clave ? "iniciar_sesion" : "cargar"))
+      .trim();
     const fecha = String(body.fecha || "").trim();
     const horaMesas = String(body.hora_mesas || "14:00").trim();
     const clave = body.clave;
 
+    if (![
+      "cargar",
+      "cerrar_sesion",
+      "iniciar_sesion"
+    ].includes(accion)) {
+      return responder(res, 400, {
+        ok: false,
+        error: "La operación solicitada no es válida."
+      });
+    }
+
     if (
       !Number.isInteger(restauranteId) ||
-      restauranteId <= 0 ||
+      restauranteId <= 0
+    ) {
+      return responder(res, 400, {
+        ok: false,
+        error: "El restaurante no es válido."
+      });
+    }
+
+    if (accion === "cerrar_sesion") {
+      borrarSesionRestaurante(res);
+      return responder(res, 200, { ok: true, sesion_cerrada: true });
+    }
+
+    const esInicioSesion = accion === "iniciar_sesion";
+
+    if (
       !fechaValida(fecha) ||
       horaAMinutos(horaMesas) === null ||
-      typeof clave !== "string" ||
-      clave.length === 0 ||
-      clave.length > 256
+      (esInicioSesion && (
+        typeof clave !== "string" ||
+        clave.length === 0 ||
+        clave.length > 256
+      ))
     ) {
       return responder(res, 400, {
         ok: false,
         error: "El restaurante o la fecha no son válidos."
+      });
+    }
+
+    if (!sesionRestauranteConfigurada()) {
+      return responder(res, 503, {
+        ok: false,
+        error: "El acceso seguro al panel no está configurado."
+      });
+    }
+
+    if (!esInicioSesion && !sesionRestauranteValida(req, restauranteId)) {
+      borrarSesionRestaurante(res);
+      return responder(res, 401, {
+        ok: false,
+        error: "La sesión ha caducado. Vuelve a identificarte."
       });
     }
 
@@ -207,11 +258,15 @@ module.exports = async (req, res) => {
       });
     }
 
-    if (!clavesCoinciden(clave, restaurante.fields.api_key_restaurante)) {
-      return responder(res, 401, {
-        ok: false,
-        error: "La clave del restaurante no es correcta."
-      });
+    if (esInicioSesion) {
+      if (!clavesCoinciden(clave, restaurante.fields.api_key_restaurante)) {
+        return responder(res, 401, {
+          ok: false,
+          error: "La clave del restaurante no es correcta."
+        });
+      }
+
+      establecerSesionRestaurante(res, restauranteId);
     }
 
     const formula =

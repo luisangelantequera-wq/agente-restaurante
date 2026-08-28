@@ -8,6 +8,9 @@ const {
   numeroEnteroPositivo,
   registroDebeAnonimizarse
 } = require("../lib/privacidad");
+const {
+  sesionRestauranteValida
+} = require("../lib/sesion-restaurante");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
 const MAX_REQUEST_BODY_BYTES = 32 * 1024;
 const MAX_DIAS_ANTELACION_CONFIGURADO = Number(
@@ -1860,11 +1863,16 @@ module.exports = async (req, res) => {
       body,
       "mensaje"
     );
+    const sesionRestauranteAutorizada = sesionRestauranteValida(
+      req,
+      restaurante_id
+    );
 
     if (
       ["consultar", "cancelar", "modificar"].includes(accion) &&
       !token_gestion &&
-      !clave_restaurante
+      !clave_restaurante &&
+      !sesionRestauranteAutorizada
     ) {
       return responder(res, 401, {
         ok: false,
@@ -1891,10 +1899,10 @@ module.exports = async (req, res) => {
         });
       }
 
-      if (!clave_restaurante) {
+      if (!clave_restaurante && !sesionRestauranteAutorizada) {
         return responder(res, 401, {
           ok: false,
-          error: "Esta operación requiere la clave del restaurante."
+          error: "La sesión del panel no es válida. Vuelve a identificarte."
         });
       }
 
@@ -1904,10 +1912,11 @@ module.exports = async (req, res) => {
 
       if (
         !restauranteObservaciones ||
-        !clavesRestauranteCoinciden(
-          clave_restaurante,
-          restauranteObservaciones.fields.api_key_restaurante
-        )
+        (!sesionRestauranteAutorizada &&
+          !clavesRestauranteCoinciden(
+            clave_restaurante,
+            restauranteObservaciones.fields.api_key_restaurante
+          ))
       ) {
         return responder(res, 401, {
           ok: false,
@@ -1973,10 +1982,10 @@ module.exports = async (req, res) => {
         });
       }
 
-      if (!clave_restaurante) {
+      if (!clave_restaurante && !sesionRestauranteAutorizada) {
         return responder(res, 401, {
           ok: false,
-          error: "Esta operación requiere la clave del restaurante."
+          error: "La sesión del panel no es válida. Vuelve a identificarte."
         });
       }
 
@@ -1984,10 +1993,11 @@ module.exports = async (req, res) => {
 
       if (
         !restauranteEstado ||
-        !clavesRestauranteCoinciden(
-          clave_restaurante,
-          restauranteEstado.fields.api_key_restaurante
-        )
+        (!sesionRestauranteAutorizada &&
+          !clavesRestauranteCoinciden(
+            clave_restaurante,
+            restauranteEstado.fields.api_key_restaurante
+          ))
       ) {
         return responder(res, 401, {
           ok: false,
@@ -2099,10 +2109,10 @@ module.exports = async (req, res) => {
         });
       }
 
-      if (!clave_restaurante) {
+      if (!clave_restaurante && !sesionRestauranteAutorizada) {
         return responder(res, 401, {
           ok: false,
-          error: "Esta operación requiere la clave del restaurante."
+          error: "La sesión del panel no es válida. Vuelve a identificarte."
         });
       }
 
@@ -2112,10 +2122,11 @@ module.exports = async (req, res) => {
 
       if (
         !restauranteOcupacion ||
-        !clavesRestauranteCoinciden(
-          clave_restaurante,
-          restauranteOcupacion.fields.api_key_restaurante
-        )
+        (!sesionRestauranteAutorizada &&
+          !clavesRestauranteCoinciden(
+            clave_restaurante,
+            restauranteOcupacion.fields.api_key_restaurante
+          ))
       ) {
         return responder(res, 401, {
           ok: false,
@@ -2272,10 +2283,10 @@ module.exports = async (req, res) => {
         });
       }
 
-      if (!clave_restaurante) {
+      if (!clave_restaurante && !sesionRestauranteAutorizada) {
         return responder(res, 401, {
           ok: false,
-          error: "Esta operación requiere la clave del restaurante."
+          error: "La sesión del panel no es válida. Vuelve a identificarte."
         });
       }
 
@@ -2285,10 +2296,11 @@ module.exports = async (req, res) => {
 
       if (
         !restauranteDisponibilidad ||
-        !clavesRestauranteCoinciden(
-          clave_restaurante,
-          restauranteDisponibilidad.fields.api_key_restaurante
-        )
+        (!sesionRestauranteAutorizada &&
+          !clavesRestauranteCoinciden(
+            clave_restaurante,
+            restauranteDisponibilidad.fields.api_key_restaurante
+          ))
       ) {
         return responder(res, 401, {
           ok: false,
@@ -2431,10 +2443,10 @@ module.exports = async (req, res) => {
         });
       }
 
-      if (!clave_restaurante) {
+      if (!clave_restaurante && !sesionRestauranteAutorizada) {
         return responder(res, 401, {
           ok: false,
-          error: "Esta operación requiere la clave del restaurante."
+          error: "La sesión del panel no es válida. Vuelve a identificarte."
         });
       }
 
@@ -2442,10 +2454,11 @@ module.exports = async (req, res) => {
 
       if (
         !restauranteEspera ||
-        !clavesRestauranteCoinciden(
-          clave_restaurante,
-          restauranteEspera.fields.api_key_restaurante
-        )
+        (!sesionRestauranteAutorizada &&
+          !clavesRestauranteCoinciden(
+            clave_restaurante,
+            restauranteEspera.fields.api_key_restaurante
+          ))
       ) {
         return responder(res, 401, {
           ok: false,
@@ -2507,7 +2520,11 @@ module.exports = async (req, res) => {
         });
       }
 
-      if (!token_gestion && !clave_restaurante) {
+      if (
+        !token_gestion &&
+        !clave_restaurante &&
+        !sesionRestauranteAutorizada
+      ) {
         return responder(res, 401, {
           ok: false,
           error:
@@ -2550,7 +2567,7 @@ module.exports = async (req, res) => {
         restaurante_id,
         localizador,
         token_gestion,
-        Boolean(clave_restaurante)
+        Boolean(clave_restaurante) || sesionRestauranteAutorizada
       );
 
       if (!reserva) {
@@ -2750,6 +2767,7 @@ Number(restaurante.fields.duracion_reserva_minutos);
     }
 
     if (
+      !sesionRestauranteAutorizada &&
       clave_restaurante &&
       !clavesRestauranteCoinciden(
         clave_restaurante,
@@ -2769,11 +2787,12 @@ Number(restaurante.fields.duracion_reserva_minutos);
         "cambiar_mesas",
         "reservar_panel"
       ].includes(accion) &&
-      !clave_restaurante
+      !clave_restaurante &&
+      !sesionRestauranteAutorizada
     ) {
       return responder(res, 401, {
         ok: false,
-        error: "Esta operación requiere la clave del restaurante."
+        error: "La sesión del panel no es válida. Vuelve a identificarte."
       });
     }
 
@@ -2990,7 +3009,11 @@ await buscarAsignacionDisponible(
         });
       }
 
-      if (!token_gestion && !clave_restaurante) {
+      if (
+        !token_gestion &&
+        !clave_restaurante &&
+        !sesionRestauranteAutorizada
+      ) {
         return responder(res, 401, {
           ok: false,
           error:
@@ -3016,7 +3039,7 @@ await buscarAsignacionDisponible(
         restaurante_id,
         localizador,
         token_gestion,
-        Boolean(clave_restaurante)
+        Boolean(clave_restaurante) || sesionRestauranteAutorizada
       );
 
       if (!reservaActual) {

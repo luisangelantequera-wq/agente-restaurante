@@ -1,8 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const chat = require("../api/chat");
 const panelRestaurante = require("../api/restaurante");
+const sesionRestaurante = require("../lib/sesion-restaurante");
 
 
 function crearRespuesta() {
@@ -170,4 +173,150 @@ test("el panel también limita el formato y tamaño del cuerpo", async () => {
 
   assert.equal(tipoIncorrecto.status, 415);
   assert.equal(cuerpoGrande.status, 413);
+});
+
+
+test("la sesión del panel está firmada, caduca y pertenece a un restaurante", () => {
+  const secretoAnterior = process.env.PANEL_SESSION_SECRET;
+  process.env.PANEL_SESSION_SECRET = "s".repeat(64);
+
+  try {
+    const ahora = Date.now();
+    const token = sesionRestaurante.crearTokenSesion(1, ahora);
+
+    assert.equal(
+      sesionRestaurante.validarTokenSesion(token, 1, ahora + 1000),
+      true
+    );
+    assert.equal(
+      sesionRestaurante.validarTokenSesion(token, 2, ahora + 1000),
+      false
+    );
+    assert.equal(
+      sesionRestaurante.validarTokenSesion(
+        token,
+        1,
+        ahora + 9 * 60 * 60 * 1000
+      ),
+      false
+    );
+    assert.equal(
+      sesionRestaurante.validarTokenSesion(`${token}alterado`, 1, ahora),
+      false
+    );
+  } finally {
+    if (secretoAnterior === undefined) {
+      delete process.env.PANEL_SESSION_SECRET;
+    } else {
+      process.env.PANEL_SESSION_SECRET = secretoAnterior;
+    }
+  }
+});
+
+
+test("la cookie de sesión no es accesible desde JavaScript", () => {
+  const secretoAnterior = process.env.PANEL_SESSION_SECRET;
+  process.env.PANEL_SESSION_SECRET = "c".repeat(64);
+  const res = crearRespuesta();
+
+  try {
+    sesionRestaurante.establecerSesionRestaurante(res, 1);
+    const cookie = res.headers["set-cookie"];
+
+    assert.match(cookie, /^__Host-contactia_panel=/);
+    assert.match(cookie, /HttpOnly/);
+    assert.match(cookie, /Secure/);
+    assert.match(cookie, /SameSite=Strict/);
+    assert.match(cookie, /Path=\//);
+  } finally {
+    if (secretoAnterior === undefined) {
+      delete process.env.PANEL_SESSION_SECRET;
+    } else {
+      process.env.PANEL_SESSION_SECRET = secretoAnterior;
+    }
+  }
+});
+
+
+test("el panel no guarda la clave en sessionStorage", () => {
+  const codigoPanel = fs.readFileSync(
+    path.join(__dirname, "..", "restaurante.js"),
+    "utf8"
+  );
+
+  assert.doesNotMatch(codigoPanel, /sessionStorage/);
+  assert.doesNotMatch(codigoPanel, /clave_restaurante/);
+});
+
+
+test("el panel inicia sesión una vez y después funciona solo con la cookie", async () => {
+  const secretoAnterior = process.env.PANEL_SESSION_SECRET;
+  const fetchOriginal = global.fetch;
+  process.env.PANEL_SESSION_SECRET = "p".repeat(64);
+  const fecha = new Date();
+  const fechaISO = [
+    fecha.getFullYear(),
+    String(fecha.getMonth() + 1).padStart(2, "0"),
+    String(fecha.getDate()).padStart(2, "0")
+  ].join("-");
+
+  global.fetch = async (url) => {
+    const cuerpo = String(url).includes("/RESTAURANTES")
+      ? {
+          records: [{
+            id: "recRestaurante001",
+            fields: {
+              id: 1,
+              nombre: "Restaurante Sol",
+              api_key_restaurante: "clave-correcta",
+              duracion_reserva_minutos: 90
+            }
+          }]
+        }
+      : { records: [] };
+
+    return {
+      ok: true,
+      status: 200,
+      async text() {
+        return JSON.stringify(cuerpo);
+      }
+    };
+  };
+
+  try {
+    const inicio = await ejecutar(panelRestaurante, {
+      accion: "iniciar_sesion",
+      restaurante_id: 1,
+      fecha: fechaISO,
+      hora_mesas: "14:00",
+      clave: "clave-correcta"
+    });
+
+    assert.equal(inicio.status, 200);
+    assert.match(inicio.headers["set-cookie"], /HttpOnly/);
+
+    const cookie = inicio.headers["set-cookie"].split(";")[0];
+    const carga = await ejecutar(
+      panelRestaurante,
+      {
+        accion: "cargar",
+        restaurante_id: 1,
+        fecha: fechaISO,
+        hora_mesas: "14:00"
+      },
+      { cookie }
+    );
+
+    assert.equal(carga.status, 200);
+    assert.equal(carga.body.restaurante.nombre, "Restaurante Sol");
+  } finally {
+    global.fetch = fetchOriginal;
+
+    if (secretoAnterior === undefined) {
+      delete process.env.PANEL_SESSION_SECRET;
+    } else {
+      process.env.PANEL_SESSION_SECRET = secretoAnterior;
+    }
+  }
 });
