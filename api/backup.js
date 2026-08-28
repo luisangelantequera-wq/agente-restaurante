@@ -91,6 +91,17 @@ function fechaMadrid(ahora = new Date()) {
 }
 
 
+function horaMadrid(ahora = new Date()) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).format(ahora).replaceAll(":", "");
+}
+
+
 async function subirCopiaDrive(nombreArchivo, sobreCifrado) {
   const respuesta = await fetch(process.env.GOOGLE_APPS_SCRIPT_BACKUP_URL, {
     method: "POST",
@@ -120,7 +131,7 @@ async function subirCopiaDrive(nombreArchivo, sobreCifrado) {
 }
 
 
-async function ejecutarBackup(ahora = new Date()) {
+async function ejecutarBackup(ahora = new Date(), opciones = {}) {
   const nombresTablas = Object.keys(CAMPOS_SEGUROS_POR_TABLA);
   const resultados = await Promise.all(
     nombresTablas.map((tabla) => listarRegistros(tabla))
@@ -138,7 +149,11 @@ async function ejecutarBackup(ahora = new Date()) {
     copia,
     process.env.BACKUP_ENCRYPTION_KEY
   );
-  const nombreArchivo = `contactia-backup-${fechaMadrid(ahora)}.json.enc`;
+  const etiqueta = opciones.etiqueta === "antes-restaurar"
+    ? `-antes-restaurar-${horaMadrid(ahora)}`
+    : "";
+  const nombreArchivo =
+    `contactia-backup-${fechaMadrid(ahora)}${etiqueta}.json.enc`;
   const resultadoDrive = await subirCopiaDrive(nombreArchivo, sobreCifrado);
 
   return {
