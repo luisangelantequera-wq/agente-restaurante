@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   crearCamposAuditoria,
+  determinarOrigenAuditoria,
   registrarAuditoria
 } = require("../lib/auditoria");
 
@@ -43,6 +44,39 @@ test("la auditoría elimina datos personales y tokens de los detalles", () => {
   assert.equal(Object.hasOwn(detalles.anterior, "telefono"), false);
   assert.equal(Object.hasOwn(detalles.anterior, "token_gestion"), false);
   assert.doesNotMatch(campos.detalles, /persona@example\.com|secreto/);
+});
+
+
+test("el enlace del cliente prevalece sobre una cookie activa del panel", () => {
+  assert.equal(
+    determinarOrigenAuditoria({
+      accion: "cancelar",
+      tokenGestion: "a".repeat(48),
+      claveRestaurante: "",
+      sesionRestauranteAutorizada: true
+    }),
+    "web_cliente"
+  );
+
+  assert.equal(
+    determinarOrigenAuditoria({
+      accion: "modificar",
+      tokenGestion: "b".repeat(48),
+      claveRestaurante: "",
+      sesionRestauranteAutorizada: true
+    }),
+    "web_cliente"
+  );
+
+  assert.equal(
+    determinarOrigenAuditoria({
+      accion: "reactivar",
+      tokenGestion: "c".repeat(48),
+      claveRestaurante: "",
+      sesionRestauranteAutorizada: true
+    }),
+    "panel_restaurante"
+  );
 });
 
 
