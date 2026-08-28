@@ -1,20 +1,15 @@
 {
   "name": "contactia",
   "version": "1.0.0",
-  "description": "Asistente virtual Contactia para reservas y cancelaciones de restaurantes con Airtable y Gmail.",
+  "description": "Asistente virtual Contactia para reservas y gestión de restaurantes con Airtable y Resend.",
   "main": "index.js",
   "scripts": {
     "start": "vercel dev",
     "test": "node --test"
   },
-  "dependencies": {
-    "node-fetch": "^3.3.2",
-    "nodemailer": "^7.0.10",
-    "twilio": "^4.21.0"
-  },
+  "dependencies": {},
   "engines": {
     "node": ">=18"
   },
   "license": "MIT"
 }
-
