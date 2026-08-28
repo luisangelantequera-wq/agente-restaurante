@@ -1,6 +1,12 @@
 const parametros = new URLSearchParams(window.location.search);
 const restauranteId = Number(parametros.get("restaurante") || 1);
 
+try {
+  window.sessionStorage.removeItem(`contactia_restaurante_${restauranteId}`);
+} catch {
+  // El panel sigue funcionando aunque el navegador bloquee este almacenamiento.
+}
+
 const acceso = document.getElementById("acceso");
 const contenido = document.getElementById("contenido");
 const formulario = document.getElementById("form-acceso");

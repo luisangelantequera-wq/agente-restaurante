@@ -238,13 +238,13 @@ test("la cookie de sesión no es accesible desde JavaScript", () => {
 });
 
 
-test("el panel no guarda la clave en sessionStorage", () => {
+test("el panel no guarda ni lee la clave desde sessionStorage", () => {
   const codigoPanel = fs.readFileSync(
     path.join(__dirname, "..", "restaurante.js"),
     "utf8"
   );
 
-  assert.doesNotMatch(codigoPanel, /sessionStorage/);
+  assert.doesNotMatch(codigoPanel, /sessionStorage\.(?:setItem|getItem)/);
   assert.doesNotMatch(codigoPanel, /clave_restaurante/);
 });
 
