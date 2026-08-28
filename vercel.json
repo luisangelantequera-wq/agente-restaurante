@@ -5,6 +5,10 @@
     {
       "path": "/api/privacidad",
       "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/backup",
+      "schedule": "15 4 * * *"
     }
   ],
   "headers": [
@@ -52,4 +56,5 @@
     }
   ]
 }
+
 
