@@ -82,6 +82,49 @@ test("las reservas recuperadas reciben un identificador técnico sin datos perso
 });
 
 
+test("un registro vacío existente se reconoce por su identificador de Airtable", () => {
+  const copia = copiaDePrueba();
+  const origenId = "recCombinacion0001";
+  copia.tablas.COMBINACIONES_MESAS.push({ origen_id: origenId, fields: {} });
+
+  const plan = crearPlanRestauracion(copia, {
+    COMBINACIONES_MESAS: [{ id: origenId, fields: {} }]
+  });
+
+  assert.equal(plan.resumen.COMBINACIONES_MESAS.crear, 0);
+  assert.equal(plan.resumen.COMBINACIONES_MESAS.conservar, 1);
+});
+
+
+test("una combinación sin identificador recibe uno técnico si debe recrearse", () => {
+  const registro = {
+    origen_id: "recCombinacion0002",
+    fields: { nombre: "Combinación recuperada" }
+  };
+  const fields = camposSinEnlaces(
+    "COMBINACIONES_MESAS",
+    registro,
+    true
+  );
+
+  assert.match(
+    fields.id_combinacion,
+    /^COMB-RECUPERADA-[A-F0-9]{20}$/
+  );
+});
+
+
+test("no inventa un identificador numérico al recrear una mesa", () => {
+  const copia = copiaDePrueba();
+  delete copia.tablas.MESAS[0].fields.id;
+
+  assert.throws(
+    () => crearPlanRestauracion(copia, {}),
+    /identificador principal de MESAS/
+  );
+});
+
+
 test("los enlaces se reconstruyen con los nuevos identificadores de Airtable", () => {
   const copia = copiaDePrueba();
   const mapeos = {
