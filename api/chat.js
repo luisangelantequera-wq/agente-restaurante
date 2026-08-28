@@ -12,6 +12,7 @@ const {
   sesionRestauranteValida
 } = require("../lib/sesion-restaurante");
 const {
+  determinarOrigenAuditoria,
   registrarAuditoria
 } = require("../lib/auditoria");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
@@ -2657,9 +2658,12 @@ module.exports = async (req, res) => {
         restauranteId: restaurante_id,
         reservaId: reservaActualizada.fields.id_reserva,
         accion: "reserva_cancelada",
-        origen: (clave_restaurante || sesionRestauranteAutorizada)
-          ? "panel_restaurante"
-          : "web_cliente",
+        origen: determinarOrigenAuditoria({
+          accion,
+          tokenGestion: token_gestion,
+          claveRestaurante: clave_restaurante,
+          sesionRestauranteAutorizada
+        }),
         estadoAnterior: estadoActual,
         estadoNuevo: "cancelada",
         detalles: {
@@ -3236,9 +3240,12 @@ await buscarAsignacionDisponible(
         accion: esReactivacion
           ? "reserva_reactivada"
           : "reserva_modificada",
-        origen: (clave_restaurante || sesionRestauranteAutorizada)
-          ? "panel_restaurante"
-          : "web_cliente",
+        origen: determinarOrigenAuditoria({
+          accion,
+          tokenGestion: token_gestion,
+          claveRestaurante: clave_restaurante,
+          sesionRestauranteAutorizada
+        }),
         estadoAnterior: estadoReservaActual,
         estadoNuevo: String(reservaModificada.fields.estado || estadoReservaActual)
           .trim()
