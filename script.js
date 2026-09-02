@@ -8,6 +8,9 @@
 const chatBox = document.getElementById("chat-box");
 const input = document.getElementById("user-input");
 const sendButton = document.getElementById("send-btn");
+const rutaRestaurante = window.ContactiaRutaPublica.analizarRutaRestaurante(
+  window.location.pathname
+);
 
 
 // 2️⃣ ESTADO DE LA CONVERSACIÓN
@@ -15,6 +18,7 @@ let paso = "inicio";
 
 let datosReserva = {
   restaurante_id: 1,
+  slug_publico: rutaRestaurante.slug_publico,
   personas: null,
   fecha: "",
   hora: "",
@@ -1533,6 +1537,7 @@ function reiniciarReserva() {
 
   datosReserva = {
     restaurante_id: 1,
+    slug_publico: rutaRestaurante.slug_publico,
     personas: null,
     fecha: "",
     hora: "",
@@ -1573,6 +1578,16 @@ input.addEventListener(
 window.addEventListener(
   "load",
   async () => {
+    if (!rutaRestaurante.valida) {
+      agregarMensaje(
+        "El enlace del restaurante no es válido. Comprueba la dirección e inténtalo de nuevo.",
+        "bot"
+      );
+      input.disabled = true;
+      sendButton.disabled = true;
+      return;
+    }
+
     agregarMensaje(
       "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar, consultar, modificar o cancelar una reserva?",
       "bot"
