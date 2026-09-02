@@ -15,7 +15,11 @@ const {
   determinarOrigenAuditoria,
   registrarAuditoria
 } = require("../lib/auditoria");
+const {
+  slugPublicoValido
+} = require("../lib/restaurante-publico");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
+const NOMBRE_RESTAURANTE_GENERICO = "el restaurante";
 const MAX_REQUEST_BODY_BYTES = 32 * 1024;
 const MAX_DIAS_ANTELACION_CONFIGURADO = Number(
   process.env.MAX_RESERVA_DIAS || 730
@@ -1232,14 +1236,17 @@ function clavesRestauranteCoinciden(recibida, configurada) {
 }
 
 
-function generarEnlaceGestion(tokenGestion) {
+function generarEnlaceGestion(tokenGestion, slugPublico = "") {
   const urlPublica = String(
     process.env.PUBLIC_BASE_URL || "https://contactia.net"
   ).trim().replace(/\/+$/, "");
+  const rutaRestaurante = slugPublicoValido(slugPublico)
+    ? `/r/${slugPublico}`
+    : "";
 
   return tokenGestion
-    ? `${urlPublica}/#gestion=${tokenGestion}`
-    : urlPublica;
+    ? `${urlPublica}${rutaRestaurante}/#gestion=${tokenGestion}`
+    : `${urlPublica}${rutaRestaurante}`;
 }
 
 
@@ -1353,7 +1360,16 @@ function obtenerNombreRestaurante(restaurante) {
     }
   }
 
-  return "Restaurante Sol";
+  return NOMBRE_RESTAURANTE_GENERICO;
+}
+
+
+function obtenerSlugPublicoRestaurante(restaurante) {
+  const slugPublico = String(
+    restaurante?.fields?.slug_publico || ""
+  ).trim();
+
+  return slugPublicoValido(slugPublico) ? slugPublico : "";
 }
 
 
@@ -1434,7 +1450,8 @@ async function enviarCorreoConfirmacionReserva({
   localizador,
   enlaceGestion
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto =
     `Reserva confirmada en ${nombreRestaurante} el ${fechaLarga} ` +
@@ -1486,7 +1503,8 @@ async function enviarCorreoModificacionReserva({
   enlaceGestion,
   reactivada = false
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const estadoTexto = reactivada ? "reactivada" : "modificada";
   const asunto =
@@ -1538,7 +1556,8 @@ async function enviarCorreoCancelacionReserva({
   localizador,
   enlaceNuevaReserva
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto =
     `Reserva cancelada en ${nombreRestaurante} para el ${fechaLarga} ` +
@@ -1589,7 +1608,8 @@ async function enviarCorreoRetrasoReserva({
   localizador,
   enlaceGestion
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto = `Te estamos esperando en ${nombreRestaurante}`;
   const texto =
@@ -1643,7 +1663,8 @@ async function enviarAvisoRestaurante({
   observaciones,
   enlaceGestion
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const { diaSemana, fechaCorta } = formatearFechaOperativa(fecha);
   const titulos = {
@@ -2089,7 +2110,8 @@ module.exports = async (req, res) => {
           personas: reservaActualizadaEstado.fields.personas,
           localizador: reservaActualizadaEstado.fields.id_reserva,
           enlaceGestion: generarEnlaceGestion(
-            reservaActualizadaEstado.fields.token_gestion
+            reservaActualizadaEstado.fields.token_gestion,
+            obtenerSlugPublicoRestaurante(restauranteEstado)
           )
         });
       }
@@ -2694,7 +2716,10 @@ module.exports = async (req, res) => {
           hora: reservaActualizada.fields.hora,
           personas: reservaActualizada.fields.personas,
           localizador: reservaActualizada.fields.id_reserva,
-          enlaceNuevaReserva: generarEnlaceGestion(null)
+          enlaceNuevaReserva: generarEnlaceGestion(
+            null,
+            obtenerSlugPublicoRestaurante(restauranteCancelacion)
+          )
         }),
         enviarAvisoRestaurante({
           destinatario: restauranteCancelacion?.fields?.email,
@@ -3300,7 +3325,8 @@ await buscarAsignacionDisponible(
       const nombreRestauranteModificacion = obtenerNombreRestaurante(restaurante);
       const enlaceGestionModificacion = generarEnlaceGestion(
         reservaModificada.fields.token_gestion ||
-        reservaActual.fields.token_gestion
+        reservaActual.fields.token_gestion,
+        obtenerSlugPublicoRestaurante(restaurante)
       );
       const [correoEnviado, correoRestauranteEnviado] = await Promise.all([
         enviarCorreoModificacionReserva({
@@ -3926,7 +3952,10 @@ await buscarAsignacionDisponible(
         idReserva
       );
 
-      const enlaceGestion = generarEnlaceGestion(tokenGestion);
+      const enlaceGestion = generarEnlaceGestion(
+        tokenGestion,
+        obtenerSlugPublicoRestaurante(restaurante)
+      );
       const nombreRestauranteReserva = obtenerNombreRestaurante(restaurante);
       const [correoEnviado, correoRestauranteEnviado] = await Promise.all([
         enviarCorreoConfirmacionReserva({

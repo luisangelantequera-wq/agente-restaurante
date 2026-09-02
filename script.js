@@ -15,10 +15,8 @@ const rutaRestaurante = window.ContactiaRutaPublica.analizarRutaRestaurante(
 
 
 let restauranteActivo = {
-  id: rutaRestaurante.esRutaRestaurante ? null : 1,
-  nombre: rutaRestaurante.esRutaRestaurante
-    ? "Contactia"
-    : "Restaurante Sol",
+  id: null,
+  nombre: "Contactia",
   slug_publico: rutaRestaurante.slug_publico
 };
 
@@ -27,10 +25,8 @@ restaurantName.textContent = `🍽️ ${restauranteActivo.nombre}`;
 document.title = `${restauranteActivo.nombre} - Asistente de Reservas`;
 
 
-if (rutaRestaurante.esRutaRestaurante) {
-  input.disabled = true;
-  sendButton.disabled = true;
-}
+input.disabled = true;
+sendButton.disabled = true;
 
 
 // 2️⃣ ESTADO DE LA CONVERSACIÓN
@@ -1647,6 +1643,14 @@ input.addEventListener(
 window.addEventListener(
   "load",
   async () => {
+    if (!rutaRestaurante.esRutaRestaurante) {
+      agregarMensaje(
+        "Abre el enlace de reservas que te ha facilitado el restaurante.",
+        "bot"
+      );
+      return;
+    }
+
     if (!rutaRestaurante.valida) {
       agregarMensaje(
         "El enlace del restaurante no es válido. Comprueba la dirección e inténtalo de nuevo.",

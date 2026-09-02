@@ -5,6 +5,7 @@ const path = require("node:path");
 const {
   analizarRutaRestaurante
 } = require("../lib/ruta-publica");
+const chat = require("../api/chat");
 
 
 test("reconoce una URL pública de restaurante", () => {
@@ -45,6 +46,36 @@ test("mantiene disponible la portada actual fuera de las rutas de restaurante", 
     valida: true,
     slug_publico: ""
   });
+});
+
+
+test("los enlaces de gestión conservan el restaurante de la URL", () => {
+  const token = "a".repeat(48);
+  const enlaceGestion = chat._seguridad.generarEnlaceGestion(
+    token,
+    "restaurante-luna"
+  );
+  const enlaceNuevaReserva = chat._seguridad.generarEnlaceGestion(
+    null,
+    "restaurante-luna"
+  );
+
+  assert.match(
+    enlaceGestion,
+    /\/r\/restaurante-luna\/#gestion=[a-f0-9]{48}$/
+  );
+  assert.match(enlaceNuevaReserva, /\/r\/restaurante-luna$/);
+});
+
+
+test("el frontend no contiene un restaurante predeterminado", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.doesNotMatch(script, /Restaurante Sol/);
+  assert.doesNotMatch(script, /restaurante_id:\s*1/);
 });
 
 
