@@ -19,6 +19,7 @@ function copiaDePrueba() {
         id: 1,
         nombre: "Restaurante Sol",
         slug_publico: "restaurante-sol",
+        prefijo_reserva: "SOL",
         estado: "activo"
       }
     }],
@@ -74,7 +75,7 @@ test("la restauración valida la copia y solo crea lo que falta", () => {
 });
 
 
-test("la restauración conserva el identificador público del restaurante", () => {
+test("la restauración conserva los identificadores del restaurante", () => {
   const copia = copiaDePrueba();
   const fields = camposSinEnlaces(
     "RESTAURANTES",
@@ -82,6 +83,7 @@ test("la restauración conserva el identificador público del restaurante", () =
   );
 
   assert.equal(fields.slug_publico, "restaurante-sol");
+  assert.equal(fields.prefijo_reserva, "SOL");
 });
 
 

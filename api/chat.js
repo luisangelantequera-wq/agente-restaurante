@@ -18,6 +18,9 @@ const {
 const {
   slugPublicoValido
 } = require("../lib/restaurante-publico");
+const {
+  normalizarPrefijoReserva
+} = require("../lib/identificador-reserva");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
 const NOMBRE_RESTAURANTE_GENERICO = "el restaurante";
 const MAX_REQUEST_BODY_BYTES = 32 * 1024;
@@ -1175,15 +1178,16 @@ async function buscarHorariosAlternativos(
 
 
 // 6️⃣ GENERAR LOCALIZADOR
-function generarIdReserva(fecha, prefijo = "SOL") {
+function generarIdReserva(fecha, prefijo) {
   const fechaLimpia = String(fecha || "").replaceAll("-", "");
   const aleatorio = crypto.randomBytes(5).toString("hex").toUpperCase();
+  const prefijoNormalizado = normalizarPrefijoReserva(prefijo);
 
-  return `${prefijo}-${fechaLimpia}-${aleatorio}`;
+  return `${prefijoNormalizado}-${fechaLimpia}-${aleatorio}`;
 }
 
 
-async function generarIdReservaUnico(restauranteId, fecha, prefijo = "SOL") {
+async function generarIdReservaUnico(restauranteId, fecha, prefijo) {
   for (let intento = 0; intento < 5; intento += 1) {
     const localizador = generarIdReserva(fecha, prefijo);
     const existente = await buscarReservaPorLocalizador(
@@ -2239,7 +2243,9 @@ module.exports = async (req, res) => {
       const idOcupacion = await generarIdReservaUnico(
         restauranteIdOcupacion,
         fechaOcupacion,
-        "PASO"
+        normalizarPrefijoReserva(
+          restauranteOcupacion.fields.prefijo_reserva
+        )
       );
       const urlReservasOcupacion =
         `https://api.airtable.com/v0/` +
@@ -2800,6 +2806,10 @@ Number(restaurante.fields.intervalo_minutos);
 
 const duracionReservaMinutos =
 Number(restaurante.fields.duracion_reserva_minutos);
+
+const prefijoReserva = normalizarPrefijoReserva(
+  restaurante.fields.prefijo_reserva
+);
 
     const validacionHorario =
       validarHorarioRestaurante(
@@ -3814,7 +3824,11 @@ await buscarAsignacionDisponible(
 
       // 1️⃣1️⃣ GENERAR LOCALIZADOR
 
-      const idReserva = await generarIdReservaUnico(restaurante_id, fecha);
+      const idReserva = await generarIdReservaUnico(
+        restaurante_id,
+        fecha,
+        prefijoReserva
+      );
       const tokenGestion = generarTokenGestion();
 
 

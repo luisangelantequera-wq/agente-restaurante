@@ -141,8 +141,11 @@ test("los localizadores usan aleatoriedad criptográfica amplia", () => {
   const localizadores = new Set();
 
   for (let indice = 0; indice < 200; indice += 1) {
-    const localizador = chat._seguridad.generarIdReserva("2026-08-27");
-    assert.match(localizador, /^SOL-20260827-[A-F0-9]{10}$/);
+    const localizador = chat._seguridad.generarIdReserva(
+      "2026-08-27",
+      "LUNA"
+    );
+    assert.match(localizador, /^LUNA-20260827-[A-F0-9]{10}$/);
     localizadores.add(localizador);
   }
 
