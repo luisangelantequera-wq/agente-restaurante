@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const { registroDebeAnonimizarse } = require("../lib/privacidad");
+const { crearFiltroRestaurante } = require("../lib/filtro-restaurante");
 const {
   borrarSesionRestaurante,
   establecerSesionRestaurante,
@@ -272,16 +273,14 @@ module.exports = async (req, res) => {
     const formula =
       `AND(` +
       `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
-      `FIND('${String(restauranteId)}',` +
-      `ARRAYJOIN({id (from restaurante)}))` +
+      crearFiltroRestaurante(restauranteId) +
       `)`;
     const url =
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
       `?filterByFormula=${encodeURIComponent(formula)}`;
     const datos = await consultarAirtable(url);
     const formulaMesas =
-      `FIND('${String(restauranteId)}',` +
-      `ARRAYJOIN({id (from restaurante)}))`;
+      crearFiltroRestaurante(restauranteId);
     const urlMesas =
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS` +
       `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
