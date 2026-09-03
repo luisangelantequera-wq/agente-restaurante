@@ -8,13 +8,33 @@
 const chatBox = document.getElementById("chat-box");
 const input = document.getElementById("user-input");
 const sendButton = document.getElementById("send-btn");
+const restaurantName = document.getElementById("restaurant-name");
+const rutaRestaurante = window.ContactiaRutaPublica.analizarRutaRestaurante(
+  window.location.pathname
+);
+
+
+let restauranteActivo = {
+  id: null,
+  nombre: "Contactia",
+  slug_publico: rutaRestaurante.slug_publico
+};
+
+
+restaurantName.textContent = `🍽️ ${restauranteActivo.nombre}`;
+document.title = `${restauranteActivo.nombre} - Asistente de Reservas`;
+
+
+input.disabled = true;
+sendButton.disabled = true;
 
 
 // 2️⃣ ESTADO DE LA CONVERSACIÓN
 let paso = "inicio";
 
 let datosReserva = {
-  restaurante_id: 1,
+  restaurante_id: restauranteActivo.id,
+  slug_publico: restauranteActivo.slug_publico,
   personas: null,
   fecha: "",
   hora: "",
@@ -69,7 +89,7 @@ function agregarMensaje(texto, tipo) {
   mensaje.classList.add("message", tipo);
   const contenido = tipo === "user"
     ? `Tú: ${texto}`
-    : `Restaurante Sol: ${texto}`;
+    : `${restauranteActivo.nombre}: ${texto}`;
 
   if (tipo === "bot") {
     const patronEnlace = /(?:https?:\/\/|tel:)[^\s]+/g;
@@ -148,6 +168,55 @@ function extraerHora(texto) {
   return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(2, "0")}`;
 }
 
+
+function aplicarRestauranteActivo(restaurante) {
+  restauranteActivo = restaurante;
+  datosReserva.restaurante_id = restaurante.id;
+  datosReserva.slug_publico = restaurante.slug_publico;
+  restaurantName.textContent = `🍽️ ${restaurante.nombre}`;
+  document.title = `${restaurante.nombre} - Asistente de Reservas`;
+}
+
+
+async function cargarRestauranteActivo() {
+  if (!rutaRestaurante.slug_publico) {
+    return true;
+  }
+
+  try {
+    const parametros = new URLSearchParams({
+      slug: rutaRestaurante.slug_publico
+    });
+    const respuesta = await fetch(`/api/restaurante-publico?${parametros}`);
+    const datos = await respuesta.json();
+    const restaurante = window.ContactiaRestaurantePublico
+      .normalizarRestaurantePublico(
+        datos?.restaurante,
+        rutaRestaurante.slug_publico
+      );
+
+    if (!respuesta.ok || datos.ok === false || !restaurante) {
+      agregarMensaje(
+        respuesta.status === 404
+          ? "No hemos encontrado este restaurante o no está disponible."
+          : "No hemos podido cargar el restaurante. Inténtalo de nuevo más tarde.",
+        "bot"
+      );
+      return false;
+    }
+
+    aplicarRestauranteActivo(restaurante);
+    return true;
+  } catch (error) {
+    console.error("Error al cargar el restaurante:", error);
+    agregarMensaje(
+      "No hemos podido cargar el restaurante. Inténtalo de nuevo más tarde.",
+      "bot"
+    );
+    return false;
+  }
+}
+
 function normalizarTexto(texto) {
   return texto
     .toLowerCase()
@@ -204,67 +273,8 @@ function extraerPersonas(texto) {
   return null;
 }
 
-function fechaAISO(fecha) {
-  const anio = fecha.getFullYear();
-  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
-  const dia = String(fecha.getDate()).padStart(2, "0");
-
-  return `${anio}-${mes}-${dia}`;
-}
-
 function extraerFecha(texto) {
-  const normalizado = normalizarTexto(texto);
-  const fechaEscrita = texto.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
-
-  if (fechaEscrita) {
-    return `${fechaEscrita[3]}-${fechaEscrita[2]}-${fechaEscrita[1]}`;
-  }
-
-  const hoy = new Date();
-  hoy.setHours(12, 0, 0, 0);
-
-  if (/\bpasado manana\b/.test(normalizado)) {
-    hoy.setDate(hoy.getDate() + 2);
-    return fechaAISO(hoy);
-  }
-
-  if (/\bmanana\b/.test(normalizado)) {
-    hoy.setDate(hoy.getDate() + 1);
-    return fechaAISO(hoy);
-  }
-
-  if (/\bhoy\b/.test(normalizado)) {
-    return fechaAISO(hoy);
-  }
-
-  const diasSemana = {
-    domingo: 0,
-    lunes: 1,
-    martes: 2,
-    miercoles: 3,
-    jueves: 4,
-    viernes: 5,
-    sabado: 6
-  };
-  const coincidenciaDia = normalizado.match(
-    /\b(?:(proximo|este)\s+)?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/
-  );
-
-  if (!coincidenciaDia) {
-    return null;
-  }
-
-  const modificador = coincidenciaDia[1] || "";
-  const diaObjetivo = diasSemana[coincidenciaDia[2]];
-  let diasHastaFecha = (diaObjetivo - hoy.getDay() + 7) % 7;
-
-  // "Próximo martes" siempre se interpreta como una fecha futura.
-  if (modificador === "proximo" && diasHastaFecha === 0) {
-    diasHastaFecha = 7;
-  }
-
-  hoy.setDate(hoy.getDate() + diasHastaFecha);
-  return fechaAISO(hoy);
+  return window.ContactiaFechas.extraerFecha(texto);
 }
 
 function extraerDatosIniciales(texto) {
@@ -1532,7 +1542,8 @@ function reiniciarReserva() {
   datosListaEspera = null;
 
   datosReserva = {
-    restaurante_id: 1,
+    restaurante_id: restauranteActivo.id,
+    slug_publico: restauranteActivo.slug_publico,
     personas: null,
     fecha: "",
     hora: "",
@@ -1573,6 +1584,35 @@ input.addEventListener(
 window.addEventListener(
   "load",
   async () => {
+    if (!rutaRestaurante.esRutaRestaurante) {
+      agregarMensaje(
+        "Abre el enlace de reservas que te ha facilitado el restaurante.",
+        "bot"
+      );
+      return;
+    }
+
+    if (!rutaRestaurante.valida) {
+      agregarMensaje(
+        "El enlace del restaurante no es válido. Comprueba la dirección e inténtalo de nuevo.",
+        "bot"
+      );
+      input.disabled = true;
+      sendButton.disabled = true;
+      return;
+    }
+
+    const restauranteCargado = await cargarRestauranteActivo();
+
+    if (!restauranteCargado) {
+      input.disabled = true;
+      sendButton.disabled = true;
+      return;
+    }
+
+    input.disabled = false;
+    sendButton.disabled = false;
+
     agregarMensaje(
       "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar, consultar, modificar o cancelar una reserva?",
       "bot"

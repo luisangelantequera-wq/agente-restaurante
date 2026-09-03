@@ -15,7 +15,17 @@ const {
   determinarOrigenAuditoria,
   registrarAuditoria
 } = require("../lib/auditoria");
+const {
+  slugPublicoValido
+} = require("../lib/restaurante-publico");
+const {
+  normalizarPrefijoReserva
+} = require("../lib/identificador-reserva");
+const {
+  filtrarRegistrosRestaurante
+} = require("../lib/pertenencia-restaurante");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
+const NOMBRE_RESTAURANTE_GENERICO = "el restaurante";
 const MAX_REQUEST_BODY_BYTES = 32 * 1024;
 const MAX_DIAS_ANTELACION_CONFIGURADO = Number(
   process.env.MAX_RESERVA_DIAS || 730
@@ -210,6 +220,34 @@ async function consultarAirtable(url, opciones = {}) {
 }
 
 
+async function listarRegistrosAirtable(tabla, formula = "") {
+  const records = [];
+  let offset = "";
+
+  do {
+    const parametros = new URLSearchParams({ pageSize: "100" });
+
+    if (formula) {
+      parametros.set("filterByFormula", formula);
+    }
+
+    if (offset) {
+      parametros.set("offset", offset);
+    }
+
+    const datos = await consultarAirtable(
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+      `${tabla}?${parametros.toString()}`
+    );
+
+    records.push(...(datos.records || []));
+    offset = String(datos.offset || "");
+  } while (offset);
+
+  return records;
+}
+
+
 // 3️⃣ BUSCAR RESTAURANTE
 async function buscarRestaurante(restaurante_id) {
 
@@ -241,19 +279,12 @@ async function buscarAsignacionDisponible(
 ) {
 
 
-  // Buscar mesas del restaurante
-  const formulaMesas =
-    `FIND('${String(restaurante_id)}',` +
-    `ARRAYJOIN({id (from restaurante)}))`;
-
-  const urlMesas =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/MESAS` +
-    `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
-
-  const datosMesas = await consultarAirtable(urlMesas);
-
-  const mesas = datosMesas.records || [];
+  // Airtable devuelve los enlaces como identificadores rec... exactos.
+  // Filtrarlos aquí evita depender de la representación textual del campo.
+  const mesas = filtrarRegistrosRestaurante(
+    await listarRegistrosAirtable("MESAS"),
+    restauranteRecordId
+  );
   const urlZonas =
     `https://api.airtable.com/v0/` +
     `${process.env.AIRTABLE_BASE_ID}/ZONA`;
@@ -299,21 +330,13 @@ const formulaReservas =
   `LOWER(TRIM({estado}))='ocupada',` +
   `LOWER(TRIM({estado}))='con retraso',` +
   `LOWER(TRIM({estado}))='cobrada'` +
-  `),` +
-  `FIND('${String(restaurante_id)}',` +
-  `ARRAYJOIN({id (from restaurante)}))` +
+  `)` +
   `)`;
 
-
-  const urlReservas =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
-    `?filterByFormula=${encodeURIComponent(formulaReservas)}`;
-
-  const datosReservas =
-    await consultarAirtable(urlReservas);
-
-  const reservas = datosReservas.records || [];
+  const reservas = filtrarRegistrosRestaurante(
+    await listarRegistrosAirtable("RESERVAS", formulaReservas),
+    restauranteRecordId
+  );
 
   // Obtener las mesas de cualquier reserva cuya franja se solape.
   const mesasOcupadas = new Set();
@@ -491,14 +514,10 @@ async function existeAsignacionCompatible(
   personas,
   margenCapacidad
 ) {
-  const formulaMesas =
-    `FIND('${String(restaurante_id)}',` +
-    `ARRAYJOIN({id (from restaurante)}))`;
-  const urlMesas =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/MESAS` +
-    `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
-  const datosMesas = await consultarAirtable(urlMesas);
+  const mesasRestaurante = filtrarRegistrosRestaurante(
+    await listarRegistrosAirtable("MESAS"),
+    restauranteRecordId
+  );
   const urlZonas =
     `https://api.airtable.com/v0/` +
     `${process.env.AIRTABLE_BASE_ID}/ZONA`;
@@ -515,7 +534,7 @@ async function existeAsignacionCompatible(
       })
       .map((zona) => zona.id)
   );
-  const mesasOperativas = (datosMesas.records || []).filter((mesa) => {
+  const mesasOperativas = mesasRestaurante.filter((mesa) => {
     const zona = Array.isArray(mesa.fields.zona) &&
       mesa.fields.zona.length === 1
       ? mesa.fields.zona[0]
@@ -582,6 +601,7 @@ async function existeAsignacionCompatible(
 async function confirmarReservaSinConflictos(
   reservaCreada,
   restaurante_id,
+  restauranteRecordId,
   fecha,
   hora,
   duracionReservaMinutos,
@@ -598,21 +618,18 @@ async function confirmarReservaSinConflictos(
     `LOWER(TRIM({estado}))='con retraso',` +
     `LOWER(TRIM({estado}))='cobrada',` +
     `LOWER(TRIM({estado}))='pendiente'` +
-    `),` +
-    `FIND('${String(restaurante_id)}',` +
-    `ARRAYJOIN({id (from restaurante)}))` +
+    `)` +
     `)`;
-  const url =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
-    `?filterByFormula=${encodeURIComponent(formula)}`;
-  const datos = await consultarAirtable(url);
+  const reservasRestaurante = filtrarRegistrosRestaurante(
+    await listarRegistrosAirtable("RESERVAS", formula),
+    restauranteRecordId
+  );
   const inicioActual = horaAMinutos(hora);
   const finActual = inicioActual + Number(duracionReservaMinutos);
   const idsMesas = new Set(mesasAsignadas);
   const idsReservasExcluidas = new Set(reservasExcluirIds);
   const ahora = Date.now();
-  const pendientesExpiradas = (datos.records || []).filter((reserva) => {
+  const pendientesExpiradas = reservasRestaurante.filter((reserva) => {
     if (reserva.id === reservaCreada.id) {
       return false;
     }
@@ -646,7 +663,7 @@ async function confirmarReservaSinConflictos(
     pendientesExpiradas.map((reserva) => reserva.id)
   );
 
-  const conflictos = (datos.records || []).filter((reserva) => {
+  const conflictos = reservasRestaurante.filter((reserva) => {
     if (idsExpiradas.has(reserva.id)) {
       return false;
     }
@@ -713,37 +730,51 @@ async function confirmarReservaSinConflictos(
 }
 
 
-async function buscarReservaPorLocalizador(restaurante_id, localizador) {
-  const formula =
-    `AND(` +
-    `UPPER(TRIM({id_reserva}))='${localizador}',` +
-    `FIND('${String(restaurante_id)}',` +
-    `ARRAYJOIN({id (from restaurante)}))` +
-    `)`;
-  const url =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
-    `?filterByFormula=${encodeURIComponent(formula)}`;
-  const datos = await consultarAirtable(url);
+async function buscarReservaPorLocalizador(
+  restaurante_id,
+  localizador,
+  restauranteRecordId = null
+) {
+  const restaurante = restauranteRecordId
+    ? { id: restauranteRecordId }
+    : await buscarRestaurante(restaurante_id);
 
-  return datos.records?.[0] || null;
+  if (!restaurante) {
+    return null;
+  }
+
+  const formula =
+    `UPPER(TRIM({id_reserva}))='${localizador}'`;
+  const reservas = filtrarRegistrosRestaurante(
+    await listarRegistrosAirtable("RESERVAS", formula),
+    restaurante.id
+  );
+
+  return reservas[0] || null;
 }
 
 
-async function buscarReservaPorToken(restaurante_id, tokenGestion) {
-  const formula =
-    `AND(` +
-    `TRIM({token_gestion})='${tokenGestion}',` +
-    `FIND('${String(restaurante_id)}',` +
-    `ARRAYJOIN({id (from restaurante)}))` +
-    `)`;
-  const url =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
-    `?filterByFormula=${encodeURIComponent(formula)}`;
-  const datos = await consultarAirtable(url);
+async function buscarReservaPorToken(
+  restaurante_id,
+  tokenGestion,
+  restauranteRecordId = null
+) {
+  const restaurante = restauranteRecordId
+    ? { id: restauranteRecordId }
+    : await buscarRestaurante(restaurante_id);
 
-  return datos.records?.[0] || null;
+  if (!restaurante) {
+    return null;
+  }
+
+  const formula =
+    `TRIM({token_gestion})='${tokenGestion}'`;
+  const reservas = filtrarRegistrosRestaurante(
+    await listarRegistrosAirtable("RESERVAS", formula),
+    restaurante.id
+  );
+
+  return reservas[0] || null;
 }
 
 
@@ -751,7 +782,8 @@ async function buscarReservaGestion(
   restaurante_id,
   localizador,
   tokenGestion,
-  permitirLocalizador = false
+  permitirLocalizador = false,
+  restauranteRecordId = null
 ) {
   let reserva;
 
@@ -762,7 +794,11 @@ async function buscarReservaGestion(
       throw new Error("El token de gestión no tiene un formato válido.");
     }
 
-    reserva = await buscarReservaPorToken(restaurante_id, tokenNormalizado);
+    reserva = await buscarReservaPorToken(
+      restaurante_id,
+      tokenNormalizado,
+      restauranteRecordId
+    );
   } else if (permitirLocalizador) {
     const localizadorNormalizado = String(localizador || "").trim().toUpperCase();
 
@@ -772,7 +808,8 @@ async function buscarReservaGestion(
 
     reserva = await buscarReservaPorLocalizador(
       restaurante_id,
-      localizadorNormalizado
+      localizadorNormalizado,
+      restauranteRecordId
     );
   } else {
     return null;
@@ -1171,20 +1208,27 @@ async function buscarHorariosAlternativos(
 
 
 // 6️⃣ GENERAR LOCALIZADOR
-function generarIdReserva(fecha, prefijo = "SOL") {
+function generarIdReserva(fecha, prefijo) {
   const fechaLimpia = String(fecha || "").replaceAll("-", "");
   const aleatorio = crypto.randomBytes(5).toString("hex").toUpperCase();
+  const prefijoNormalizado = normalizarPrefijoReserva(prefijo);
 
-  return `${prefijo}-${fechaLimpia}-${aleatorio}`;
+  return `${prefijoNormalizado}-${fechaLimpia}-${aleatorio}`;
 }
 
 
-async function generarIdReservaUnico(restauranteId, fecha, prefijo = "SOL") {
+async function generarIdReservaUnico(
+  restauranteId,
+  restauranteRecordId,
+  fecha,
+  prefijo
+) {
   for (let intento = 0; intento < 5; intento += 1) {
     const localizador = generarIdReserva(fecha, prefijo);
     const existente = await buscarReservaPorLocalizador(
       restauranteId,
-      localizador
+      localizador,
+      restauranteRecordId
     );
 
     if (!existente) {
@@ -1232,14 +1276,17 @@ function clavesRestauranteCoinciden(recibida, configurada) {
 }
 
 
-function generarEnlaceGestion(tokenGestion) {
+function generarEnlaceGestion(tokenGestion, slugPublico = "") {
   const urlPublica = String(
     process.env.PUBLIC_BASE_URL || "https://contactia.net"
   ).trim().replace(/\/+$/, "");
+  const rutaRestaurante = slugPublicoValido(slugPublico)
+    ? `/r/${slugPublico}`
+    : "";
 
   return tokenGestion
-    ? `${urlPublica}/#gestion=${tokenGestion}`
-    : urlPublica;
+    ? `${urlPublica}${rutaRestaurante}/#gestion=${tokenGestion}`
+    : `${urlPublica}${rutaRestaurante}`;
 }
 
 
@@ -1353,7 +1400,16 @@ function obtenerNombreRestaurante(restaurante) {
     }
   }
 
-  return "Restaurante Sol";
+  return NOMBRE_RESTAURANTE_GENERICO;
+}
+
+
+function obtenerSlugPublicoRestaurante(restaurante) {
+  const slugPublico = String(
+    restaurante?.fields?.slug_publico || ""
+  ).trim();
+
+  return slugPublicoValido(slugPublico) ? slugPublico : "";
 }
 
 
@@ -1434,7 +1490,8 @@ async function enviarCorreoConfirmacionReserva({
   localizador,
   enlaceGestion
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto =
     `Reserva confirmada en ${nombreRestaurante} el ${fechaLarga} ` +
@@ -1486,7 +1543,8 @@ async function enviarCorreoModificacionReserva({
   enlaceGestion,
   reactivada = false
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const estadoTexto = reactivada ? "reactivada" : "modificada";
   const asunto =
@@ -1538,7 +1596,8 @@ async function enviarCorreoCancelacionReserva({
   localizador,
   enlaceNuevaReserva
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto =
     `Reserva cancelada en ${nombreRestaurante} para el ${fechaLarga} ` +
@@ -1589,7 +1648,8 @@ async function enviarCorreoRetrasoReserva({
   localizador,
   enlaceGestion
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const asunto = `Te estamos esperando en ${nombreRestaurante}`;
   const texto =
@@ -1643,7 +1703,8 @@ async function enviarAvisoRestaurante({
   observaciones,
   enlaceGestion
 }) {
-  nombreRestaurante = normalizarTexto(nombreRestaurante) || "Restaurante Sol";
+  nombreRestaurante = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
   const fechaLarga = formatearFechaLarga(fecha);
   const { diaSemana, fechaCorta } = formatearFechaOperativa(fecha);
   const titulos = {
@@ -1932,7 +1993,8 @@ module.exports = async (req, res) => {
         restauranteIdObservaciones,
         localizadorObservaciones,
         null,
-        true
+        true,
+        restauranteObservaciones.id
       );
 
       if (!reservaObservaciones) {
@@ -2013,7 +2075,8 @@ module.exports = async (req, res) => {
         restauranteIdEstado,
         localizadorEstado,
         null,
-        true
+        true,
+        restauranteEstado.id
       );
 
       if (!reservaEstado) {
@@ -2089,7 +2152,8 @@ module.exports = async (req, res) => {
           personas: reservaActualizadaEstado.fields.personas,
           localizador: reservaActualizadaEstado.fields.id_reserva,
           enlaceGestion: generarEnlaceGestion(
-            reservaActualizadaEstado.fields.token_gestion
+            reservaActualizadaEstado.fields.token_gestion,
+            obtenerSlugPublicoRestaurante(restauranteEstado)
           )
         });
       }
@@ -2216,8 +2280,11 @@ module.exports = async (req, res) => {
 
       const idOcupacion = await generarIdReservaUnico(
         restauranteIdOcupacion,
+        restauranteOcupacion.id,
         fechaOcupacion,
-        "PASO"
+        normalizarPrefijoReserva(
+          restauranteOcupacion.fields.prefijo_reserva
+        )
       );
       const urlReservasOcupacion =
         `https://api.airtable.com/v0/` +
@@ -2250,6 +2317,7 @@ module.exports = async (req, res) => {
       const resultadoOcupacion = await confirmarReservaSinConflictos(
         ocupacionPendiente,
         restauranteIdOcupacion,
+        restauranteOcupacion.id,
         fechaOcupacion,
         horaOcupacion,
         duracionOcupacion,
@@ -2363,14 +2431,11 @@ module.exports = async (req, res) => {
       if (tipoRecurso === "mesa") {
         mesasAfectadasIds = [recursoId];
       } else {
-        const formulaMesasZona =
-          `FIND('${String(restauranteIdDisponibilidad)}',` +
-          `ARRAYJOIN({id (from restaurante)}))`;
-        const datosMesasZona = await consultarAirtable(
-          `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS` +
-          `?filterByFormula=${encodeURIComponent(formulaMesasZona)}`
+        const mesasRestaurante = filtrarRegistrosRestaurante(
+          await listarRegistrosAirtable("MESAS"),
+          restauranteDisponibilidad.id
         );
-        mesasAfectadasIds = (datosMesasZona.records || [])
+        mesasAfectadasIds = mesasRestaurante
           .filter((mesa) =>
             Array.isArray(mesa.fields.zona) &&
             mesa.fields.zona.includes(recursoId)
@@ -2382,22 +2447,21 @@ module.exports = async (req, res) => {
 
       if (!habilitar && mesasAfectadasIds.length) {
         const formulaReservasAfectadas =
-          `AND(` +
           `OR(` +
           `LOWER(TRIM({estado}))='confirmada',` +
           `LOWER(TRIM({estado}))='ocupada',` +
           `LOWER(TRIM({estado}))='con retraso',` +
           `LOWER(TRIM({estado}))='cobrada'` +
-          `),` +
-          `FIND('${String(restauranteIdDisponibilidad)}',` +
-          `ARRAYJOIN({id (from restaurante)}))` +
           `)`;
-        const datosReservasAfectadas = await consultarAirtable(
-          `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
-          `?filterByFormula=${encodeURIComponent(formulaReservasAfectadas)}`
+        const reservasRestaurante = filtrarRegistrosRestaurante(
+          await listarRegistrosAirtable(
+            "RESERVAS",
+            formulaReservasAfectadas
+          ),
+          restauranteDisponibilidad.id
         );
         const idsObjetivo = new Set(mesasAfectadasIds);
-        reservasAfectadas = (datosReservasAfectadas.records || [])
+        reservasAfectadas = reservasRestaurante
           .filter((reserva) => {
             const fechaReserva = String(reserva.fields.fecha || "");
             const mesasReserva = Array.isArray(reserva.fields.mesa)
@@ -2694,7 +2758,10 @@ module.exports = async (req, res) => {
           hora: reservaActualizada.fields.hora,
           personas: reservaActualizada.fields.personas,
           localizador: reservaActualizada.fields.id_reserva,
-          enlaceNuevaReserva: generarEnlaceGestion(null)
+          enlaceNuevaReserva: generarEnlaceGestion(
+            null,
+            obtenerSlugPublicoRestaurante(restauranteCancelacion)
+          )
         }),
         enviarAvisoRestaurante({
           destinatario: restauranteCancelacion?.fields?.email,
@@ -2775,6 +2842,10 @@ Number(restaurante.fields.intervalo_minutos);
 
 const duracionReservaMinutos =
 Number(restaurante.fields.duracion_reserva_minutos);
+
+const prefijoReserva = normalizarPrefijoReserva(
+  restaurante.fields.prefijo_reserva
+);
 
     const validacionHorario =
       validarHorarioRestaurante(
@@ -3091,7 +3162,8 @@ await buscarAsignacionDisponible(
         restaurante_id,
         localizador,
         token_gestion,
-        Boolean(clave_restaurante) || sesionRestauranteAutorizada
+        Boolean(clave_restaurante) || sesionRestauranteAutorizada,
+        restaurante.id
       );
 
       if (!reservaActual) {
@@ -3187,6 +3259,7 @@ await buscarAsignacionDisponible(
       const resultadoBloqueo = await confirmarReservaSinConflictos(
         bloqueo,
         restaurante_id,
+        restaurante.id,
         fecha,
         hora,
         duracionReservaMinutos,
@@ -3300,7 +3373,8 @@ await buscarAsignacionDisponible(
       const nombreRestauranteModificacion = obtenerNombreRestaurante(restaurante);
       const enlaceGestionModificacion = generarEnlaceGestion(
         reservaModificada.fields.token_gestion ||
-        reservaActual.fields.token_gestion
+        reservaActual.fields.token_gestion,
+        obtenerSlugPublicoRestaurante(restaurante)
       );
       const [correoEnviado, correoRestauranteEnviado] = await Promise.all([
         enviarCorreoModificacionReserva({
@@ -3369,7 +3443,8 @@ await buscarAsignacionDisponible(
         restaurante_id,
         localizadorNormalizado,
         null,
-        true
+        true,
+        restaurante.id
       );
 
       if (!reservaActual) {
@@ -3491,6 +3566,7 @@ await buscarAsignacionDisponible(
       const resultadoBloqueo = await confirmarReservaSinConflictos(
         bloqueo,
         restaurante_id,
+        restaurante.id,
         fechaReserva,
         horaReserva,
         duracionReservaMinutos,
@@ -3661,17 +3737,10 @@ await buscarAsignacionDisponible(
           });
         }
 
-        const formulaMesasPanel =
-          `FIND('${String(restaurante_id)}',` +
-          `ARRAYJOIN({id (from restaurante)}))`;
-        const urlMesasPanel =
-          `https://api.airtable.com/v0/` +
-          `${process.env.AIRTABLE_BASE_ID}/MESAS` +
-          `?filterByFormula=${encodeURIComponent(formulaMesasPanel)}`;
-        const datosMesasPanel = await consultarAirtable(urlMesasPanel);
-        const mesasSeleccionadas = (datosMesasPanel.records || []).filter(
-          (mesa) => idsMesasManuales.includes(mesa.id)
-        );
+        const mesasSeleccionadas = filtrarRegistrosRestaurante(
+          await listarRegistrosAirtable("MESAS"),
+          restaurante.id
+        ).filter((mesa) => idsMesasManuales.includes(mesa.id));
 
         if (
           mesasSeleccionadas.length !== idsMesasManuales.length ||
@@ -3788,7 +3857,12 @@ await buscarAsignacionDisponible(
 
       // 1️⃣1️⃣ GENERAR LOCALIZADOR
 
-      const idReserva = await generarIdReservaUnico(restaurante_id, fecha);
+      const idReserva = await generarIdReservaUnico(
+        restaurante_id,
+        restaurante.id,
+        fecha,
+        prefijoReserva
+      );
       const tokenGestion = generarTokenGestion();
 
 
@@ -3857,6 +3931,7 @@ await buscarAsignacionDisponible(
       const resultadoConfirmacion = await confirmarReservaSinConflictos(
         reservaCreada,
         restaurante_id,
+        restaurante.id,
         fecha,
         hora,
         duracionReservaMinutos,
@@ -3926,7 +4001,10 @@ await buscarAsignacionDisponible(
         idReserva
       );
 
-      const enlaceGestion = generarEnlaceGestion(tokenGestion);
+      const enlaceGestion = generarEnlaceGestion(
+        tokenGestion,
+        obtenerSlugPublicoRestaurante(restaurante)
+      );
       const nombreRestauranteReserva = obtenerNombreRestaurante(restaurante);
       const [correoEnviado, correoRestauranteEnviado] = await Promise.all([
         enviarCorreoConfirmacionReserva({

@@ -48,6 +48,10 @@
       "dest": "/api/$1.js"
     },
     {
+      "src": "/r/([a-z0-9]+(?:-[a-z0-9]+)*)/?",
+      "dest": "/index.html"
+    },
+    {
       "handle": "filesystem"
     },
     {

@@ -5,6 +5,7 @@ const {
   copiaContieneCamposProhibidos,
   crearCopiaSegura
 } = require("../lib/backup");
+const { solicitarJsonGoogle } = require("../lib/google-drive");
 
 
 function responder(res, status, datos) {
@@ -103,31 +104,16 @@ function horaMadrid(ahora = new Date()) {
 
 
 async function subirCopiaDrive(nombreArchivo, sobreCifrado) {
-  const respuesta = await fetch(process.env.GOOGLE_APPS_SCRIPT_BACKUP_URL, {
-    method: "POST",
-    redirect: "follow",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  return solicitarJsonGoogle(
+    process.env.GOOGLE_APPS_SCRIPT_BACKUP_URL,
+    {
       secret: process.env.BACKUP_UPLOAD_SECRET,
       filename: nombreArchivo,
       retention_days: 7,
       content: JSON.stringify(sobreCifrado)
-    })
-  });
-  const texto = await respuesta.text();
-  let resultado;
-
-  try {
-    resultado = texto ? JSON.parse(texto) : {};
-  } catch {
-    throw new Error(`Google Drive devolvió una respuesta no válida. HTTP ${respuesta.status}`);
-  }
-
-  if (!respuesta.ok || !resultado.ok) {
-    throw new Error(resultado.error || `Error de Google Drive. HTTP ${respuesta.status}`);
-  }
-
-  return resultado;
+    },
+    { tamanoMaximo: 1024 * 1024 }
+  );
 }
 
 
