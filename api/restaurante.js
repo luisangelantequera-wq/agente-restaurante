@@ -1,6 +1,8 @@
 const crypto = require("crypto");
 const { registroDebeAnonimizarse } = require("../lib/privacidad");
-const { crearFiltroRestaurante } = require("../lib/filtro-restaurante");
+const {
+  filtrarRegistrosRestaurante
+} = require("../lib/pertenencia-restaurante");
 const {
   borrarSesionRestaurante,
   establecerSesionRestaurante,
@@ -41,6 +43,34 @@ async function consultarAirtable(url) {
   }
 
   return datos;
+}
+
+
+async function listarRegistrosAirtable(tabla, formula = "") {
+  const records = [];
+  let offset = "";
+
+  do {
+    const parametros = new URLSearchParams({ pageSize: "100" });
+
+    if (formula) {
+      parametros.set("filterByFormula", formula);
+    }
+
+    if (offset) {
+      parametros.set("offset", offset);
+    }
+
+    const datos = await consultarAirtable(
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+      `${tabla}?${parametros.toString()}`
+    );
+
+    records.push(...(datos.records || []));
+    offset = String(datos.offset || "");
+  } while (offset);
+
+  return records;
 }
 
 
@@ -271,20 +301,15 @@ module.exports = async (req, res) => {
     }
 
     const formula =
-      `AND(` +
-      `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
-      crearFiltroRestaurante(restauranteId) +
-      `)`;
-    const url =
-      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS` +
-      `?filterByFormula=${encodeURIComponent(formula)}`;
-    const datos = await consultarAirtable(url);
-    const formulaMesas =
-      crearFiltroRestaurante(restauranteId);
-    const urlMesas =
-      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/MESAS` +
-      `?filterByFormula=${encodeURIComponent(formulaMesas)}`;
-    const datosMesas = await consultarAirtable(urlMesas);
+      `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}'`;
+    const reservasRestaurante = filtrarRegistrosRestaurante(
+      await listarRegistrosAirtable("RESERVAS", formula),
+      restaurante.id
+    );
+    const mesasRestaurante = filtrarRegistrosRestaurante(
+      await listarRegistrosAirtable("MESAS"),
+      restaurante.id
+    );
     const urlZonas =
       `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/ZONA`;
     const datosZonas = await consultarAirtable(urlZonas);
@@ -304,7 +329,7 @@ module.exports = async (req, res) => {
 
     const ahora = new Date();
     const idsReservasVencidas = new Set(
-      (datos.records || [])
+      reservasRestaurante
         .filter((reserva) =>
           registroDebeAnonimizarse(reserva.fields, duracion, ahora)
         )
@@ -333,7 +358,7 @@ module.exports = async (req, res) => {
       zonasRestaurante.map((zona) => [zona.id, zona])
     );
     const datosMesasPorId = new Map(
-      (datosMesas.records || []).map((mesa) => [
+      mesasRestaurante.map((mesa) => [
         mesa.id,
         {
           id: mesa.id,
@@ -356,7 +381,7 @@ module.exports = async (req, res) => {
       "libre",
       "cancelada"
     ]);
-    const reservas = (datos.records || [])
+    const reservas = reservasRestaurante
       .filter((reserva) => estadosVisibles.has(
         normalizarEstado(reserva.fields.estado)
       ))

@@ -4,12 +4,15 @@ const assert = require("node:assert/strict");
 const chat = require("../api/chat");
 const panelRestaurante = require("../api/restaurante");
 const restaurantePublico = require("../api/restaurante-publico");
-const { crearFiltroRestaurante } = require("../lib/filtro-restaurante");
+const {
+  filtrarRegistrosRestaurante,
+  registroPerteneceARestaurante
+} = require("../lib/pertenencia-restaurante");
 const sesionRestaurante = require("../lib/sesion-restaurante");
 
 
 const RESTAURANTE_SOL = "recRestauranteSol";
-const RESTAURANTE_LUNA = "recRestauranteLuna";
+const RESTAURANTE_LUNA = "recLuna0000000000";
 const MESA_SOL = "recMesaSol0000001";
 const ZONA_SOL = "recZonaSol0000001";
 
@@ -104,14 +107,35 @@ function restauranteLuna() {
 }
 
 
-test("el filtro de Airtable exige el identificador completo", () => {
+test("la pertenencia usa el identificador exacto del enlace de Airtable", () => {
+  const registroSol = {
+    id: "recRegistroDeSol1",
+    fields: { restaurante: [RESTAURANTE_SOL] }
+  };
+  const registroLuna = {
+    id: "recRegistroLuna1",
+    fields: { restaurante: [RESTAURANTE_LUNA] }
+  };
+
   assert.equal(
-    crearFiltroRestaurante(1),
-    "ARRAYJOIN({restaurante},',')='1'"
+    registroPerteneceARestaurante(registroSol, RESTAURANTE_SOL),
+    true
   );
-  assert.doesNotMatch(crearFiltroRestaurante(1), /id \(from restaurante\)/);
-  assert.notEqual(crearFiltroRestaurante(1), crearFiltroRestaurante(10));
-  assert.throws(() => crearFiltroRestaurante(0), /no es válido/i);
+  assert.equal(
+    registroPerteneceARestaurante(registroSol, RESTAURANTE_LUNA),
+    false
+  );
+  assert.deepEqual(
+    filtrarRegistrosRestaurante(
+      [registroSol, registroLuna],
+      RESTAURANTE_LUNA
+    ),
+    [registroLuna]
+  );
+  assert.throws(
+    () => filtrarRegistrosRestaurante([], "1"),
+    /registro de restaurante no es válido/i
+  );
 });
 
 
@@ -179,7 +203,7 @@ test("las URLs públicas de Sol y Luna resuelven identidades distintas", async (
 test("el token de una reserva de Sol no permite consultarla desde Luna", async () => {
   const fetchOriginal = global.fetch;
   const tokenSol = "a".repeat(48);
-  const formulas = [];
+  const formulasReservas = [];
   const reservaSol = {
     id: "recReservaDeSol1",
     fields: {
@@ -199,15 +223,29 @@ test("el token de una reserva de Sol no permite consultarla desde Luna", async (
 
   global.fetch = async (url) => {
     const urlAirtable = new URL(url);
+    const ruta = urlAirtable.pathname;
     const formula = urlAirtable.searchParams.get("filterByFormula") || "";
 
-    formulas.push(formula);
+    if (ruta.endsWith("/RESTAURANTES")) {
+      return respuestaAirtable({
+        records: formula.includes("{id}=1")
+          ? [{
+              id: RESTAURANTE_SOL,
+              fields: { id: 1, duracion_reserva_minutos: 90 }
+            }]
+          : [restauranteLuna()]
+      });
+    }
 
-    return respuestaAirtable({
-      records: formula.includes(crearFiltroRestaurante(1))
-        ? [reservaSol]
-        : []
-    });
+    if (!ruta.endsWith("/RESERVAS")) {
+      throw new Error(`Consulta inesperada: ${url}`);
+    }
+
+    formulasReservas.push(formula);
+
+    // Airtable devuelve la misma coincidencia por token en ambas consultas.
+    // El aislamiento debe resolverlo el enlace exacto restaurante: [rec...].
+    return respuestaAirtable({ records: [reservaSol] });
   };
 
   try {
@@ -226,11 +264,9 @@ test("el token de una reserva de Sol no permite consultarla desde Luna", async (
     assert.equal(desdeSol.body.reserva.nombre, "Cliente de Sol");
     assert.equal(desdeLuna.status, 404);
     assert.equal(desdeLuna.body.reserva, undefined);
-    assert.ok(formulas.some((formula) =>
-      formula.includes(crearFiltroRestaurante(1))
-    ));
-    assert.ok(formulas.some((formula) =>
-      formula.includes(crearFiltroRestaurante(2))
+    assert.equal(formulasReservas.length, 2);
+    assert.ok(formulasReservas.every((formula) =>
+      formula === `TRIM({token_gestion})='${tokenSol}'`
     ));
   } finally {
     global.fetch = fetchOriginal;
