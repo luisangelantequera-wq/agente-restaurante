@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const { descifrarCopia } = require("../lib/backup");
 const { registrarAuditoria } = require("../lib/auditoria");
+const { solicitarJsonGoogle } = require("../lib/google-drive");
 const {
   TABLAS_RESTAURABLES,
   camposEnlaceRemapeados,
@@ -60,35 +61,15 @@ function leerBody(req) {
 
 
 async function solicitarDrive(accion, datos = {}) {
-  const respuesta = await fetch(process.env.GOOGLE_APPS_SCRIPT_BACKUP_URL, {
-    method: "POST",
-    redirect: "follow",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  return solicitarJsonGoogle(
+    process.env.GOOGLE_APPS_SCRIPT_BACKUP_URL,
+    {
       secret: process.env.BACKUP_UPLOAD_SECRET,
       action: accion,
       ...datos
-    })
-  });
-  const texto = await respuesta.text();
-
-  if (texto.length > TAMANO_MAXIMO_RESPUESTA) {
-    throw new Error("Google Drive devolvió una copia demasiado grande.");
-  }
-
-  let resultado;
-
-  try {
-    resultado = texto ? JSON.parse(texto) : {};
-  } catch {
-    throw new Error("Google Drive devolvió una respuesta no válida.");
-  }
-
-  if (!respuesta.ok || !resultado.ok) {
-    throw new Error(resultado.error || "No se pudo consultar Google Drive.");
-  }
-
-  return resultado;
+    },
+    { tamanoMaximo: TAMANO_MAXIMO_RESPUESTA }
+  );
 }
 
 
