@@ -107,8 +107,9 @@ function restauranteLuna() {
 test("el filtro de Airtable exige el identificador completo", () => {
   assert.equal(
     crearFiltroRestaurante(1),
-    "FIND(',1,',','&ARRAYJOIN({id (from restaurante)},',')&',')"
+    "ARRAYJOIN({restaurante},',')='1'"
   );
+  assert.doesNotMatch(crearFiltroRestaurante(1), /id \(from restaurante\)/);
   assert.notEqual(crearFiltroRestaurante(1), crearFiltroRestaurante(10));
   assert.throws(() => crearFiltroRestaurante(0), /no es válido/i);
 });
