@@ -1,10 +1,40 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
 const restaurantePublico = require("../api/restaurante-publico");
 const {
   normalizarRestaurantePublico,
   slugPublicoValido
 } = require("../lib/restaurante-publico");
+
+
+test("carga juntos los módulos públicos igual que un navegador", () => {
+  const contexto = { window: {} };
+
+  contexto.window = contexto;
+  vm.createContext(contexto);
+
+  for (const archivo of ["zona-reserva.js", "restaurante-publico.js"]) {
+    const ruta = path.join(__dirname, "..", "lib", archivo);
+
+    vm.runInContext(fs.readFileSync(ruta, "utf8"), contexto, {
+      filename: archivo
+    });
+  }
+
+  const restaurante = contexto.ContactiaRestaurantePublico
+    .normalizarRestaurantePublico({
+      id: 1,
+      nombre: "Restaurante Sol",
+      slug_publico: "restaurante-sol",
+      zonas: [{ nombre: "TERRAZA" }]
+    }, "restaurante-sol");
+
+  assert.equal(restaurante.nombre, "Restaurante Sol");
+  assert.equal(restaurante.zonas[0].nombre, "TERRAZA");
+});
 
 
 function crearRespuesta() {
