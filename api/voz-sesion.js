@@ -42,6 +42,14 @@ function obtenerSdp(req) {
     return req.body.toString("utf8");
   }
 
+  if (
+    req.body &&
+    typeof req.body === "object" &&
+    typeof req.body.sdp === "string"
+  ) {
+    return req.body.sdp;
+  }
+
   return "";
 }
 
@@ -85,10 +93,13 @@ module.exports = async (req, res) => {
   const tipoContenido = String(req.headers?.["content-type"] || "")
     .toLowerCase();
 
-  if (!tipoContenido.startsWith("application/sdp")) {
+  if (
+    !tipoContenido.startsWith("application/sdp") &&
+    !tipoContenido.startsWith("application/json")
+  ) {
     return responderJson(res, 415, {
       ok: false,
-      error: "El contenido debe enviarse en formato SDP."
+      error: "El contenido debe incluir una sesión SDP."
     });
   }
 

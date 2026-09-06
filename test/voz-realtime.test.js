@@ -162,7 +162,10 @@ test("la clave normal permanece en servidor y OpenAI devuelve solo el SDP", asyn
   };
 
   try {
-    const respuesta = await ejecutar();
+    const respuesta = await ejecutar({
+      contentType: "application/json",
+      body: { sdp: "v=0\r\na=oferta-navegador\r\n" }
+    });
     const sesion = JSON.parse(solicitudOpenAI.opciones.body.get("session"));
 
     assert.equal(respuesta.statusCode, 200);
@@ -176,6 +179,10 @@ test("la clave normal permanece en servidor y OpenAI devuelve solo el SDP", asyn
     assert.equal(
       solicitudOpenAI.opciones.headers.Authorization,
       "Bearer sk-secreto-de-prueba"
+    );
+    assert.equal(
+      solicitudOpenAI.opciones.body.get("sdp"),
+      "v=0\r\na=oferta-navegador\r\n"
     );
     assert.equal(sesion.model, "gpt-realtime-2.1");
     assert.equal(sesion.tools[0].name, "procesar_turno_contactia");
@@ -201,6 +208,8 @@ test("la interfaz activa el micrófono solo bajo el parámetro de prueba", () =>
   assert.match(html, /src="\/voz\.js"/);
   assert.match(voz, /parametros\.get\("voz"\) !== "1"/);
   assert.match(voz, /restaurante-sol/);
+  assert.match(voz, /"Content-Type": "application\/json"/);
+  assert.match(voz, /JSON\.stringify\(\{ sdp: oferta\.sdp \}\)/);
   assert.doesNotMatch(voz, /OPENAI_API_KEY/);
   assert.match(permisos, /microphone=\(self\)/);
   assert.doesNotMatch(permisos, /microphone=\(\)/);
