@@ -24,6 +24,9 @@ const {
 const {
   filtrarRegistrosRestaurante
 } = require("../lib/pertenencia-restaurante");
+const {
+  zonaCoincide
+} = require("../lib/zona-reserva");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
 const NOMBRE_RESTAURANTE_GENERICO = "el restaurante";
 const MAX_REQUEST_BODY_BYTES = 32 * 1024;
@@ -61,6 +64,11 @@ const ACCIONES_CON_FECHA_RESERVA = new Set([
   "reservar_panel",
   "verificar"
 ]);
+const ACCIONES_ZONA_CLIENTE = new Set([
+  "lista_espera_crear",
+  "reservar",
+  "verificar"
+]);
 const LIMITES_CAMPOS_TEXTO = {
   accion: 40,
   clave_restaurante: 256,
@@ -78,7 +86,8 @@ const LIMITES_CAMPOS_TEXTO = {
   registro_espera_id: 40,
   telefono: 25,
   tipo_recurso: 20,
-  token_gestion: 48
+  token_gestion: 48,
+  zona_preferida: 80
 };
 // CONTACTIA V2 - api/chat.js
 // FASE 2: comprobar disponibilidad + crear reserva
@@ -265,6 +274,63 @@ async function buscarRestaurante(restaurante_id) {
 }
 
 
+async function obtenerZonasActivasRestaurante(restauranteRecordId) {
+  return filtrarRegistrosRestaurante(
+    await listarRegistrosAirtable("ZONA"),
+    restauranteRecordId
+  ).filter((zona) =>
+    String(zona.fields.estado || "activo").trim().toLowerCase() !==
+      "inactivo"
+  );
+}
+
+
+function nombreZona(zona) {
+  return String(
+    zona?.fields?.nombre ||
+    zona?.fields?.zona ||
+    zona?.fields?.id_zona ||
+    ""
+  ).trim();
+}
+
+
+function resumirZonas(zonas) {
+  return zonas.map((zona) => nombreZona(zona)).filter(Boolean);
+}
+
+
+function resolverZonaPreferida(zonas, valor) {
+  return zonas.find((zona) => zonaCoincide(valor, {
+    nombre: zona.fields.nombre,
+    zona: zona.fields.zona,
+    id_zona: zona.fields.id_zona
+  })) || null;
+}
+
+
+function camposHorarioParaZona(camposRestaurante, zona) {
+  const horarioZona = String(zona?.fields?.horario_reservas || "").trim();
+
+  return horarioZona
+    ? { ...camposRestaurante, horario_reservas: horarioZona }
+    : camposRestaurante;
+}
+
+
+function observacionesConZona(mensaje, zona) {
+  const observaciones = normalizarObservaciones(mensaje);
+  const zonaNombre = nombreZona(zona);
+
+  if (!zonaNombre) {
+    return observaciones;
+  }
+
+  return `Zona solicitada: ${zonaNombre}.` +
+    (observaciones ? `\n${observaciones}` : "");
+}
+
+
 // 4️⃣ BUSCAR MESA O COMBINACIÓN DISPONIBLE
 async function buscarAsignacionDisponible(
   restaurante_id,
@@ -275,7 +341,8 @@ async function buscarAsignacionDisponible(
   margenCapacidad,
   duracionReservaMinutos,
   reservaExcluirId = null,
-  devolverTodas = false
+  devolverTodas = false,
+  zonaPreferidaId = null
 ) {
 
 
@@ -285,21 +352,11 @@ async function buscarAsignacionDisponible(
     await listarRegistrosAirtable("MESAS"),
     restauranteRecordId
   );
-  const urlZonas =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/ZONA`;
-  const datosZonas = await consultarAirtable(urlZonas);
+  const zonasRestaurante = await obtenerZonasActivasRestaurante(
+    restauranteRecordId
+  );
   const zonasActivas = new Set(
-    (datosZonas.records || [])
-      .filter((zona) => {
-        const estado = String(zona.fields.estado || "activo")
-          .trim()
-          .toLowerCase();
-        return estado !== "inactivo" &&
-          Array.isArray(zona.fields.restaurante) &&
-          zona.fields.restaurante.includes(restauranteRecordId);
-      })
-      .map((zona) => zona.id)
+    zonasRestaurante.map((zona) => zona.id)
   );
 
 
@@ -316,7 +373,9 @@ async function buscarAsignacionDisponible(
       ? mesa.fields.zona[0]
       : null;
 
-    return estado !== "fuera de servicio" && zonasActivas.has(zona);
+    return estado !== "fuera de servicio" &&
+      zonasActivas.has(zona) &&
+      (!zonaPreferidaId || zona === zonaPreferidaId);
   });
 
 
@@ -489,7 +548,7 @@ return (
   }
 
   const nombresZonas = new Map(
-    (datosZonas.records || []).map((zona) => [
+    zonasRestaurante.map((zona) => [
       zona.id,
       zona.fields.nombre || zona.fields.zona || zona.fields.id_zona || "Sin zona"
     ])
@@ -512,27 +571,18 @@ async function existeAsignacionCompatible(
   restaurante_id,
   restauranteRecordId,
   personas,
-  margenCapacidad
+  margenCapacidad,
+  zonaPreferidaId = null
 ) {
   const mesasRestaurante = filtrarRegistrosRestaurante(
     await listarRegistrosAirtable("MESAS"),
     restauranteRecordId
   );
-  const urlZonas =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/ZONA`;
-  const datosZonas = await consultarAirtable(urlZonas);
+  const zonasRestaurante = await obtenerZonasActivasRestaurante(
+    restauranteRecordId
+  );
   const zonasActivas = new Set(
-    (datosZonas.records || [])
-      .filter((zona) => {
-        const estado = String(zona.fields.estado || "activo")
-          .trim()
-          .toLowerCase();
-        return estado !== "inactivo" &&
-          Array.isArray(zona.fields.restaurante) &&
-          zona.fields.restaurante.includes(restauranteRecordId);
-      })
-      .map((zona) => zona.id)
+    zonasRestaurante.map((zona) => zona.id)
   );
   const mesasOperativas = mesasRestaurante.filter((mesa) => {
     const zona = Array.isArray(mesa.fields.zona) &&
@@ -540,7 +590,8 @@ async function existeAsignacionCompatible(
       ? mesa.fields.zona[0]
       : null;
     return String(mesa.fields.estado || "").trim().toLowerCase() !==
-      "fuera de servicio" && zonasActivas.has(zona);
+      "fuera de servicio" && zonasActivas.has(zona) &&
+      (!zonaPreferidaId || zona === zonaPreferidaId);
   });
   const personasNum = Number(personas);
   const margenNum = Number(margenCapacidad || 0);
@@ -1090,7 +1141,8 @@ async function buscarHorariosAlternativos(
   duracionReservaMinutos,
   intervaloMinutos,
   camposRestaurante,
-  reservaExcluirId = null
+  reservaExcluirId = null,
+  zonaPreferidaId = null
 ) {
   const horaSolicitada = horaAMinutos(hora);
   const intervalo = Number(intervaloMinutos);
@@ -1191,7 +1243,9 @@ async function buscarHorariosAlternativos(
       personas,
       margenCapacidad,
       duracionReservaMinutos,
-      reservaExcluirId
+      reservaExcluirId,
+      false,
+      zonaPreferidaId
     );
 
     if (mesaLibre) {
@@ -1487,6 +1541,7 @@ async function enviarCorreoConfirmacionReserva({
   fecha,
   hora,
   personas,
+  zona,
   localizador,
   enlaceGestion
 }) {
@@ -1496,6 +1551,13 @@ async function enviarCorreoConfirmacionReserva({
   const asunto =
     `Reserva confirmada en ${nombreRestaurante} el ${fechaLarga} ` +
     `a las ${hora}.`;
+  const zonaConfirmada = normalizarTexto(zona);
+  const lineaZonaTexto = zonaConfirmada
+    ? `Zona: ${zonaConfirmada}\n`
+    : "";
+  const lineaZonaHtml = zonaConfirmada
+    ? `<li><strong>Zona:</strong> ${escaparHtml(zonaConfirmada)}</li>`
+    : "";
   const texto =
     `Hola ${nombre},\n\n` +
     `Tu reserva está confirmada.\n\n` +
@@ -1503,7 +1565,9 @@ async function enviarCorreoConfirmacionReserva({
     `Localizador: ${localizador}\n` +
     `Fecha: ${fechaLarga}\n` +
     `Hora: ${hora}\n` +
-    `Personas: ${personas}\n\n` +
+    `Personas: ${personas}\n` +
+    lineaZonaTexto +
+    `\n` +
     `Puedes consultar, modificar o cancelar tu reserva aquí:\n${enlaceGestion}\n`;
   const html = `
     <p>Hola ${escaparHtml(nombre)},</p>
@@ -1514,6 +1578,7 @@ async function enviarCorreoConfirmacionReserva({
       <li><strong>Fecha:</strong> ${escaparHtml(fechaLarga)}</li>
       <li><strong>Hora:</strong> ${escaparHtml(hora)}</li>
       <li><strong>Personas:</strong> ${escaparHtml(personas)}</li>
+      ${lineaZonaHtml}
     </ul>
     <p>
       <a href="${escaparHtml(enlaceGestion)}">
@@ -1922,7 +1987,8 @@ module.exports = async (req, res) => {
       confirmar_afectadas,
       fecha_desde,
       registro_espera_id,
-      estado_espera
+      estado_espera,
+      zona_preferida
     } = body;
     const mensajeIncluido = Object.prototype.hasOwnProperty.call(
       body,
@@ -2834,6 +2900,48 @@ module.exports = async (req, res) => {
       });
     }
 
+    let zonaReserva = null;
+    let zonasActivas = [];
+
+    if (ACCIONES_ZONA_CLIENTE.has(accion)) {
+      zonasActivas = await obtenerZonasActivasRestaurante(restaurante.id);
+
+      if (zonasActivas.length > 0) {
+        zonaReserva = resolverZonaPreferida(zonasActivas, zona_preferida);
+
+        if (!zonaReserva) {
+          const zonasDisponibles = resumirZonas(zonasActivas);
+          const respuestaZona = {
+            ok: true,
+            disponible: false,
+            requiere_zona: true,
+            zonas_disponibles: zonasDisponibles,
+            motivo: zona_preferida
+              ? "La zona indicada no está disponible en este restaurante."
+              : "Selecciona una zona antes de comprobar la disponibilidad."
+          };
+
+          if (accion === "reservar") {
+            respuestaZona.reservado = false;
+          }
+
+          if (accion === "lista_espera_crear") {
+            respuestaZona.lista_espera_creada = false;
+          }
+
+          return responder(res, 200, respuestaZona);
+        }
+      } else if (zona_preferida) {
+        return responder(res, 200, {
+          ok: true,
+          disponible: false,
+          requiere_zona: false,
+          zonas_disponibles: [],
+          motivo: "Este restaurante no tiene zonas configuradas."
+        });
+      }
+    }
+
 const margenCapacidad =
 Number(restaurante.fields.margen_capacidad || 0);
 
@@ -2847,9 +2955,14 @@ const prefijoReserva = normalizarPrefijoReserva(
   restaurante.fields.prefijo_reserva
 );
 
+    const camposHorarioReserva = camposHorarioParaZona(
+      restaurante.fields,
+      zonaReserva
+    );
+
     const validacionHorario =
       validarHorarioRestaurante(
-        restaurante.fields,
+        camposHorarioReserva,
         fecha,
         hora
       );
@@ -2865,7 +2978,9 @@ const prefijoReserva = normalizarPrefijoReserva(
           margenCapacidad,
           duracionReservaMinutos,
           intervaloMinutos,
-          restaurante.fields
+          camposHorarioReserva,
+          null,
+          zonaReserva?.id || null
         )
         : [];
 
@@ -2875,6 +2990,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           reservado: false,
           disponible: false,
           alternativas,
+          zona: nombreZona(zonaReserva),
           motivo: validacionHorario.motivo,
           cambio_requerido: validacionHorario.cambioRequerido
         });
@@ -2884,6 +3000,7 @@ const prefijoReserva = normalizarPrefijoReserva(
         ok: true,
         disponible: false,
         alternativas,
+        zona: nombreZona(zonaReserva),
         motivo: validacionHorario.motivo,
         cambio_requerido: validacionHorario.cambioRequerido
       });
@@ -2939,7 +3056,8 @@ const prefijoReserva = normalizarPrefijoReserva(
         restaurante_id,
         restaurante.id,
         numeroPersonas,
-        margenCapacidad
+        margenCapacidad,
+        zonaReserva?.id || null
       );
 
       if (!hayAsignacionCompatible) {
@@ -2948,6 +3066,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           lista_espera_creada: false,
           requiere_contacto_restaurante: true,
           telefono_restaurante: obtenerTelefonoRestaurante(restaurante),
+          zona: nombreZona(zonaReserva),
           motivo:
             "No existe una mesa o combinación automática adecuada para ese número de personas."
         });
@@ -2960,7 +3079,10 @@ const prefijoReserva = normalizarPrefijoReserva(
         hora,
         numeroPersonas,
         margenCapacidad,
-        duracionReservaMinutos
+        duracionReservaMinutos,
+        null,
+        false,
+        zonaReserva?.id || null
       );
 
       if (asignacionDisponible) {
@@ -2968,6 +3090,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           ok: true,
           lista_espera_creada: false,
           disponible_ahora: true,
+          zona: nombreZona(zonaReserva),
           motivo: "Se acaba de liberar una mesa adecuada."
         });
       }
@@ -2996,8 +3119,13 @@ const prefijoReserva = normalizarPrefijoReserva(
             .toLowerCase() === emailEspera;
           const mismoTelefono = String(solicitud.fields.telefono || "")
             .replace(/\D/g, "") === telefonoComparable;
+          const mismaZona = !zonaReserva || zonaCoincide(
+            solicitud.fields.zona_preferida,
+            { nombre: nombreZona(zonaReserva) }
+          );
 
           return restaurantes.includes(restaurante.id) &&
+            mismaZona &&
             (mismoEmail || mismoTelefono);
         }
       );
@@ -3007,6 +3135,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           ok: true,
           lista_espera_creada: true,
           ya_existia: true,
+          zona: nombreZona(zonaReserva),
           id_espera: solicitudExistente.fields.id_espera || ""
         });
       }
@@ -3027,7 +3156,10 @@ const prefijoReserva = normalizarPrefijoReserva(
               nombre_completo: nombreEspera,
               telefono: telefonoEspera,
               email: emailEspera,
-              observaciones: normalizarObservaciones(mensaje),
+              ...(zonaReserva
+                ? { zona_preferida: nombreZona(zonaReserva) }
+                : {}),
+              observaciones: observacionesConZona(mensaje, zonaReserva),
               estado: "pendiente",
               ...crearMetadatosPrivacidadListaEspera({
                 fecha,
@@ -3042,6 +3174,7 @@ const prefijoReserva = normalizarPrefijoReserva(
       return responder(res, 200, {
         ok: true,
         lista_espera_creada: true,
+        zona: nombreZona(zonaReserva),
         id_espera: idEspera,
         airtable_record_id: solicitudCreada.id
       });
@@ -3062,7 +3195,10 @@ await buscarAsignacionDisponible(
   hora,
   numeroPersonas,
   margenCapacidad,
-  duracionReservaMinutos
+  duracionReservaMinutos,
+  null,
+  false,
+  zonaReserva?.id || null
 );
 
 
@@ -3071,7 +3207,8 @@ await buscarAsignacionDisponible(
           restaurante_id,
           restaurante.id,
           numeroPersonas,
-          margenCapacidad
+          margenCapacidad,
+          zonaReserva?.id || null
         );
         const alternativas = hayAsignacionCompatible
           ? await buscarHorariosAlternativos(
@@ -3083,7 +3220,9 @@ await buscarAsignacionDisponible(
             margenCapacidad,
             duracionReservaMinutos,
             intervaloMinutos,
-            restaurante.fields
+            camposHorarioReserva,
+            null,
+            zonaReserva?.id || null
           )
           : [];
 
@@ -3095,6 +3234,7 @@ await buscarAsignacionDisponible(
           telefono_restaurante: !hayAsignacionCompatible
             ? obtenerTelefonoRestaurante(restaurante)
             : "",
+          zona: nombreZona(zonaReserva),
           motivo:
             hayAsignacionCompatible
               ? "No hay una mesa disponible con capacidad suficiente."
@@ -3106,6 +3246,7 @@ await buscarAsignacionDisponible(
       return responder(res, 200, {
         ok: true,
         disponible: true,
+        zona: nombreZona(zonaReserva),
 
         mesa: {
           id: mesaLibre.ids[0],
@@ -3826,7 +3967,10 @@ await buscarAsignacionDisponible(
           hora,
           numeroPersonas,
           margenCapacidad,
-          duracionReservaMinutos
+          duracionReservaMinutos,
+          null,
+          false,
+          esReservaPanel ? null : zonaReserva?.id || null
         );
       }
 
@@ -3841,7 +3985,9 @@ await buscarAsignacionDisponible(
           margenCapacidad,
           duracionReservaMinutos,
           intervaloMinutos,
-          restaurante.fields
+          camposHorarioReserva,
+          null,
+          esReservaPanel ? null : zonaReserva?.id || null
         );
 
         return responder(res, 200, {
@@ -3899,7 +4045,7 @@ await buscarAsignacionDisponible(
 
           ...(email ? { email: email } : {}),
 
-          mensaje: normalizarObservaciones(mensaje),
+          mensaje: observacionesConZona(mensaje, zonaReserva),
 
           estado: "pendiente",
 
@@ -4014,6 +4160,7 @@ await buscarAsignacionDisponible(
           fecha,
           hora,
           personas: numeroPersonas,
+          zona: nombreZona(zonaReserva),
           localizador: idReserva,
           enlaceGestion
         }),
@@ -4028,7 +4175,7 @@ await buscarAsignacionDisponible(
           nombreCliente: nombre,
           emailCliente: email,
           telefonoCliente: telefono,
-          observaciones: mensaje,
+          observaciones: observacionesConZona(mensaje, zonaReserva),
           enlaceGestion: generarEnlacePanelRestaurante(fecha, restaurante_id)
         })
       ]);
@@ -4053,6 +4200,8 @@ await buscarAsignacionDisponible(
         correo_restaurante_enviado: correoRestauranteEnviado,
 
         lista_espera_convertida: listaEsperaConvertida,
+
+        zona: nombreZona(zonaReserva),
 
         airtable_record_id:
           reservaCreada.id,
@@ -4095,8 +4244,13 @@ await buscarAsignacionDisponible(
 
 
 module.exports._seguridad = {
+  camposHorarioParaZona,
   generarEnlaceGestion,
-  generarIdReserva
+  generarIdReserva,
+  nombreZona,
+  observacionesConZona,
+  resolverZonaPreferida,
+  validarHorarioRestaurante
 };
 
 

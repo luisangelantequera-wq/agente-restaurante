@@ -17,7 +17,8 @@ const rutaRestaurante = window.ContactiaRutaPublica.analizarRutaRestaurante(
 let restauranteActivo = {
   id: null,
   nombre: "Contactia",
-  slug_publico: rutaRestaurante.slug_publico
+  slug_publico: rutaRestaurante.slug_publico,
+  zonas: []
 };
 
 
@@ -41,6 +42,7 @@ let datosReserva = {
   nombre: "",
   email: "",
   telefono: "",
+  zona_preferida: "",
   observaciones: ""
 };
 
@@ -49,6 +51,7 @@ let reservaGestion = null;
 let reservaGestionOriginal = null;
 let solicitudEspera = null;
 let datosListaEspera = null;
+const observadoresMensajes = new Set();
 
 
 function obtenerTokenGestionInicial() {
@@ -121,6 +124,10 @@ function agregarMensaje(texto, tipo) {
 
   chatBox.appendChild(mensaje);
   chatBox.scrollTop = chatBox.scrollHeight;
+
+  for (const observador of observadoresMensajes) {
+    observador(texto, tipo);
+  }
 }
 
 
@@ -175,6 +182,36 @@ function aplicarRestauranteActivo(restaurante) {
   datosReserva.slug_publico = restaurante.slug_publico;
   restaurantName.textContent = `🍽️ ${restaurante.nombre}`;
   document.title = `${restaurante.nombre} - Asistente de Reservas`;
+}
+
+
+function zonasRestauranteActivo() {
+  return Array.isArray(restauranteActivo.zonas)
+    ? restauranteActivo.zonas
+    : [];
+}
+
+
+function nombresZonasDisponibles() {
+  return zonasRestauranteActivo()
+    .map((zona) => zona.nombre)
+    .filter(Boolean);
+}
+
+
+function preguntarZonaSiNecesaria() {
+  const zonas = nombresZonasDisponibles();
+
+  if (zonas.length === 0 || datosReserva.zona_preferida) {
+    return false;
+  }
+
+  paso = "zona";
+  agregarMensaje(
+    `¿En qué zona prefieres la mesa? Opciones: ${zonas.join(", ")}.`,
+    "bot"
+  );
+  return true;
 }
 
 
@@ -281,7 +318,11 @@ function extraerDatosIniciales(texto) {
   return {
     personas: extraerPersonas(texto),
     fecha: extraerFecha(texto),
-    hora: extraerHora(texto)
+    hora: extraerHora(texto),
+    zona_preferida: window.ContactiaZonas.extraerZonaPreferida(
+      texto,
+      zonasRestauranteActivo()
+    )
   };
 }
 
@@ -344,7 +385,8 @@ async function comprobarDisponibilidad() {
         restaurante_id: datosReserva.restaurante_id,
         personas: datosReserva.personas,
         fecha: datosReserva.fecha,
-        hora: datosReserva.hora
+        hora: datosReserva.hora,
+        zona_preferida: datosReserva.zona_preferida
       })
     });
 
@@ -364,10 +406,28 @@ async function comprobarDisponibilidad() {
       return;
     }
 
+    if (data.requiere_zona) {
+      datosReserva.zona_preferida = "";
+      const zonas = Array.isArray(data.zonas_disponibles)
+        ? data.zonas_disponibles
+        : nombresZonasDisponibles();
+      paso = "zona";
+      agregarMensaje(
+        `${data.motivo || "Selecciona una zona."} Opciones: ${zonas.join(", ")}.`,
+        "bot"
+      );
+      return;
+    }
+
     if (data.disponible) {
       solicitudEspera = null;
+      const detalleZona = datosReserva.zona_preferida
+        ? ` en ${datosReserva.zona_preferida}`
+        : "";
       agregarMensaje(
-        `¡Sí! Tenemos disponibilidad para ${datosReserva.personas} personas el ${mostrarFecha(datosReserva.fecha)} a las ${datosReserva.hora}.`,
+        `¡Sí! Tenemos disponibilidad para ${datosReserva.personas} personas` +
+        `${detalleZona}, el ` +
+        `${mostrarFecha(datosReserva.fecha)} a las ${datosReserva.hora}.`,
         "bot"
       );
 
@@ -423,7 +483,8 @@ async function comprobarDisponibilidad() {
       restaurante_id: datosReserva.restaurante_id,
       personas: datosReserva.personas,
       fecha: datosReserva.fecha,
-      hora: datosReserva.hora
+      hora: datosReserva.hora,
+      zona_preferida: datosReserva.zona_preferida
     };
 
     if (alternativas.length > 0) {
@@ -473,6 +534,9 @@ async function comprobarDisponibilidad() {
 
 function mostrarConfirmacionNuevaReserva() {
   paso = "confirmacion";
+  const lineaZona = datosReserva.zona_preferida
+    ? `📍 Zona: ${datosReserva.zona_preferida}\n`
+    : "";
   const lineaObservaciones = datosReserva.observaciones
     ? `📝 Observaciones: ${datosReserva.observaciones}\n`
     : "";
@@ -482,6 +546,7 @@ function mostrarConfirmacionNuevaReserva() {
     `📅 Fecha: ${mostrarFecha(datosReserva.fecha)}\n` +
     `🕒 Hora: ${datosReserva.hora}\n` +
     `👥 Personas: ${datosReserva.personas}\n` +
+    lineaZona +
     `🧑 Nombre: ${datosReserva.nombre}\n` +
     `📧 Email: ${datosReserva.email}\n` +
     `📱 Teléfono: ${datosReserva.telefono}\n` +
@@ -511,6 +576,9 @@ function iniciarListaEspera() {
 
 function mostrarConfirmacionListaEspera() {
   paso = "confirmacion_espera";
+  const lineaZona = datosListaEspera.zona_preferida
+    ? `📍 Zona: ${datosListaEspera.zona_preferida}\n`
+    : "";
   const lineaObservaciones = datosListaEspera.observaciones
     ? `📝 Observaciones: ${datosListaEspera.observaciones}\n`
     : "";
@@ -520,6 +588,7 @@ function mostrarConfirmacionListaEspera() {
     `📅 Fecha: ${mostrarFecha(datosListaEspera.fecha)}\n` +
     `🕒 Hora solicitada: ${datosListaEspera.hora}\n` +
     `👥 Personas: ${datosListaEspera.personas}\n` +
+    lineaZona +
     `🧑 Nombre: ${datosListaEspera.nombre}\n` +
     `📧 Email: ${datosListaEspera.email}\n` +
     `📱 Teléfono: ${datosListaEspera.telefono}\n` +
@@ -549,6 +618,7 @@ async function crearListaEspera() {
         nombre: datosListaEspera.nombre,
         email: datosListaEspera.email,
         telefono: datosListaEspera.telefono,
+        zona_preferida: datosListaEspera.zona_preferida,
         mensaje: datosListaEspera.observaciones
       })
     });
@@ -631,6 +701,7 @@ async function crearReserva() {
         nombre: datosReserva.nombre,
         email: datosReserva.email,
         telefono: datosReserva.telefono,
+        zona_preferida: datosReserva.zona_preferida,
         mensaje: datosReserva.observaciones
       })
     });
@@ -670,7 +741,11 @@ async function crearReserva() {
       tokenGestionActivo = data.token_gestion || "";
       localizadorGestion = data.id_reserva;
       agregarMensaje(
-        `✅ Reserva confirmada.\n\nTu localizador es: ${data.id_reserva}\n\nFecha: ${mostrarFecha(datosReserva.fecha)}\nHora: ${datosReserva.hora}\nPersonas: ${datosReserva.personas}\nNombre: ${datosReserva.nombre}` +
+        `✅ Reserva confirmada.\n\nTu localizador es: ${data.id_reserva}\n\nFecha: ${mostrarFecha(datosReserva.fecha)}\nHora: ${datosReserva.hora}\nPersonas: ${datosReserva.personas}` +
+        (datosReserva.zona_preferida
+          ? `\nZona: ${datosReserva.zona_preferida}`
+          : "") +
+        `\nNombre: ${datosReserva.nombre}` +
         (data.enlace_gestion
           ? `\n\nEnlace para consultar, modificar o cancelar:\n${data.enlace_gestion}`
           : ""),
@@ -1184,6 +1259,7 @@ async function procesarMensaje(texto) {
       datosReserva.personas = datosIniciales.personas;
       datosReserva.fecha = datosIniciales.fecha || "";
       datosReserva.hora = datosIniciales.hora || "";
+      datosReserva.zona_preferida = datosIniciales.zona_preferida || "";
 
       if (!datosReserva.personas) {
         paso = "personas";
@@ -1215,6 +1291,10 @@ async function procesarMensaje(texto) {
           "bot"
         );
 
+        return;
+      }
+
+      if (preguntarZonaSiNecesaria()) {
         return;
       }
 
@@ -1263,6 +1343,10 @@ async function procesarMensaje(texto) {
       datosReserva.hora = datosAdelantados.hora;
     }
 
+    if (datosAdelantados.zona_preferida) {
+      datosReserva.zona_preferida = datosAdelantados.zona_preferida;
+    }
+
     if (!datosReserva.fecha) {
       paso = "fecha";
 
@@ -1282,6 +1366,10 @@ async function procesarMensaje(texto) {
         "bot"
       );
 
+      return;
+    }
+
+    if (preguntarZonaSiNecesaria()) {
       return;
     }
 
@@ -1307,12 +1395,21 @@ async function procesarMensaje(texto) {
 
     datosReserva.fecha = fechaExtraida;
 
-    paso = "hora";
+    if (!datosReserva.hora) {
+      paso = "hora";
+      agregarMensaje(
+        "¿A qué hora deseas reservar? Por ejemplo: 14:00.",
+        "bot"
+      );
+      return;
+    }
 
-    agregarMensaje(
-      "¿A qué hora deseas reservar? Por ejemplo: 14:00.",
-      "bot"
-    );
+    if (preguntarZonaSiNecesaria()) {
+      return;
+    }
+
+    paso = "comprobando";
+    await comprobarDisponibilidad();
 
     return;
   }
@@ -1325,7 +1422,8 @@ async function procesarMensaje(texto) {
     if (
       !correcciones.hora &&
       !correcciones.fecha &&
-      !correcciones.personas
+      !correcciones.personas &&
+      !correcciones.zona_preferida
     ) {
       agregarMensaje(
         "No he podido identificar el cambio. Puedes indicarme otra hora, otro día o un número diferente de personas.",
@@ -1347,6 +1445,10 @@ async function procesarMensaje(texto) {
       datosReserva.personas = correcciones.personas;
     }
 
+    if (correcciones.zona_preferida) {
+      datosReserva.zona_preferida = correcciones.zona_preferida;
+    }
+
     if (!datosReserva.fecha) {
       paso = "fecha";
       agregarMensaje(
@@ -1364,8 +1466,34 @@ async function procesarMensaje(texto) {
       return;
     }
 
+    if (preguntarZonaSiNecesaria()) {
+      return;
+    }
+
     await comprobarDisponibilidad();
 
+    return;
+  }
+
+
+  // ZONA
+  if (paso === "zona") {
+    const zona = window.ContactiaZonas.extraerZonaPreferida(
+      mensaje,
+      zonasRestauranteActivo()
+    );
+
+    if (!zona) {
+      agregarMensaje(
+        `No he reconocido la zona. Opciones: ${nombresZonasDisponibles().join(", ")}.`,
+        "bot"
+      );
+      return;
+    }
+
+    datosReserva.zona_preferida = zona;
+    paso = "comprobando";
+    await comprobarDisponibilidad();
     return;
   }
 
@@ -1532,6 +1660,56 @@ async function procesarMensaje(texto) {
 }
 
 
+function prepararRespuestaParaVoz(texto) {
+  return String(texto || "")
+    .replace(
+      /\n+Enlace para consultar, modificar o cancelar:\nhttps?:\/\/\S+/gi,
+      "\nEl enlace de gestión aparece en pantalla y se ha enviado por correo."
+    )
+    .replace(/https?:\/\/\S+/gi, "el enlace que aparece en pantalla")
+    .trim();
+}
+
+
+async function procesarTurnoVoz(texto) {
+  const mensaje = String(texto || "").trim();
+
+  if (!mensaje || mensaje.length > 1000) {
+    return {
+      ok: false,
+      respuesta: "No he entendido el mensaje. Repítelo de forma más breve."
+    };
+  }
+
+  const respuestas = [];
+  const observar = (contenido, tipo) => {
+    if (tipo === "bot") {
+      respuestas.push(prepararRespuestaParaVoz(contenido));
+    }
+  };
+
+  observadoresMensajes.add(observar);
+
+  try {
+    await procesarMensaje(mensaje);
+  } finally {
+    observadoresMensajes.delete(observar);
+  }
+
+  return {
+    ok: true,
+    respuesta: respuestas.filter(Boolean).join("\n\n") ||
+      "Te escucho. Continúa, por favor.",
+    paso
+  };
+}
+
+
+window.ContactiaVozBridge = {
+  procesarTurno: procesarTurnoVoz
+};
+
+
 // 1️⃣1️⃣ REINICIAR
 function reiniciarReserva() {
   paso = "inicio";
@@ -1550,6 +1728,7 @@ function reiniciarReserva() {
     nombre: "",
     email: "",
     telefono: "",
+    zona_preferida: "",
     observaciones: ""
   };
 }
@@ -1612,6 +1791,12 @@ window.addEventListener(
 
     input.disabled = false;
     sendButton.disabled = false;
+
+    window.dispatchEvent(new CustomEvent("contactia:restaurante-listo", {
+      detail: {
+        slug_publico: restauranteActivo.slug_publico
+      }
+    }));
 
     agregarMensaje(
       "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar, consultar, modificar o cancelar una reserva?",

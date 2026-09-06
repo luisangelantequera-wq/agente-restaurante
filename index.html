@@ -33,6 +33,21 @@
 
     <div id="chat-box"></div>
 
+    <section id="voice-panel" aria-label="Prototipo de voz" hidden>
+      <div class="voice-controls">
+        <button id="voice-toggle" type="button" aria-pressed="false">
+          🎙️ Iniciar voz
+        </button>
+        <span id="voice-status" role="status" aria-live="polite">
+          Micrófono apagado
+        </span>
+      </div>
+      <p>
+        Prototipo de Preview. El audio se procesa con OpenAI; utiliza datos
+        ficticios durante las pruebas.
+      </p>
+    </section>
+
 
     <!-- =================================================== -->
     <!-- 3️⃣ ZONA PARA ESCRIBIR                              -->
@@ -64,9 +79,11 @@
   <!-- ===================================================== -->
 
   <script src="/lib/ruta-publica.js"></script>
+  <script src="/lib/zona-reserva.js"></script>
   <script src="/lib/restaurante-publico.js"></script>
   <script src="/lib/fecha-conversacional.js"></script>
   <script src="/script.js"></script>
+  <script src="/voz.js"></script>
 
 </body>
 

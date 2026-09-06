@@ -51,7 +51,8 @@ test("valida y normaliza únicamente la identidad pública", () => {
   }, "restaurante-luna"), {
     id: 2,
     nombre: "Restaurante Luna",
-    slug_publico: "restaurante-luna"
+    slug_publico: "restaurante-luna",
+    zonas: []
   });
 });
 
@@ -59,11 +60,31 @@ test("valida y normaliza únicamente la identidad pública", () => {
 test("devuelve el restaurante activo correspondiente al slug", async () => {
   const fetchOriginal = global.fetch;
   const baseAnterior = process.env.AIRTABLE_BASE_ID;
-  let urlConsultada;
+  const urlsConsultadas = [];
 
   process.env.AIRTABLE_BASE_ID = "appBaseDePrueba";
   global.fetch = async (url) => {
-    urlConsultada = new URL(url);
+    const urlConsultada = new URL(url);
+    urlsConsultadas.push(urlConsultada);
+
+    if (urlConsultada.pathname.endsWith("/ZONA")) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          records: [{
+            id: "recZonaLunaTerraza",
+            fields: {
+              id_zona: "LUNA-TERRAZA",
+              nombre: "Terraza",
+              estado: "activo",
+              restaurante: ["recRestauranteLuna"]
+            }
+          }]
+        })
+      };
+    }
+
     return {
       ok: true,
       status: 200,
@@ -93,16 +114,27 @@ test("devuelve el restaurante activo correspondiente al slug", async () => {
       restaurante: {
         id: 2,
         nombre: "Restaurante Luna",
-        slug_publico: "restaurante-luna"
+        slug_publico: "restaurante-luna",
+        zonas: [{ nombre: "Terraza" }]
       }
     });
+    const urlRestaurante = urlsConsultadas.find((url) =>
+      url.pathname.endsWith("/RESTAURANTES")
+    );
+    const urlZonas = urlsConsultadas.find((url) =>
+      url.pathname.endsWith("/ZONA")
+    );
     assert.match(
-      urlConsultada.searchParams.get("filterByFormula"),
+      urlRestaurante.searchParams.get("filterByFormula"),
       /restaurante-luna/
     );
     assert.deepEqual(
-      urlConsultada.searchParams.getAll("fields[]"),
+      urlRestaurante.searchParams.getAll("fields[]"),
       ["id", "nombre", "slug_publico", "estado"]
+    );
+    assert.deepEqual(
+      urlZonas.searchParams.getAll("fields[]"),
+      ["id_zona", "nombre", "zona", "estado", "restaurante"]
     );
   } finally {
     global.fetch = fetchOriginal;

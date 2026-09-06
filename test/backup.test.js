@@ -46,7 +46,16 @@ test("la copia excluye datos personales y secretos", () => {
         fecha: "2026-09-01",
         hora: "14:00",
         personas: 2,
-        estado: "pendiente"
+        estado: "pendiente",
+        zona_preferida: "TERRAZA"
+      }
+    }],
+    ZONA: [{
+      id: "recZona0000000001",
+      fields: {
+        id_zona: "SOL-TERRAZA",
+        nombre: "TERRAZA",
+        horario_reservas: "{\"viernes\":[\"20:00-23:00\"]}"
       }
     }]
   }, "2026-08-28T20:00:00.000Z");
@@ -55,6 +64,14 @@ test("la copia excluye datos personales y secretos", () => {
   assert.equal(copia.contiene_datos_personales_clientes, false);
   assert.equal(copia.tablas.RESERVAS[0].fields.fecha, "2026-09-01");
   assert.equal(copia.tablas.RESERVAS[0].fields.personas, 3);
+  assert.equal(
+    copia.tablas.LISTA_ESPERA[0].fields.zona_preferida,
+    "TERRAZA"
+  );
+  assert.equal(
+    copia.tablas.ZONA[0].fields.horario_reservas,
+    "{\"viernes\":[\"20:00-23:00\"]}"
+  );
   assert.equal(copiaContieneCamposProhibidos(copia), false);
   assert.doesNotMatch(
     texto,

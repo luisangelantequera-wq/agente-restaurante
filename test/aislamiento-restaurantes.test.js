@@ -143,7 +143,13 @@ test("las URLs públicas de Sol y Luna resuelven identidades distintas", async (
   const fetchOriginal = global.fetch;
 
   global.fetch = async (url) => {
-    const formula = new URL(url).searchParams.get("filterByFormula");
+    const urlAirtable = new URL(url);
+    const formula = urlAirtable.searchParams.get("filterByFormula") || "";
+
+    if (urlAirtable.pathname.endsWith("/ZONA")) {
+      return respuestaAirtable({ records: [] });
+    }
+
     const esSol = formula.includes("{slug_publico}='restaurante-sol'");
     const esLuna = formula.includes("{slug_publico}='restaurante-luna'");
     const records = esSol
@@ -186,12 +192,14 @@ test("las URLs públicas de Sol y Luna resuelven identidades distintas", async (
     assert.deepEqual(sol.body.restaurante, {
       id: 1,
       nombre: "Restaurante Sol",
-      slug_publico: "restaurante-sol"
+      slug_publico: "restaurante-sol",
+      zonas: []
     });
     assert.deepEqual(luna.body.restaurante, {
       id: 2,
       nombre: "Restaurante Luna",
-      slug_publico: "restaurante-luna"
+      slug_publico: "restaurante-luna",
+      zonas: []
     });
     assert.notEqual(sol.body.restaurante.id, luna.body.restaurante.id);
   } finally {

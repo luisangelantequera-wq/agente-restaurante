@@ -162,6 +162,59 @@ body {
 
 /* 6️⃣ ZONA DE ESCRITURA */
 
+#voice-panel {
+  flex-shrink: 0;
+  padding: 11px 13px;
+  background: #fffaf0;
+  border-top: 1px solid #f0dfae;
+}
+
+#voice-panel[hidden] {
+  display: none;
+}
+
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#voice-toggle {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 700;
+  color: #4b3500;
+  background: #ffd65c;
+  border: 1px solid #dba619;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+#voice-toggle[aria-pressed="true"] {
+  color: #ffffff;
+  background: #b3261e;
+  border-color: #8f1f19;
+}
+
+#voice-toggle:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+#voice-status {
+  font-size: 14px;
+  font-weight: 600;
+  color: #624d16;
+}
+
+#voice-panel p {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #6b6250;
+}
+
 #chat-input {
   flex-shrink: 0;
 
@@ -310,6 +363,10 @@ body {
   }
 
   #chat-input {
+    padding: 10px;
+  }
+
+  #voice-panel {
     padding: 10px;
   }
 
