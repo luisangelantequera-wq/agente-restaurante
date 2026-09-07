@@ -964,7 +964,7 @@ function repetirPreguntaPendiente() {
 }
 
 
-async function atenderPreguntaInformativa(mensaje) {
+async function atenderPreguntaInformativa(mensaje, opciones = {}) {
   if (
     !restauranteActivo.id ||
     !window.ContactiaConocimiento?.esPreguntaInformativa(mensaje) ||
@@ -1005,6 +1005,14 @@ async function atenderPreguntaInformativa(mensaje) {
       return false;
     }
 
+    if (opciones.origen === "voz") {
+      agregarMensaje(
+        "Perdona, no te he entendido. ¿Puedes repetir la pregunta?",
+        "bot"
+      );
+      return true;
+    }
+
     const telefono = telefonoParaEnlace(datos.telefono_restaurante);
     const contacto = telefono
       ? ` Puedes consultarlo directamente con el restaurante: tel:${telefono}`
@@ -1029,7 +1037,7 @@ async function atenderPreguntaInformativa(mensaje) {
 
 
 // 🔟 PROCESAR MENSAJES
-async function procesarMensaje(texto) {
+async function procesarMensaje(texto, opciones = {}) {
   const mensaje = texto.trim();
 
   if (!mensaje) {
@@ -1038,7 +1046,7 @@ async function procesarMensaje(texto) {
 
   agregarMensaje(mensaje, "user");
 
-  if (await atenderPreguntaInformativa(mensaje)) {
+  if (await atenderPreguntaInformativa(mensaje, opciones)) {
     return;
   }
 
@@ -1837,7 +1845,7 @@ async function procesarTurnoVoz(texto) {
   observadoresMensajes.add(observar);
 
   try {
-    await procesarMensaje(mensaje);
+    await procesarMensaje(mensaje, { origen: "voz" });
   } finally {
     observadoresMensajes.delete(observar);
   }

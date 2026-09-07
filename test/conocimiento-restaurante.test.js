@@ -170,7 +170,12 @@ test("la interfaz responde la pregunta y retoma el paso pendiente", () => {
     html.indexOf('src="/lib/conocimiento-restaurante.js"') <
       html.indexOf('src="/script.js"')
   );
-  assert.match(script, /await atenderPreguntaInformativa\(mensaje\)/);
+  assert.match(script, /await atenderPreguntaInformativa\(mensaje, opciones\)/);
   assert.match(script, /repetirPreguntaPendiente\(\)/);
   assert.match(script, /No dispongo todavía de una respuesta aprobada/);
+  assert.match(
+    script,
+    /Perdona, no te he entendido\. ¿Puedes repetir la pregunta\?/
+  );
+  assert.match(script, /procesarMensaje\(mensaje, \{ origen: "voz" \}\)/);
 });
