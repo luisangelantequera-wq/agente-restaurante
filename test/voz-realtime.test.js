@@ -91,9 +91,11 @@ test("la sesión usa el mejor modelo, VAD semántico y herramienta obligatoria",
 
   assert.equal(sesion.model, MODELO_REALTIME_PREDETERMINADO);
   assert.equal(sesion.model, "gpt-realtime-2.1");
+  assert.equal(sesion.reasoning.effort, "low");
   assert.deepEqual(sesion.output_modalities, ["audio"]);
   assert.equal(sesion.audio.output.voice, "marin");
   assert.equal(sesion.audio.input.turn_detection.type, "semantic_vad");
+  assert.equal(sesion.audio.input.turn_detection.eagerness, "medium");
   assert.equal(sesion.tool_choice, "required");
   assert.equal(sesion.tools[0].name, "procesar_turno_contactia");
 });
