@@ -44,6 +44,23 @@ test("acepta una hora breve solo después de haberla preguntado", () => {
 });
 
 
+test("repite al cliente la hora interpretada antes de continuar", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(
+    script,
+    /function anunciarHoraInterpretada\(hora\)[\s\S]*He entendido las \$\{hora\} horas\./
+  );
+  assert.match(
+    script,
+    /if \(datosAdelantados\.hora\)[\s\S]*anunciarHoraInterpretada\(datosReserva\.hora\)/
+  );
+});
+
+
 test("entiende respuestas breves sobre el número de personas", () => {
   for (const [entrada, esperado] of [
     ["Para 5.", 5],

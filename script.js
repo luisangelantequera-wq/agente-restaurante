@@ -147,6 +147,11 @@ function extraerHora(texto, permitirRespuestaBreve = false) {
 }
 
 
+function anunciarHoraInterpretada(hora) {
+  agregarMensaje(`He entendido las ${hora} horas.`, "bot");
+}
+
+
 function aplicarRestauranteActivo(restaurante) {
   restauranteActivo = restaurante;
   datosReserva.restaurante_id = restaurante.id;
@@ -1228,6 +1233,10 @@ async function procesarMensaje(texto) {
       datosReserva.hora = datosIniciales.hora || "";
       datosReserva.zona_preferida = datosIniciales.zona_preferida || "";
 
+      if (datosReserva.hora) {
+        anunciarHoraInterpretada(datosReserva.hora);
+      }
+
       if (!datosReserva.personas) {
         paso = "personas";
 
@@ -1308,6 +1317,7 @@ async function procesarMensaje(texto) {
 
     if (datosAdelantados.hora) {
       datosReserva.hora = datosAdelantados.hora;
+      anunciarHoraInterpretada(datosReserva.hora);
     }
 
     if (datosAdelantados.zona_preferida) {
@@ -1349,7 +1359,8 @@ async function procesarMensaje(texto) {
 
   // FECHA
   if (paso === "fecha") {
-    const fechaExtraida = extraerFecha(mensaje);
+    const datosAdelantados = extraerDatosIniciales(mensaje);
+    const fechaExtraida = datosAdelantados.fecha;
 
     if (!fechaExtraida) {
       agregarMensaje(
@@ -1361,6 +1372,15 @@ async function procesarMensaje(texto) {
     }
 
     datosReserva.fecha = fechaExtraida;
+
+    if (datosAdelantados.hora) {
+      datosReserva.hora = datosAdelantados.hora;
+      anunciarHoraInterpretada(datosReserva.hora);
+    }
+
+    if (datosAdelantados.zona_preferida) {
+      datosReserva.zona_preferida = datosAdelantados.zona_preferida;
+    }
 
     if (!datosReserva.hora) {
       paso = "hora";
@@ -1405,6 +1425,7 @@ async function procesarMensaje(texto) {
 
     if (correcciones.hora) {
       datosReserva.hora = correcciones.hora;
+      anunciarHoraInterpretada(datosReserva.hora);
     }
 
     if (correcciones.fecha) {
@@ -1573,6 +1594,9 @@ async function procesarMensaje(texto) {
         datosReserva,
         correcciones
       );
+      if (correcciones.hora) {
+        anunciarHoraInterpretada(datosReserva.hora);
+      }
       paso = "comprobando";
       await comprobarDisponibilidad();
       return;
