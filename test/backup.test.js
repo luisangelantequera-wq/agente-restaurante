@@ -57,6 +57,19 @@ test("la copia excluye datos personales y secretos", () => {
         nombre: "TERRAZA",
         horario_reservas: "{\"viernes\":[\"20:00-23:00\"]}"
       }
+    }],
+    CONOCIMIENTO_RESTAURANTE: [{
+      id: "recConocimiento01",
+      fields: {
+        id_conocimiento: "SOL-TERRAZA-001",
+        restaurante: ["recRestaurante001"],
+        tema: "terraza",
+        preguntas: "¿Tenéis terraza?",
+        palabras_clave: "terraza, exterior",
+        respuesta: "Sí, disponemos de terraza.",
+        prioridad: 100,
+        estado: "Activo"
+      }
     }]
   }, "2026-08-28T20:00:00.000Z");
   const texto = JSON.stringify(copia);
@@ -71,6 +84,10 @@ test("la copia excluye datos personales y secretos", () => {
   assert.equal(
     copia.tablas.ZONA[0].fields.horario_reservas,
     "{\"viernes\":[\"20:00-23:00\"]}"
+  );
+  assert.equal(
+    copia.tablas.CONOCIMIENTO_RESTAURANTE[0].fields.respuesta,
+    "Sí, disponemos de terraza."
   );
   assert.equal(copiaContieneCamposProhibidos(copia), false);
   assert.doesNotMatch(

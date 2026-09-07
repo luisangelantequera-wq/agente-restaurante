@@ -888,6 +888,146 @@ function confirmarModificacion() {
 }
 
 
+function esIntencionOperativa(texto) {
+  return /\b(?:cancelar|consultar|modificar|reservar|reserva|mesa)\b/
+    .test(normalizarTexto(texto));
+}
+
+
+function repetirPreguntaPendiente() {
+  const preguntas = {
+    inicio: "¿Quieres reservar, consultar, modificar o cancelar una reserva?",
+    personas: "¿Para cuántas personas deseas reservar?",
+    fecha: "¿Qué día deseas reservar?",
+    hora: solicitudEspera
+      ? "¿Prefieres otra hora, otro día o que te añada a la lista de espera?"
+      : "¿A qué hora deseas reservar?",
+    nombre: "¿A nombre de quién hacemos la reserva?",
+    email: "¿Cuál es tu correo electrónico?",
+    telefono: "¿Cuál es tu número de teléfono móvil?",
+    observaciones:
+      "¿Quieres añadir alguna observación? Si no, responde: no.",
+    espera_nombre: "¿A nombre de quién te añadimos a la lista de espera?",
+    espera_email: "¿Cuál es tu correo electrónico?",
+    espera_telefono: "¿Cuál es tu número de teléfono móvil?",
+    espera_observaciones:
+      "¿Quieres añadir alguna observación para el restaurante? Si no, responde: no.",
+    modificar_fecha: "¿Qué nueva fecha quieres?",
+    modificar_hora: "¿A qué nueva hora quieres reservar?",
+    modificar_personas: "¿Para cuántas personas será finalmente?",
+    seleccion_modificacion:
+      "¿Quieres cambiar la fecha, la hora o el número de personas?",
+    localizador_consulta: "Indícame el localizador de tu reserva.",
+    localizador_cancelacion:
+      "Indícame el localizador de la reserva que quieres cancelar.",
+    localizador_modificacion:
+      "Indícame el localizador de la reserva que quieres modificar."
+  };
+
+  if (paso === "zona") {
+    agregarMensaje(
+      `¿En qué zona prefieres la mesa? Opciones: ${nombresZonasDisponibles().join(", ")}.`,
+      "bot"
+    );
+    return;
+  }
+
+  if (paso === "confirmacion") {
+    mostrarConfirmacionNuevaReserva();
+    return;
+  }
+
+  if (paso === "confirmacion_espera") {
+    mostrarConfirmacionListaEspera();
+    return;
+  }
+
+  if (paso === "confirmacion_modificacion") {
+    confirmarModificacion();
+    return;
+  }
+
+  if (paso === "confirmacion_cancelacion") {
+    agregarMensaje(
+      "Volvamos a tu solicitud. ¿Confirmas que quieres cancelar esta reserva? " +
+      "Di «Sí, confirmo la cancelación» o «No, no confirmo».",
+      "bot"
+    );
+    return;
+  }
+
+  const pregunta = preguntas[paso];
+
+  if (pregunta) {
+    agregarMensaje(`Volvamos a tu solicitud. ${pregunta}`, "bot");
+  }
+}
+
+
+async function atenderPreguntaInformativa(mensaje) {
+  if (
+    !restauranteActivo.id ||
+    !window.ContactiaConocimiento?.esPreguntaInformativa(mensaje) ||
+    [
+      "comprobando",
+      "procesando",
+      "procesando_cancelacion",
+      "procesando_espera",
+      "procesando_modificacion",
+      "finalizado"
+    ].includes(paso)
+  ) {
+    return false;
+  }
+
+  try {
+    const respuesta = await fetch("/api/informacion-restaurante", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        restaurante_id: restauranteActivo.id,
+        pregunta: mensaje
+      })
+    });
+    const datos = await respuesta.json();
+
+    if (!respuesta.ok || datos.ok === false) {
+      throw new Error("No se pudo consultar la información del restaurante.");
+    }
+
+    if (datos.encontrada && datos.respuesta) {
+      agregarMensaje(datos.respuesta, "bot");
+      repetirPreguntaPendiente();
+      return true;
+    }
+
+    if (esIntencionOperativa(mensaje)) {
+      return false;
+    }
+
+    const telefono = telefonoParaEnlace(datos.telefono_restaurante);
+    const contacto = telefono
+      ? ` Puedes consultarlo directamente con el restaurante: tel:${telefono}`
+      : " Puedes consultarlo directamente con el restaurante.";
+
+    agregarMensaje(
+      `No dispongo todavía de una respuesta aprobada para esa pregunta.${contacto}`,
+      "bot"
+    );
+    repetirPreguntaPendiente();
+    return true;
+  } catch (error) {
+    console.error("Error al consultar información del restaurante:", error);
+    agregarMensaje(
+      "Ahora mismo no puedo consultar la información del restaurante. Puedes continuar con la reserva.",
+      "bot"
+    );
+    repetirPreguntaPendiente();
+    return true;
+  }
+}
+
+
 // 🔟 PROCESAR MENSAJES
 async function procesarMensaje(texto) {
   const mensaje = texto.trim();
@@ -897,6 +1037,10 @@ async function procesarMensaje(texto) {
   }
 
   agregarMensaje(mensaje, "user");
+
+  if (await atenderPreguntaInformativa(mensaje)) {
+    return;
+  }
 
   if (paso === "hora" && solicitudEspera && quiereListaEspera(mensaje)) {
     iniciarListaEspera();

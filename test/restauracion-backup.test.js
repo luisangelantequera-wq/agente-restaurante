@@ -23,6 +23,19 @@ function copiaDePrueba() {
         estado: "activo"
       }
     }],
+    CONOCIMIENTO_RESTAURANTE: [{
+      id: "recConocimiento01",
+      fields: {
+        id_conocimiento: "SOL-TERRAZA-001",
+        restaurante: ["recRestaurante001"],
+        tema: "terraza",
+        preguntas: "¿Tenéis terraza?",
+        palabras_clave: "terraza",
+        respuesta: "Sí, disponemos de terraza.",
+        prioridad: 100,
+        estado: "Activo"
+      }
+    }],
     ZONA: [{
       id: "recZona0000000001",
       fields: {
@@ -69,6 +82,7 @@ test("la restauración valida la copia y solo crea lo que falta", () => {
   assert.equal(validarCopiaRestaurable(copia), true);
   assert.equal(plan.resumen.RESTAURANTES.crear, 0);
   assert.equal(plan.resumen.RESTAURANTES.conservar, 1);
+  assert.equal(plan.resumen.CONOCIMIENTO_RESTAURANTE.crear, 1);
   assert.equal(plan.resumen.MESAS.crear, 1);
   assert.equal(plan.resumen.RESERVAS.crear, 1);
   assert.equal(plan.resumen.RESERVAS.actualizar, 0);
