@@ -6,7 +6,9 @@ const {
   aplicarCorreccionesReserva,
   hayCorreccionesReserva,
   interpretarRespuestaBinaria,
-  normalizarNombreCliente
+  normalizarNombreCliente,
+  normalizarTelefono,
+  telefonoValido
 } = require("../lib/entrada-conversacional");
 
 
@@ -66,6 +68,35 @@ test("limpia fórmulas habladas sin alterar el nombre", () => {
   assert.equal(normalizarNombreCliente("Soy Ana"), "Ana");
   assert.equal(normalizarNombreCliente("Pepe García"), "Pepe García");
   assert.equal(normalizarNombreCliente("A nombre de."), "");
+});
+
+
+test("acepta móviles españoles hablados sin exigir el prefijo del país", () => {
+  for (const entrada of [
+    "624534889.",
+    "646 023 624.",
+    "612-345-678",
+    "+34 612 345 678.",
+    "0034 612 345 678"
+  ]) {
+    assert.equal(telefonoValido(entrada), true, entrada);
+  }
+
+  assert.equal(normalizarTelefono("624 534 889."), "+34624534889");
+  assert.equal(normalizarTelefono("+34 612 345 678."), "+34612345678");
+  assert.equal(normalizarTelefono("0034 612 345 678"), "+34612345678");
+});
+
+
+test("rechaza números que no son móviles españoles", () => {
+  for (const entrada of [
+    "888 555 444.",
+    "+34 888 555 444",
+    "12345",
+    "teléfono desconocido"
+  ]) {
+    assert.equal(telefonoValido(entrada), false, entrada);
+  }
 });
 
 

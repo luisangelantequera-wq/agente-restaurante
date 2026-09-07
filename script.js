@@ -339,7 +339,7 @@ function emailValido(texto) {
 }
 
 function telefonoValido(texto) {
-  return /^[+0-9\s-]{7,18}$/.test(texto);
+  return window.ContactiaEntrada.telefonoValido(texto);
 }
 
 
@@ -352,18 +352,7 @@ function telefonoParaEnlace(texto) {
 
 // 7️⃣ NORMALIZAR TELÉFONO ESPAÑOL
 function normalizarTelefono(texto) {
-  let telefono = texto
-    .replace(/\s/g, "")
-    .replace(/-/g, "");
-
-  if (
-    !telefono.startsWith("+") &&
-    (telefono.startsWith("6") || telefono.startsWith("7"))
-  ) {
-    telefono = `+34${telefono}`;
-  }
-
-  return telefono;
+  return window.ContactiaEntrada.normalizarTelefono(texto);
 }
 
 
@@ -999,7 +988,8 @@ async function procesarMensaje(texto) {
   if (paso === "espera_telefono") {
     if (!telefonoValido(mensaje)) {
       agregarMensaje(
-        "Ese número no parece válido. Puedes escribir, por ejemplo: 612345678.",
+        "Ese número no parece válido. Di las nueve cifras del móvil, por " +
+        "ejemplo: 612345678. No hace falta indicar +34.",
         "bot"
       );
       return;
@@ -1585,7 +1575,8 @@ async function procesarMensaje(texto) {
   if (paso === "telefono") {
     if (!telefonoValido(mensaje)) {
       agregarMensaje(
-        "Ese número no parece válido. Puedes escribir, por ejemplo: 612345678.",
+        "Ese número no parece válido. Di las nueve cifras del móvil, por " +
+        "ejemplo: 612345678. No hace falta indicar +34.",
         "bot"
       );
 
