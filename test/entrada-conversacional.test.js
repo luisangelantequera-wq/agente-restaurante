@@ -9,6 +9,7 @@ const {
   interpretarRespuestaBinaria,
   normalizarNombreCliente,
   normalizarTelefono,
+  puedeOfrecerListaEspera,
   telefonoValido
 } = require("../lib/entrada-conversacional");
 
@@ -116,6 +117,23 @@ test("rechaza números que no son móviles españoles", () => {
   ]) {
     assert.equal(telefonoValido(entrada), false, entrada);
   }
+});
+
+
+test("solo ofrece lista de espera para una hora válida sin mesa", () => {
+  assert.equal(puedeOfrecerListaEspera({ disponible: false }), true);
+  assert.equal(puedeOfrecerListaEspera({
+    disponible: false,
+    cambio_requerido: "hora"
+  }), false);
+  assert.equal(puedeOfrecerListaEspera({
+    disponible: false,
+    cambio_requerido: "fecha"
+  }), false);
+  assert.equal(puedeOfrecerListaEspera({
+    disponible: false,
+    requiere_contacto_restaurante: true
+  }), false);
 });
 
 

@@ -278,6 +278,33 @@ test("el horario propio de una zona prevalece sobre el general", async () => {
 });
 
 
+test("la API no crea listas de espera fuera del horario de apertura", async () => {
+  const fetchOriginal = global.fetch;
+  global.fetch = instalarAirtableFalso();
+
+  try {
+    const respuesta = await ejecutar({
+      accion: "lista_espera_crear",
+      restaurante_id: 1,
+      fecha: fechaProxima(),
+      hora: "03:00",
+      personas: 5,
+      zona_preferida: "interior",
+      nombre: "Cliente de prueba",
+      email: "cliente@example.com",
+      telefono: "+34612345678"
+    });
+
+    assert.equal(respuesta.status, 200);
+    assert.equal(respuesta.body.disponible, false);
+    assert.equal(respuesta.body.cambio_requerido, "hora");
+    assert.notEqual(respuesta.body.lista_espera_creada, true);
+  } finally {
+    global.fetch = fetchOriginal;
+  }
+});
+
+
 test("la confirmación por correo conserva la zona elegida", () => {
   const fs = require("node:fs");
   const path = require("node:path");

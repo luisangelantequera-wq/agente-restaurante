@@ -441,13 +441,18 @@ async function comprobarDisponibilidad() {
       return;
     }
 
-    solicitudEspera = {
-      restaurante_id: datosReserva.restaurante_id,
-      personas: datosReserva.personas,
-      fecha: datosReserva.fecha,
-      hora: datosReserva.hora,
-      zona_preferida: datosReserva.zona_preferida
-    };
+    const puedeOfrecerListaEspera =
+      window.ContactiaEntrada.puedeOfrecerListaEspera(data);
+
+    solicitudEspera = puedeOfrecerListaEspera
+      ? {
+        restaurante_id: datosReserva.restaurante_id,
+        personas: datosReserva.personas,
+        fecha: datosReserva.fecha,
+        hora: datosReserva.hora,
+        zona_preferida: datosReserva.zona_preferida
+      }
+      : null;
 
     if (alternativas.length > 0) {
       if (alternativas.length === 1) {
@@ -470,11 +475,13 @@ async function comprobarDisponibilidad() {
       );
     }
 
-    agregarMensaje(
-      `Si prefieres mantener las ${solicitudEspera.hora}, puedo apuntarte ` +
-      "a la lista de espera. Escribe: lista de espera.",
-      "bot"
-    );
+    if (puedeOfrecerListaEspera) {
+      agregarMensaje(
+        `Si prefieres mantener las ${solicitudEspera.hora}, puedo apuntarte ` +
+        "a la lista de espera. Escribe: lista de espera.",
+        "bot"
+      );
+    }
 
     paso = "hora";
 
