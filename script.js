@@ -953,12 +953,14 @@ async function procesarMensaje(texto) {
   }
 
   if (paso === "espera_nombre") {
-    if (mensaje.length < 2) {
+    const nombre = window.ContactiaEntrada.normalizarNombreCliente(mensaje);
+
+    if (nombre.length < 2) {
       agregarMensaje("Indícame un nombre válido.", "bot");
       return;
     }
 
-    datosListaEspera.nombre = mensaje;
+    datosListaEspera.nombre = nombre;
     paso = "espera_email";
     agregarMensaje("¿Cuál es tu correo electrónico?", "bot");
     return;
@@ -1017,15 +1019,17 @@ async function procesarMensaje(texto) {
   }
 
   if (paso === "confirmacion_espera") {
-    const respuesta = normalizarTexto(mensaje).trim();
+    const respuesta = window.ContactiaEntrada.interpretarRespuestaBinaria(
+      mensaje
+    );
 
-    if (respuesta === "si" || respuesta === "s") {
+    if (respuesta === "si") {
       paso = "procesando_espera";
       await crearListaEspera();
       return;
     }
 
-    if (respuesta === "no" || respuesta === "n") {
+    if (respuesta === "no") {
       datosListaEspera = null;
       paso = "hora";
       agregarMensaje(
@@ -1137,13 +1141,15 @@ async function procesarMensaje(texto) {
   }
 
   if (paso === "confirmacion_modificacion") {
-    const respuesta = normalizarTexto(mensaje);
-    if (respuesta === "si" || respuesta === "s") {
+    const respuesta = window.ContactiaEntrada.interpretarRespuestaBinaria(
+      mensaje
+    );
+    if (respuesta === "si") {
       paso = "procesando_modificacion";
       await modificarReserva();
       return;
     }
-    if (respuesta === "no" || respuesta === "n") {
+    if (respuesta === "no") {
       agregarMensaje("De acuerdo. No se ha modificado la reserva.", "bot");
       reiniciarReserva();
       return;
@@ -1153,9 +1159,11 @@ async function procesarMensaje(texto) {
   }
 
   if (paso === "confirmacion_cancelacion") {
-    const respuesta = normalizarTexto(mensaje);
+    const respuesta = window.ContactiaEntrada.interpretarRespuestaBinaria(
+      mensaje
+    );
 
-    if (respuesta === "si" || respuesta === "s") {
+    if (respuesta === "si") {
       paso = "procesando_cancelacion";
       agregarMensaje("Un momento, estoy cancelando tu reserva...", "bot");
       const data = await solicitarGestionReserva("cancelar", localizadorGestion);
@@ -1172,7 +1180,7 @@ async function procesarMensaje(texto) {
       return;
     }
 
-    if (respuesta === "no" || respuesta === "n") {
+    if (respuesta === "no") {
       agregarMensaje("De acuerdo. La reserva sigue confirmada.", "bot");
       reiniciarReserva();
       return;
@@ -1500,7 +1508,9 @@ async function procesarMensaje(texto) {
 
   // NOMBRE
   if (paso === "nombre") {
-    if (mensaje.length < 2) {
+    const nombre = window.ContactiaEntrada.normalizarNombreCliente(mensaje);
+
+    if (nombre.length < 2) {
       agregarMensaje(
         "Indícame un nombre válido.",
         "bot"
@@ -1509,7 +1519,7 @@ async function procesarMensaje(texto) {
       return;
     }
 
-    datosReserva.nombre = mensaje;
+    datosReserva.nombre = nombre;
     paso = "email";
 
     agregarMensaje(
@@ -1593,16 +1603,11 @@ async function procesarMensaje(texto) {
 
   // CONFIRMACIÓN
   if (paso === "confirmacion") {
-    const respuesta =
+    const respuesta = window.ContactiaEntrada.interpretarRespuestaBinaria(
       mensaje
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
+    );
 
-    if (
-      respuesta === "si" ||
-      respuesta === "s"
-    ) {
+    if (respuesta === "si") {
       paso = "procesando";
 
       await crearReserva();
@@ -1610,10 +1615,7 @@ async function procesarMensaje(texto) {
       return;
     }
 
-    if (
-      respuesta === "no" ||
-      respuesta === "n"
-    ) {
+    if (respuesta === "no") {
       agregarMensaje(
         "De acuerdo. No se ha creado ninguna reserva.",
         "bot"

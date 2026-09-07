@@ -97,6 +97,7 @@ test("Vercel sirve la página y sus recursos desde una URL pública", () => {
   assert.match(html, /src="\/lib\/zona-reserva\.js"/);
   assert.match(html, /src="\/lib\/restaurante-publico\.js"/);
   assert.match(html, /src="\/lib\/fecha-conversacional\.js"/);
+  assert.match(html, /src="\/lib\/entrada-conversacional\.js"/);
   assert.match(html, /src="\/script\.js"/);
   assert.match(html, /src="\/voz\.js"/);
 });
