@@ -4,12 +4,31 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   aplicarCorreccionesReserva,
+  extraerPersonas,
   hayCorreccionesReserva,
   interpretarRespuestaBinaria,
   normalizarNombreCliente,
   normalizarTelefono,
   telefonoValido
 } = require("../lib/entrada-conversacional");
+
+
+test("entiende respuestas breves sobre el número de personas", () => {
+  for (const [entrada, esperado] of [
+    ["Para 5.", 5],
+    ["5", 5],
+    ["Cinco.", 5],
+    ["Somos cinco", 5],
+    ["Una mesa para 5", 5],
+    ["Quiero reservar para 5 personas", 5]
+  ]) {
+    assert.equal(extraerPersonas(entrada), esperado, entrada);
+  }
+
+  for (const entrada of ["El 10 de septiembre", "A las 15 horas", "Mesa 5"]) {
+    assert.equal(extraerPersonas(entrada), null, entrada);
+  }
+});
 
 
 test("entiende confirmaciones afirmativas naturales de voz", () => {

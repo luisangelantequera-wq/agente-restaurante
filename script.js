@@ -271,43 +271,7 @@ function quiereListaEspera(texto) {
 }
 
 function extraerPersonas(texto) {
-  const normalizado = normalizarTexto(texto);
-  const numerosEnPalabras = {
-    una: 1,
-    uno: 1,
-    dos: 2,
-    tres: 3,
-    cuatro: 4,
-    cinco: 5,
-    seis: 6,
-    siete: 7,
-    ocho: 8,
-    nueve: 9,
-    diez: 10,
-    once: 11,
-    doce: 12
-  };
-  const patronNumero =
-    "(\\d{1,2}|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)";
-  const patrones = [
-    new RegExp(`\\b${patronNumero}\\s+personas?\\b`),
-    new RegExp(`\\bsomos\\s+${patronNumero}\\b`),
-    new RegExp(`\\bmesa\\s+para\\s+${patronNumero}\\b`)
-  ];
-
-  for (const patron of patrones) {
-    const coincidencia = normalizado.match(patron);
-
-    if (coincidencia) {
-      const valor = numerosEnPalabras[coincidencia[1]] || Number(coincidencia[1]);
-
-      if (Number.isInteger(valor) && valor > 0) {
-        return valor;
-      }
-    }
-  }
-
-  return null;
+  return window.ContactiaEntrada.extraerPersonas(texto);
 }
 
 function extraerFecha(texto) {
