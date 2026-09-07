@@ -431,6 +431,15 @@ async function comprobarDisponibilidad() {
         "bot"
       );
 
+      if (
+        datosReserva.nombre &&
+        datosReserva.email &&
+        datosReserva.telefono
+      ) {
+        mostrarConfirmacionNuevaReserva();
+        return;
+      }
+
       paso = "nombre";
 
       agregarMensaje(
@@ -551,7 +560,8 @@ function mostrarConfirmacionNuevaReserva() {
     `📧 Email: ${datosReserva.email}\n` +
     `📱 Teléfono: ${datosReserva.telefono}\n` +
     lineaObservaciones +
-    `\n¿Confirmas la reserva? Di «Sí, confirmo la reserva» o «No, no confirmo».`,
+    `\n¿Confirmas la reserva? Di «Sí, confirmo la reserva» o «No, no confirmo». ` +
+    `Si quieres corregir un dato, dímelo ahora.`,
     "bot"
   );
 }
@@ -1620,6 +1630,18 @@ async function procesarMensaje(texto) {
 
   // CONFIRMACIÓN
   if (paso === "confirmacion") {
+    const correcciones = extraerDatosIniciales(mensaje);
+
+    if (window.ContactiaEntrada.hayCorreccionesReserva(correcciones)) {
+      datosReserva = window.ContactiaEntrada.aplicarCorreccionesReserva(
+        datosReserva,
+        correcciones
+      );
+      paso = "comprobando";
+      await comprobarDisponibilidad();
+      return;
+    }
+
     const respuesta = window.ContactiaEntrada.interpretarRespuestaBinaria(
       mensaje
     );

@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+  aplicarCorreccionesReserva,
+  hayCorreccionesReserva,
   interpretarRespuestaBinaria,
   normalizarNombreCliente
 } = require("../lib/entrada-conversacional");
@@ -64,4 +66,51 @@ test("limpia fórmulas habladas sin alterar el nombre", () => {
   assert.equal(normalizarNombreCliente("Soy Ana"), "Ana");
   assert.equal(normalizarNombreCliente("Pepe García"), "Pepe García");
   assert.equal(normalizarNombreCliente("A nombre de."), "");
+});
+
+
+test("aplica correcciones sin perder los datos ya recogidos", () => {
+  const reserva = {
+    restaurante_id: 1,
+    personas: 2,
+    fecha: "2026-09-10",
+    hora: "14:00",
+    zona_preferida: "INTERIOR",
+    nombre: "Pepe",
+    email: "pepe@example.com",
+    telefono: "+34612345678",
+    observaciones: "Trona"
+  };
+  const correcciones = {
+    personas: 4,
+    fecha: null,
+    hora: "15:00",
+    zona_preferida: "TERRAZA"
+  };
+  const resultado = aplicarCorreccionesReserva(reserva, correcciones);
+
+  assert.equal(hayCorreccionesReserva(correcciones), true);
+  assert.equal(hayCorreccionesReserva({}), false);
+  assert.deepEqual(resultado, {
+    ...reserva,
+    personas: 4,
+    hora: "15:00",
+    zona_preferida: "TERRAZA"
+  });
+  assert.equal(resultado.nombre, "Pepe");
+  assert.equal(resultado.observaciones, "Trona");
+  assert.notEqual(resultado, reserva);
+});
+
+
+test("el resumen permite corregir y vuelve a comprobar disponibilidad", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(script, /Si quieres corregir un dato, dímelo ahora/);
+  assert.match(script, /hayCorreccionesReserva\(correcciones\)/);
+  assert.match(script, /aplicarCorreccionesReserva/);
+  assert.match(script, /await comprobarDisponibilidad\(\)/);
 });
