@@ -139,40 +139,11 @@ function mostrarFecha(fechaISO) {
 
 
 // 6️⃣ VALIDACIONES
-function extraerHora(texto) {
-  const coincidencia =
-    texto.match(/(?:^|\D)([01]?\d|2[0-3]):([0-5]\d)(?!\d)/);
-
-  if (coincidencia) {
-    return `${coincidencia[1].padStart(2, "0")}:${coincidencia[2]}`;
-  }
-
-  const horaNatural = normalizarTexto(texto).match(
-    /\ba\s+las?\s+(\d{1,2}|una)(?![:\d])(?:\s+y\s+(media|cuarto))?/i
+function extraerHora(texto, permitirRespuestaBreve = false) {
+  return window.ContactiaEntrada.extraerHora(
+    texto,
+    permitirRespuestaBreve
   );
-
-  if (!horaNatural) {
-    return null;
-  }
-
-  let horas = horaNatural[1] === "una" ? 1 : Number(horaNatural[1]);
-  const minutos = horaNatural[2] === "media"
-    ? 30
-    : horaNatural[2] === "cuarto"
-      ? 15
-      : 0;
-
-  if (horas < 1 || horas > 23) {
-    return null;
-  }
-
-  // En el contexto de un restaurante, "a la 1" se entiende como 13:00
-  // y "a las 9" como 21:00. El formato HH:MM sigue siendo inequívoco.
-  if (horas <= 11) {
-    horas += 12;
-  }
-
-  return `${String(horas).padStart(2, "0")}:${String(minutos).padStart(2, "0")}`;
 }
 
 
@@ -1099,7 +1070,7 @@ async function procesarMensaje(texto) {
   }
 
   if (paso === "modificar_hora") {
-    const hora = extraerHora(mensaje);
+    const hora = extraerHora(mensaje, true);
     if (!hora) {
       agregarMensaje("No he podido identificar la nueva hora.", "bot");
       return;
@@ -1413,7 +1384,10 @@ async function procesarMensaje(texto) {
 
   // HORA
   if (paso === "hora") {
-    const correcciones = extraerDatosIniciales(mensaje);
+    const correcciones = {
+      ...extraerDatosIniciales(mensaje),
+      hora: extraerHora(mensaje, true)
+    };
 
     if (
       !correcciones.hora &&

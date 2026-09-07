@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   aplicarCorreccionesReserva,
+  extraerHora,
   extraerPersonas,
   hayCorreccionesReserva,
   interpretarRespuestaBinaria,
@@ -12,6 +13,35 @@ const {
   puedeOfrecerListaEspera,
   telefonoValido
 } = require("../lib/entrada-conversacional");
+
+
+test("interpreta horas coloquiales según el contexto del restaurante", () => {
+  for (const entrada of [
+    "A las 3:00.",
+    "A las tres.",
+    "A las 3 de la tarde"
+  ]) {
+    assert.equal(extraerHora(entrada), "15:00", entrada);
+  }
+
+  assert.equal(extraerHora("A las 9 de la noche"), "21:00");
+  assert.equal(extraerHora("A las 9 de la mañana"), "09:00");
+});
+
+
+test("conserva inequívocas las horas escritas en formato de 24 horas", () => {
+  assert.equal(extraerHora("03:00"), "03:00");
+  assert.equal(extraerHora("A las 03:00"), "03:00");
+  assert.equal(extraerHora("15:00"), "15:00");
+  assert.equal(extraerHora("A las 15:00"), "15:00");
+});
+
+
+test("acepta una hora breve solo después de haberla preguntado", () => {
+  assert.equal(extraerHora("3"), null);
+  assert.equal(extraerHora("3", true), "15:00");
+  assert.equal(extraerHora("tres", true), "15:00");
+});
 
 
 test("entiende respuestas breves sobre el número de personas", () => {
