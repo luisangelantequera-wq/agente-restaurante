@@ -551,7 +551,7 @@ function mostrarConfirmacionNuevaReserva() {
     `📧 Email: ${datosReserva.email}\n` +
     `📱 Teléfono: ${datosReserva.telefono}\n` +
     lineaObservaciones +
-    `\n¿Confirmas la reserva? Responde Sí o No.`,
+    `\n¿Confirmas la reserva? Di «Sí, confirmo la reserva» o «No, no confirmo».`,
     "bot"
   );
 }
@@ -593,7 +593,8 @@ function mostrarConfirmacionListaEspera() {
     `📧 Email: ${datosListaEspera.email}\n` +
     `📱 Teléfono: ${datosListaEspera.telefono}\n` +
     lineaObservaciones +
-    `\n¿Confirmas que quieres entrar en la lista de espera? Responde Sí o No.`,
+    `\n¿Confirmas que quieres entrar en la lista de espera? ` +
+    `Di «Sí, confirmo la lista de espera» o «No, no confirmo».`,
     "bot"
   );
 }
@@ -847,7 +848,11 @@ async function consultarReserva(localizador, paraCancelar = false) {
 
     localizadorGestion = localizador;
     paso = "confirmacion_cancelacion";
-    agregarMensaje("¿Confirmas que quieres cancelar esta reserva? Responde Sí o No.", "bot");
+    agregarMensaje(
+      "¿Confirmas que quieres cancelar esta reserva? " +
+      "Di «Sí, confirmo la cancelación» o «No, no confirmo».",
+      "bot"
+    );
     return;
   }
 
@@ -931,7 +936,7 @@ function confirmarModificacion() {
   paso = "confirmacion_modificacion";
   agregarMensaje(
     `La reserva quedaría así:\n\n${mostrarResumenReserva(reservaGestion)}\n\n` +
-    "¿Confirmas el cambio? Responde Sí o No.",
+    "¿Confirmas el cambio? Di «Sí, confirmo el cambio» o «No, no confirmo».",
     "bot"
   );
 }
@@ -1039,7 +1044,11 @@ async function procesarMensaje(texto) {
       return;
     }
 
-    agregarMensaje("Por favor, responde Sí o No.", "bot");
+    agregarMensaje(
+      "No he podido distinguir tu respuesta. Di «Sí, confirmo la lista de " +
+      "espera» o «No, no confirmo».",
+      "bot"
+    );
     return;
   }
 
@@ -1154,7 +1163,11 @@ async function procesarMensaje(texto) {
       reiniciarReserva();
       return;
     }
-    agregarMensaje("Por favor, responde Sí o No.", "bot");
+    agregarMensaje(
+      "No he podido distinguir tu respuesta. Di «Sí, confirmo el cambio» " +
+      "o «No, no confirmo».",
+      "bot"
+    );
     return;
   }
 
@@ -1186,7 +1199,11 @@ async function procesarMensaje(texto) {
       return;
     }
 
-    agregarMensaje("Por favor, responde Sí o No.", "bot");
+    agregarMensaje(
+      "No he podido distinguir tu respuesta. Di «Sí, confirmo la " +
+      "cancelación» o «No, no confirmo».",
+      "bot"
+    );
     return;
   }
 
@@ -1631,7 +1648,8 @@ async function procesarMensaje(texto) {
     }
 
     agregarMensaje(
-      "Por favor, responde Sí o No.",
+      "No he podido distinguir tu respuesta. Di «Sí, confirmo la reserva» " +
+      "o «No, no confirmo».",
       "bot"
     );
 

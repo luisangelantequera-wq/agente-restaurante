@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const {
   interpretarRespuestaBinaria,
   normalizarNombreCliente
@@ -23,6 +25,7 @@ test("entiende negativas claras y rechaza respuestas ambiguas", () => {
   for (const respuesta of [
     "No",
     "No, gracias",
+    "No, no confirmo",
     "No quiero confirmar la reserva",
     "No la confirmo"
   ]) {
@@ -37,6 +40,21 @@ test("entiende negativas claras y rechaza respuestas ambiguas", () => {
   ]) {
     assert.equal(interpretarRespuestaBinaria(respuesta), null, respuesta);
   }
+});
+
+
+test("pide frases completas para confirmar las operaciones por voz", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(script, /Sí, confirmo la reserva/);
+  assert.match(script, /Sí, confirmo la lista de espera/);
+  assert.match(script, /Sí, confirmo el cambio/);
+  assert.match(script, /Sí, confirmo la cancelación/);
+  assert.match(script, /No, no confirmo/);
+  assert.doesNotMatch(script, /Responde Sí o No/);
 });
 
 
