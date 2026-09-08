@@ -34,6 +34,16 @@
     <div id="chat-box"></div>
 
     <section id="voice-panel" aria-label="Prototipo de voz" hidden>
+      <label class="voice-picker" for="voice-choice">
+        Voz de prueba
+        <select id="voice-choice">
+          <option value="openai-marin">OpenAI · Marin (actual)</option>
+          <option value="es-ES-Wavenet-E">Google económica · Wavenet E</option>
+          <option value="es-ES-Wavenet-G" selected>Google económica · Wavenet G</option>
+          <option value="es-ES-Chirp3-HD-Callirrhoe">Google HD · Callirrhoe</option>
+          <option value="es-ES-Chirp3-HD-Sadaltager">Google HD · Sadaltager</option>
+        </select>
+      </label>
       <div class="voice-controls">
         <button id="voice-toggle" type="button" aria-pressed="false">
           🎙️ Iniciar voz
@@ -43,7 +53,7 @@
         </span>
       </div>
       <p>
-        Prototipo de Preview. El audio se procesa con OpenAI; utiliza datos
+        Prototipo de Preview. Compara rapidez y naturalidad; utiliza datos
         ficticios durante las pruebas.
       </p>
     </section>

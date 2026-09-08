@@ -9,16 +9,31 @@
   const panel = document.getElementById("voice-panel");
   const boton = document.getElementById("voice-toggle");
   const estado = document.getElementById("voice-status");
+  const selectorVoz = document.getElementById("voice-choice");
   const entradaTexto = document.getElementById("user-input");
   const botonEnviar = document.getElementById("send-btn");
   let conexion = null;
   let canal = null;
   let microfono = null;
   let audioRemoto = null;
+  let audioGoogle = null;
+  let urlAudioGoogle = null;
+  let controladorSintesis = null;
   let conectando = false;
   let temporizadorLimite = null;
   let colaHerramientas = Promise.resolve();
   const llamadasProcesadas = new Set();
+
+
+  function esVozGoogle() {
+    return selectorVoz.value.startsWith("es-ES-");
+  }
+
+
+  function nombreVozSeleccionada() {
+    return selectorVoz.options[selectorVoz.selectedIndex]?.textContent ||
+      selectorVoz.value;
+  }
 
 
   function cambiarEstado(texto) {
@@ -38,6 +53,93 @@
   function respuestaEsLlamadaHerramienta(evento) {
     return Array.isArray(evento.response?.output) &&
       evento.response.output.some((item) => item.type === "function_call");
+  }
+
+
+  function liberarAudioGoogle() {
+    if (urlAudioGoogle) {
+      URL.revokeObjectURL(urlAudioGoogle);
+      urlAudioGoogle = null;
+    }
+  }
+
+
+  async function reproducirConGoogle(texto) {
+    if (!audioGoogle) {
+      throw new Error("El reproductor de Google no está disponible.");
+    }
+
+    if (microfono) {
+      for (const pista of microfono.getAudioTracks()) {
+        pista.enabled = false;
+      }
+    }
+
+    controladorSintesis = new AbortController();
+    const inicio = performance.now();
+    const respuesta = await fetch("/api/voz-sintesis", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        slug: "restaurante-sol",
+        voz: selectorVoz.value,
+        texto
+      }),
+      signal: controladorSintesis.signal
+    });
+
+    if (!respuesta.ok) {
+      let detalle = "Google no pudo generar la voz.";
+
+      try {
+        const datos = await respuesta.json();
+        detalle = datos.error || detalle;
+      } catch {
+        // Vercel puede devolver una respuesta de seguridad sin JSON.
+      }
+
+      throw new Error(detalle);
+    }
+
+    const audio = await respuesta.blob();
+    liberarAudioGoogle();
+    urlAudioGoogle = URL.createObjectURL(audio);
+    audioGoogle.src = urlAudioGoogle;
+
+    await new Promise((resolve, reject) => {
+      audioGoogle.onended = resolve;
+      audioGoogle.onerror = () => reject(
+        new Error("El navegador no pudo reproducir la voz de Google.")
+      );
+      audioGoogle.play().catch(reject);
+      audioGoogle.addEventListener("playing", () => {
+        const segundos = ((performance.now() - inicio) / 1000).toFixed(1);
+        cambiarEstado(`Hablando con ${nombreVozSeleccionada()} · ${segundos} s`);
+      }, { once: true });
+    });
+
+    controladorSintesis = null;
+    liberarAudioGoogle();
+    if (microfono) {
+      for (const pista of microfono.getAudioTracks()) {
+        pista.enabled = true;
+      }
+    }
+    cambiarEstado("Te escucho. Puedes continuar.");
+  }
+
+
+  function responderConOpenAI() {
+    enviarEvento({
+      type: "response.create",
+      response: {
+        output_modalities: ["audio"],
+        tool_choice: "none",
+        instructions:
+          "Comunica ahora únicamente la respuesta de la herramienta, en español natural y sin añadir información."
+      }
+    });
+    cambiarEstado("Respondiendo con OpenAI…");
   }
 
 
@@ -80,16 +182,23 @@
         output: JSON.stringify(resultado)
       }
     });
-    enviarEvento({
-      type: "response.create",
-      response: {
-        output_modalities: ["audio"],
-        tool_choice: "none",
-        instructions:
-          "Comunica ahora únicamente la respuesta de la herramienta, en español natural y sin añadir información."
+    if (esVozGoogle()) {
+      try {
+        cambiarEstado("Generando voz con Google…");
+        await reproducirConGoogle(resultado.respuesta);
+        return;
+      } catch (error) {
+        console.error("Error al generar la voz de Google:", error);
+        if (microfono) {
+          for (const pista of microfono.getAudioTracks()) {
+            pista.enabled = true;
+          }
+        }
+        cambiarEstado("Google no está disponible. Uso la voz de OpenAI…");
       }
-    });
-    cambiarEstado("Respondiendo…");
+    }
+
+    responderConOpenAI(resultado);
   }
 
 
@@ -149,6 +258,19 @@
       temporizadorLimite = null;
     }
 
+    if (controladorSintesis) {
+      controladorSintesis.abort();
+      controladorSintesis = null;
+    }
+
+    if (audioGoogle) {
+      audioGoogle.pause();
+      audioGoogle.removeAttribute("src");
+      audioGoogle.remove();
+    }
+
+    liberarAudioGoogle();
+
     if (microfono) {
       for (const pista of microfono.getTracks()) {
         pista.stop();
@@ -172,12 +294,14 @@
     canal = null;
     microfono = null;
     audioRemoto = null;
+    audioGoogle = null;
     conectando = false;
     boton.disabled = false;
     boton.setAttribute("aria-pressed", "false");
     boton.textContent = "🎙️ Iniciar voz";
     entradaTexto.disabled = false;
     botonEnviar.disabled = false;
+    selectorVoz.disabled = false;
     cambiarEstado(mensaje);
   }
 
@@ -222,6 +346,9 @@
       audioRemoto.autoplay = true;
       audioRemoto.setAttribute("aria-hidden", "true");
       document.body.appendChild(audioRemoto);
+      audioGoogle = document.createElement("audio");
+      audioGoogle.setAttribute("aria-hidden", "true");
+      document.body.appendChild(audioGoogle);
 
       conexion.addEventListener("track", (evento) => {
         audioRemoto.srcObject = evento.streams[0];
@@ -293,6 +420,7 @@
       boton.textContent = "⏹ Detener voz";
       entradaTexto.disabled = true;
       botonEnviar.disabled = true;
+      selectorVoz.disabled = true;
       cambiarEstado("Te escucho. Puedes hablar.");
       temporizadorLimite = window.setTimeout(() => {
         cerrarVoz("La prueba de voz de 5 minutos ha terminado.");

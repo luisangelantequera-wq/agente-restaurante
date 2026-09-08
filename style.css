@@ -173,6 +173,30 @@ body {
   display: none;
 }
 
+.voice-picker {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #624d16;
+}
+
+#voice-choice {
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-weight: 500;
+  color: #3f341a;
+  background: #ffffff;
+  border: 1px solid #dbc98f;
+  border-radius: 9px;
+}
+
+#voice-choice:disabled {
+  opacity: 0.65;
+}
+
 .voice-controls {
   display: flex;
   align-items: center;

@@ -207,12 +207,20 @@ test("la interfaz activa el micrófono solo bajo el parámetro de prueba", () =>
   ).value;
 
   assert.match(html, /id="voice-panel"[^>]*hidden/);
+  assert.match(html, /id="voice-choice"/);
+  assert.match(html, /es-ES-Wavenet-E/);
+  assert.match(html, /es-ES-Wavenet-G/);
+  assert.match(html, /es-ES-Chirp3-HD-Callirrhoe/);
+  assert.match(html, /es-ES-Chirp3-HD-Sadaltager/);
   assert.match(html, /src="\/voz\.js"/);
   assert.match(voz, /parametros\.get\("voz"\) !== "1"/);
   assert.match(voz, /restaurante-sol/);
   assert.match(voz, /"Content-Type": "application\/json"/);
   assert.match(voz, /JSON\.stringify\(\{ sdp: oferta\.sdp \}\)/);
+  assert.match(voz, /\/api\/voz-sintesis/);
+  assert.match(voz, /Google no está disponible\. Uso la voz de OpenAI/);
   assert.doesNotMatch(voz, /OPENAI_API_KEY/);
+  assert.doesNotMatch(voz, /GOOGLE_TTS_CREDENTIALS_JSON/);
   assert.match(permisos, /microphone=\(self\)/);
   assert.doesNotMatch(permisos, /microphone=\(\)/);
 });
