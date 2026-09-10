@@ -1825,6 +1825,69 @@ function prepararRespuestaParaVoz(texto) {
 }
 
 
+function mostrarFechaParaVoz(fechaISO) {
+  const meses = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+  ];
+  const [anio, mes, dia] = String(fechaISO || "").split("-");
+  const nombreMes = meses[Number(mes) - 1];
+
+  return nombreMes
+    ? `${Number(dia)} de ${nombreMes} de ${anio}`
+    : mostrarFecha(fechaISO);
+}
+
+
+function personasParaVoz(personas) {
+  const cantidades = [
+    "cero", "una", "dos", "tres", "cuatro", "cinco", "seis",
+    "siete", "ocho", "nueve", "diez", "once", "doce"
+  ];
+
+  return cantidades[Number(personas)] || String(personas);
+}
+
+
+function prepararRespuestasParaVoz(respuestas) {
+  const mensajes = respuestas.map(prepararRespuestaParaVoz).filter(Boolean);
+  const hayDisponibilidad = mensajes.some((mensaje) =>
+    /Tenemos disponibilidad para/i.test(mensaje)
+  );
+  const hayResumen = mensajes.some((mensaje) =>
+    /^Por favor, revisa tu reserva:/i.test(mensaje)
+  );
+  const zona = datosReserva.zona_preferida
+    ? ` en la zona ${datosReserva.zona_preferida}`
+    : "";
+
+  if (paso === "confirmacion" && hayResumen) {
+    const telefono = String(datosReserva.telefono || "")
+      .replace(/^\+34/, "");
+
+    return (
+      `Has solicitado una reserva para el día ` +
+      `${mostrarFechaParaVoz(datosReserva.fecha)} a las ${datosReserva.hora}, ` +
+      `para ${personasParaVoz(datosReserva.personas)} personas${zona} del ` +
+      `restaurante, a nombre de ${datosReserva.nombre}, con correo ` +
+      `${datosReserva.email} y teléfono ${telefono}. ` +
+      "¿Confirmas la reserva?"
+    );
+  }
+
+  if (paso === "nombre" && hayDisponibilidad) {
+    return (
+      `Sí, hay disponibilidad a las ${datosReserva.hora}${zona}. ` +
+      "¿A nombre de quién hacemos la reserva?"
+    );
+  }
+
+  return mensajes
+    .filter((mensaje) => !/^(?:Un momento|Gracias .*Estoy)/i.test(mensaje))
+    .join("\n\n") || "Te escucho. Continúa, por favor.";
+}
+
+
 async function procesarTurnoVoz(texto) {
   const mensaje = String(texto || "").trim();
 
@@ -1852,8 +1915,7 @@ async function procesarTurnoVoz(texto) {
 
   return {
     ok: true,
-    respuesta: respuestas.filter(Boolean).join("\n\n") ||
-      "Te escucho. Continúa, por favor.",
+    respuesta: prepararRespuestasParaVoz(respuestas),
     paso
   };
 }

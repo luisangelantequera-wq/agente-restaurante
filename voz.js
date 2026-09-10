@@ -65,7 +65,7 @@
   }
 
 
-  async function reproducirConGoogle(texto) {
+  async function reproducirConGoogle(texto, metricas = {}) {
     if (!audioGoogle) {
       throw new Error("El reproductor de Google no está disponible.");
     }
@@ -133,12 +133,19 @@
       audioGoogle.addEventListener("playing", () => {
         const ahora = performance.now();
         const segundosGoogle = ((ahora - inicioGoogle) / 1000).toFixed(1);
+        const tiempoEntender = Number.isFinite(metricas.entenderMs)
+          ? ` · entender ${(metricas.entenderMs / 1000).toFixed(1)} s`
+          : "";
+        const tiempoMotor = Number.isFinite(metricas.motorMs)
+          ? ` · motor ${(metricas.motorMs / 1000).toFixed(1)} s`
+          : "";
         const tiempoTotal = inicioTurno
           ? ` · total ${((ahora - inicioTurno) / 1000).toFixed(1)} s`
           : "";
         inicioTurno = null;
         cambiarEstado(
-          `Hablando con ${nombreVozSeleccionada()} · Google ${segundosGoogle} s${tiempoTotal}`
+          `Hablando con ${nombreVozSeleccionada()}${tiempoEntender}` +
+          `${tiempoMotor} · Google ${segundosGoogle} s${tiempoTotal}`
         );
       }, { once: true });
     });
@@ -197,6 +204,10 @@
     llamadasProcesadas.add(llamada.call_id);
     cambiarEstado("Comprobando la reserva…");
     let resultado;
+    const inicioMotor = performance.now();
+    const entenderMs = inicioTurno
+      ? inicioMotor - inicioTurno
+      : null;
 
     try {
       const argumentos = JSON.parse(llamada.arguments || "{}");
@@ -230,7 +241,10 @@
           audioRemoto.muted = true;
         }
         cambiarEstado("Generando voz con Google…");
-        await reproducirConGoogle(resultado.respuesta);
+        await reproducirConGoogle(resultado.respuesta, {
+          entenderMs,
+          motorMs: performance.now() - inicioMotor
+        });
         return;
       } catch (error) {
         console.error("Error al generar la voz de Google:", error);

@@ -9,7 +9,9 @@ const {
 } = require("../lib/frases-voz");
 const {
   prepararTextoParaVoz,
-  verbalizarHoraConfirmada
+  verbalizarCorreos,
+  verbalizarHoraConfirmada,
+  verbalizarTelefonos
 } = require("../lib/google-tts");
 
 
@@ -61,4 +63,40 @@ test("Google pronuncia las horas en formato inequívoco de 24 horas", () => {
     prepararTextoParaVoz("He entendido las 09:00 horas."),
     "He entendido las nueve horas."
   );
+});
+
+
+test("Google pronuncia los teléfonos cifra por cifra", () => {
+  assert.equal(
+    verbalizarTelefonos("Por ejemplo: 612345678."),
+    "Por ejemplo: seis, uno, dos, tres, cuatro, cinco, seis, siete, ocho."
+  );
+  assert.equal(
+    prepararTextoParaVoz("Teléfono: 666333444"),
+    "Teléfono: seis, seis, seis, tres, tres, tres, cuatro, cuatro, cuatro"
+  );
+});
+
+
+test("Google pronuncia los correos en vez de leer símbolos", () => {
+  assert.equal(
+    verbalizarCorreos("Correo: juan@gmail.com"),
+    "Correo: juan arroba gmail punto com"
+  );
+});
+
+
+test("la voz resume las respuestas con consulta sin ocultarlas en pantalla", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(script, /function prepararRespuestasParaVoz\(respuestas\)/);
+  assert.match(script, /Has solicitado una reserva para el día/);
+  assert.match(script, /mostrarFechaParaVoz/);
+  assert.match(script, /personasParaVoz/);
+  assert.match(script, /con correo/);
+  assert.match(script, /y teléfono/);
+  assert.match(script, /Sí, hay disponibilidad a las/);
 });

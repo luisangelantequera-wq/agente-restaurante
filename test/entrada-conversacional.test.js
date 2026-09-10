@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   aplicarCorreccionesReserva,
+  extraerDigitosTelefonoHablado,
   extraerHora,
   extraerPersonas,
   hayCorreccionesReserva,
@@ -152,6 +153,24 @@ test("acepta móviles españoles hablados sin exigir el prefijo del país", () =
   assert.equal(normalizarTelefono("624 534 889."), "+34624534889");
   assert.equal(normalizarTelefono("+34 612 345 678."), "+34612345678");
   assert.equal(normalizarTelefono("0034 612 345 678"), "+34612345678");
+  assert.equal(
+    normalizarTelefono("seis seis seis tres tres tres cuatro cuatro cuatro"),
+    "+34666333444"
+  );
+  assert.equal(
+    normalizarTelefono("doble seis seis triple tres triple cuatro"),
+    "+34666333444"
+  );
+  assert.equal(
+    extraerDigitosTelefonoHablado(
+      "mi número es seis uno dos tres cuatro cinco seis siete ocho"
+    ),
+    "612345678"
+  );
+  assert.equal(
+    telefonoValido("seis uno dos tres cuatro cinco seis siete ocho"),
+    true
+  );
 });
 
 

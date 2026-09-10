@@ -30,6 +30,8 @@ test("la interfaz separa el tiempo de Google del tiempo total", () => {
   );
 
   assert.match(voz, /Google \$\{segundosGoogle\} s/);
+  assert.match(voz, /entenderMs/);
+  assert.match(voz, /motorMs/);
   assert.match(voz, /total \$\{/);
   assert.match(voz, /inicioTurno = performance\.now\(\)/);
 });
