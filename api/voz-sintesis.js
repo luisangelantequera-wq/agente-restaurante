@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const { entornoVozHabilitado, SLUG_PROTOTIPO } = require("../lib/voz-realtime");
+const { obtenerFraseVoz } = require("../lib/frases-voz");
 const {
   MAX_TEXTO_BYTES,
   sintetizarVozGoogle,
@@ -33,6 +34,13 @@ function obtenerCuerpo(req) {
 }
 
 
+function leerParametroConsulta(req, nombre) {
+  const valor = req.query?.[nombre];
+
+  return String(Array.isArray(valor) ? valor[0] : valor || "").trim();
+}
+
+
 module.exports = async (req, res) => {
   if (!entornoVozHabilitado()) {
     return responderJson(res, 404, {
@@ -41,17 +49,33 @@ module.exports = async (req, res) => {
     });
   }
 
-  if (req.method !== "POST") {
+  if (!["GET", "POST"].includes(req.method)) {
     return responderJson(res, 405, {
       ok: false,
       error: "Método no permitido."
     });
   }
 
-  const cuerpo = obtenerCuerpo(req);
+  const fraseHabitual = req.method === "GET"
+    ? leerParametroConsulta(req, "frase")
+    : "";
+  const cuerpo = req.method === "GET"
+    ? {
+        slug: leerParametroConsulta(req, "slug"),
+        voz: leerParametroConsulta(req, "voz"),
+        texto: obtenerFraseVoz(fraseHabitual)
+      }
+    : obtenerCuerpo(req);
   const slug = String(cuerpo.slug || "").trim();
   const voz = String(cuerpo.voz || "").trim();
   const texto = String(cuerpo.texto || "").trim();
+
+  if (req.method === "GET" && !texto) {
+    return responderJson(res, 400, {
+      ok: false,
+      error: "La frase habitual no es válida."
+    });
+  }
 
   if (slug !== SLUG_PROTOTIPO) {
     return responderJson(res, 404, {
@@ -82,7 +106,15 @@ module.exports = async (req, res) => {
     res.statusCode = 200;
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Content-Length", String(audio.length));
-    res.setHeader("Cache-Control", "no-store");
+    if (fraseHabitual) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      res.setHeader(
+        "Vercel-CDN-Cache-Control",
+        "public, max-age=31536000, immutable"
+      );
+    } else {
+      res.setHeader("Cache-Control", "no-store");
+    }
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Server-Timing", `googletts;dur=${Date.now() - inicio}`);
     return res.end(audio);
@@ -105,5 +137,6 @@ module.exports = async (req, res) => {
 
 
 module.exports._pruebas = {
+  leerParametroConsulta,
   obtenerCuerpo
 };

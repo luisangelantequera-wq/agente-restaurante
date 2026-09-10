@@ -78,16 +78,33 @@
 
     controladorSintesis = new AbortController();
     const inicioGoogle = performance.now();
-    const respuesta = await fetch("/api/voz-sintesis", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const fraseHabitual = window.ContactiaFrasesVoz
+      ?.identificarFraseVoz(texto) || "";
+    let respuesta;
+
+    if (fraseHabitual) {
+      const parametrosVoz = new URLSearchParams({
         slug: "restaurante-sol",
         voz: selectorVoz.value,
-        texto
-      }),
-      signal: controladorSintesis.signal
-    });
+        frase: fraseHabitual
+      });
+      respuesta = await fetch(`/api/voz-sintesis?${parametrosVoz}`, {
+        method: "GET",
+        cache: "force-cache",
+        signal: controladorSintesis.signal
+      });
+    } else {
+      respuesta = await fetch("/api/voz-sintesis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug: "restaurante-sol",
+          voz: selectorVoz.value,
+          texto
+        }),
+        signal: controladorSintesis.signal
+      });
+    }
 
     if (!respuesta.ok) {
       let detalle = "Google no pudo generar la voz.";
