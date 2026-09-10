@@ -130,6 +130,10 @@
 
 
   function responderConOpenAI() {
+    if (audioRemoto) {
+      audioRemoto.muted = false;
+    }
+
     enviarEvento({
       type: "response.create",
       response: {
@@ -140,6 +144,19 @@
       }
     });
     cambiarEstado("Respondiendo con OpenAI…");
+  }
+
+
+  function solicitarInterpretacion() {
+    enviarEvento({
+      type: "response.create",
+      response: {
+        output_modalities: ["text"],
+        tool_choice: "required",
+        instructions:
+          "Interpreta fielmente el último mensaje hablado y llama una sola vez a procesar_turno_contactia. No respondas directamente al cliente."
+      }
+    });
   }
 
 
@@ -184,6 +201,9 @@
     });
     if (esVozGoogle()) {
       try {
+        if (audioRemoto) {
+          audioRemoto.muted = true;
+        }
         cambiarEstado("Generando voz con Google…");
         await reproducirConGoogle(resultado.respuesta);
         return;
@@ -220,6 +240,7 @@
 
     if (evento.type === "input_audio_buffer.speech_stopped") {
       cambiarEstado("Entendiendo…");
+      solicitarInterpretacion();
       return;
     }
 
@@ -344,6 +365,7 @@
       conexion = new RTCPeerConnection();
       audioRemoto = document.createElement("audio");
       audioRemoto.autoplay = true;
+      audioRemoto.muted = esVozGoogle();
       audioRemoto.setAttribute("aria-hidden", "true");
       document.body.appendChild(audioRemoto);
       audioGoogle = document.createElement("audio");
@@ -351,6 +373,7 @@
       document.body.appendChild(audioGoogle);
 
       conexion.addEventListener("track", (evento) => {
+        audioRemoto.muted = esVozGoogle();
         audioRemoto.srcObject = evento.streams[0];
       });
 

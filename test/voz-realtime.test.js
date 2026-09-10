@@ -96,6 +96,7 @@ test("la sesión usa el mejor modelo, VAD semántico y herramienta obligatoria",
   assert.equal(sesion.audio.output.voice, "marin");
   assert.equal(sesion.audio.input.turn_detection.type, "semantic_vad");
   assert.equal(sesion.audio.input.turn_detection.eagerness, "medium");
+  assert.equal(sesion.audio.input.turn_detection.create_response, false);
   assert.equal(sesion.tool_choice, "required");
   assert.equal(sesion.tools[0].name, "procesar_turno_contactia");
 });
@@ -218,6 +219,9 @@ test("la interfaz activa el micrófono solo bajo el parámetro de prueba", () =>
   assert.match(voz, /"Content-Type": "application\/json"/);
   assert.match(voz, /JSON\.stringify\(\{ sdp: oferta\.sdp \}\)/);
   assert.match(voz, /\/api\/voz-sintesis/);
+  assert.match(voz, /output_modalities: \["text"\]/);
+  assert.match(voz, /audioRemoto\.muted = esVozGoogle\(\)/);
+  assert.match(voz, /audioRemoto\.muted = false/);
   assert.match(voz, /Google no está disponible\. Uso la voz de OpenAI/);
   assert.doesNotMatch(voz, /OPENAI_API_KEY/);
   assert.doesNotMatch(voz, /GOOGLE_TTS_CREDENTIALS_JSON/);
