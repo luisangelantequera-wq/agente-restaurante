@@ -22,6 +22,7 @@
   let conectando = false;
   let temporizadorLimite = null;
   let colaHerramientas = Promise.resolve();
+  let inicioTurno = null;
   const llamadasProcesadas = new Set();
 
 
@@ -76,7 +77,7 @@
     }
 
     controladorSintesis = new AbortController();
-    const inicio = performance.now();
+    const inicioGoogle = performance.now();
     const respuesta = await fetch("/api/voz-sintesis", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -113,8 +114,15 @@
       );
       audioGoogle.play().catch(reject);
       audioGoogle.addEventListener("playing", () => {
-        const segundos = ((performance.now() - inicio) / 1000).toFixed(1);
-        cambiarEstado(`Hablando con ${nombreVozSeleccionada()} · ${segundos} s`);
+        const ahora = performance.now();
+        const segundosGoogle = ((ahora - inicioGoogle) / 1000).toFixed(1);
+        const tiempoTotal = inicioTurno
+          ? ` · total ${((ahora - inicioTurno) / 1000).toFixed(1)} s`
+          : "";
+        inicioTurno = null;
+        cambiarEstado(
+          `Hablando con ${nombreVozSeleccionada()} · Google ${segundosGoogle} s${tiempoTotal}`
+        );
       }, { once: true });
     });
 
@@ -239,6 +247,7 @@
     }
 
     if (evento.type === "input_audio_buffer.speech_stopped") {
+      inicioTurno = performance.now();
       cambiarEstado("Entendiendo…");
       solicitarInterpretacion();
       return;
@@ -316,6 +325,7 @@
     microfono = null;
     audioRemoto = null;
     audioGoogle = null;
+    inicioTurno = null;
     conectando = false;
     boton.disabled = false;
     boton.setAttribute("aria-pressed", "false");

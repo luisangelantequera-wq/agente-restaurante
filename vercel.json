@@ -1,6 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
+  "functions": {
+    "api/voz-sesion.js": {
+      "regions": ["cdg1"]
+    },
+    "api/voz-sintesis.js": {
+      "regions": ["cdg1"]
+    }
+  },
   "crons": [
     {
       "path": "/api/privacidad",
