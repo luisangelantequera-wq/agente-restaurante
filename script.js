@@ -1568,7 +1568,7 @@ async function procesarMensaje(texto, opciones = {}) {
       !correcciones.zona_preferida
     ) {
       agregarMensaje(
-        "No he podido identificar el cambio. Puedes indicarme otra hora, otro día o un número diferente de personas.",
+        "No he podido identificar la hora. Dímela, por ejemplo: dos de la tarde o 14:00.",
         "bot"
       );
 
@@ -1751,6 +1751,36 @@ async function procesarMensaje(texto, opciones = {}) {
       }
       paso = "comprobando";
       await comprobarDisponibilidad();
+      return;
+    }
+
+    const campoCorreccion = window.ContactiaEntrada
+      .detectarCampoCorreccion(mensaje);
+
+    if (campoCorreccion === "hora") {
+      paso = "hora";
+      agregarMensaje("¿A qué hora deseas cambiar la reserva?", "bot");
+      return;
+    }
+
+    if (campoCorreccion === "fecha") {
+      paso = "fecha";
+      agregarMensaje("¿Para qué día deseas cambiar la reserva?", "bot");
+      return;
+    }
+
+    if (campoCorreccion === "personas") {
+      paso = "personas";
+      agregarMensaje("¿Para cuántas personas deseas cambiar la reserva?", "bot");
+      return;
+    }
+
+    if (campoCorreccion === "zona") {
+      paso = "zona";
+      agregarMensaje(
+        `¿A qué zona deseas cambiarla? Opciones: ${nombresZonasDisponibles().join(", ")}.`,
+        "bot"
+      );
       return;
     }
 

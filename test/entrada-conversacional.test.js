@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   aplicarCorreccionesReserva,
+  detectarCampoCorreccion,
   extraerDigitosTelefonoHablado,
   extraerHora,
   extraerPersonas,
@@ -42,6 +43,9 @@ test("acepta una hora breve solo después de haberla preguntado", () => {
   assert.equal(extraerHora("3"), null);
   assert.equal(extraerHora("3", true), "15:00");
   assert.equal(extraerHora("tres", true), "15:00");
+  assert.equal(extraerHora("Dos de la tarde", true), "14:00");
+  assert.equal(extraerHora("Una de la mañana", true), "01:00");
+  assert.equal(extraerHora("Somos dos", true), null);
 });
 
 
@@ -112,6 +116,25 @@ test("entiende negativas claras y rechaza respuestas ambiguas", () => {
   ]) {
     assert.equal(interpretarRespuestaBinaria(respuesta), null, respuesta);
   }
+});
+
+
+test("detecta la intención de corregir antes de cancelar la reserva", () => {
+  for (const respuesta of [
+    "Quiero cambiar la hora",
+    "No confirmo, quiero cambiar la hora",
+    "Quiero modificar el horario"
+  ]) {
+    assert.equal(detectarCampoCorreccion(respuesta), "hora", respuesta);
+  }
+
+  assert.equal(detectarCampoCorreccion("Quiero cambiar el día"), "fecha");
+  assert.equal(
+    detectarCampoCorreccion("Quiero corregir el número de personas"),
+    "personas"
+  );
+  assert.equal(detectarCampoCorreccion("Quiero cambiar a terraza"), "zona");
+  assert.equal(detectarCampoCorreccion("No confirmo"), null);
 });
 
 
@@ -246,5 +269,7 @@ test("el resumen permite corregir y vuelve a comprobar disponibilidad", () => {
   assert.match(script, /Si quieres corregir un dato, dímelo ahora/);
   assert.match(script, /hayCorreccionesReserva\(correcciones\)/);
   assert.match(script, /aplicarCorreccionesReserva/);
+  assert.match(script, /detectarCampoCorreccion\(mensaje\)/);
+  assert.match(script, /¿A qué hora deseas cambiar la reserva\?/);
   assert.match(script, /await comprobarDisponibilidad\(\)/);
 });
