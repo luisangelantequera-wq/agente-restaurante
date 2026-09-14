@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const chat = require("../api/chat");
 const {
+  analizarZonaPreferida,
   extraerZonaPreferida,
   normalizarZonasPublicas,
   zonaCoincide
@@ -199,6 +200,28 @@ test("reconoce las zonas configuradas y sus expresiones habituales", () => {
       id_zona: "SOL-TERRAZA"
     }),
     true
+  );
+});
+
+
+test("distingue una zona segura, ambigua o ausente", () => {
+  const zonasPublicas = [
+    { nombre: "INTERIOR" },
+    { nombre: "TERRAZA" },
+    { nombre: "SALA VIP" }
+  ];
+
+  assert.deepEqual(
+    analizarZonaPreferida("Mejor fuera", zonasPublicas),
+    { estado: "seguro", valor: "TERRAZA" }
+  );
+  assert.deepEqual(
+    analizarZonaPreferida("Interior o terraza", zonasPublicas),
+    { estado: "ambiguo", valor: "" }
+  );
+  assert.deepEqual(
+    analizarZonaPreferida("Quiero reservar", zonasPublicas),
+    { estado: "ausente", valor: "" }
   );
 });
 

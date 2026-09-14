@@ -4,12 +4,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   aplicarCorreccionesReserva,
+  analizarHora,
+  analizarPersonas,
   detectarCampoCorreccion,
   extraerDigitosTelefonoHablado,
   extraerHora,
   extraerPersonas,
   hayCorreccionesReserva,
   interpretarRespuestaBinaria,
+  interpretarValidacionDatos,
   normalizarNombreCliente,
   normalizarTelefono,
   puedeOfrecerListaEspera,
@@ -78,7 +81,7 @@ test("repite al cliente la hora interpretada antes de continuar", () => {
   );
   assert.match(
     script,
-    /if \(datosAdelantados\.hora\)[\s\S]*anunciarHoraInterpretada\(datosReserva\.hora\)/
+    /datosAdelantados\.hora\)[\s\S]*anunciarHoraInterpretada\(datosReserva\.hora\)/
   );
 });
 
@@ -98,6 +101,34 @@ test("entiende respuestas breves sobre el número de personas", () => {
   for (const entrada of ["El 10 de septiembre", "A las 15 horas", "Mesa 5"]) {
     assert.equal(extraerPersonas(entrada), null, entrada);
   }
+});
+
+
+test("clasifica personas y horas como seguras, ambiguas o ausentes", () => {
+  assert.deepEqual(
+    analizarPersonas("Quiero una mesa para dos personas"),
+    { estado: "seguro", valor: 2 }
+  );
+  assert.deepEqual(
+    analizarPersonas("Podemos ser dos o tres personas"),
+    { estado: "ambiguo", valor: null }
+  );
+  assert.deepEqual(
+    analizarPersonas("Quiero reservar mañana"),
+    { estado: "ausente", valor: null }
+  );
+  assert.deepEqual(
+    analizarHora("Queremos comer a las dos"),
+    { estado: "seguro", valor: "14:00" }
+  );
+  assert.deepEqual(
+    analizarHora("Puede ser a las dos o a las tres"),
+    { estado: "ambiguo", valor: null }
+  );
+  assert.deepEqual(
+    analizarHora("Quiero reservar mañana"),
+    { estado: "ausente", valor: null }
+  );
 });
 
 
@@ -152,6 +183,31 @@ test("detecta la intención de corregir antes de cancelar la reserva", () => {
   );
   assert.equal(detectarCampoCorreccion("Quiero cambiar a terraza"), "zona");
   assert.equal(detectarCampoCorreccion("No confirmo"), null);
+});
+
+
+test("valida los datos solo con una respuesta inequívoca", () => {
+  for (const respuesta of [
+    "Sí",
+    "Sí, todo correcto",
+    "Sí, confirmo los datos",
+    "Todo correcto",
+    "Está bien",
+    "De acuerdo"
+  ]) {
+    assert.equal(interpretarValidacionDatos(respuesta), "si", respuesta);
+  }
+
+  for (const respuesta of [
+    "No",
+    "No, la hora está mal",
+    "Sí, pero quiero cambiar la hora",
+    "Quiero cambiar el día"
+  ]) {
+    assert.equal(interpretarValidacionDatos(respuesta), "no", respuesta);
+  }
+
+  assert.equal(interpretarValidacionDatos("Puede ser"), null);
 });
 
 
@@ -289,4 +345,29 @@ test("el resumen permite corregir y vuelve a comprobar disponibilidad", () => {
   assert.match(script, /detectarCampoCorreccion\(mensaje\)/);
   assert.match(script, /¿A qué hora deseas cambiar la reserva\?/);
   assert.match(script, /await comprobarDisponibilidad\(\)/);
+});
+
+
+test("valida los datos principales antes de consultar disponibilidad", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(
+    script,
+    /function mostrarConfirmacionDatosPrincipales\(\)[\s\S]*paso = "confirmacion_datos"/
+  );
+  assert.match(
+    script,
+    /if \(paso === "confirmacion_datos"\)[\s\S]*interpretarValidacionDatos[\s\S]*respuesta === "si"[\s\S]*await comprobarDisponibilidad\(\)/
+  );
+  assert.match(
+    script,
+    /respuesta === "no"[\s\S]*iniciarCapturaGuiada/
+  );
+  assert.match(
+    script,
+    /Vamos a tomar los datos uno a uno\. Primero, ¿qué día deseas reservar\?/
+  );
 });

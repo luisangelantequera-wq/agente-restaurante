@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  analizarFecha,
   extraerFecha
 } = require("../lib/fecha-conversacional");
 
@@ -35,4 +36,29 @@ test("una fecha natural sin año que ya pasó se lleva al año siguiente", () =>
 test("rechaza fechas imposibles", () => {
   assert.equal(extraerFecha("31/02/2026", AHORA), null);
   assert.equal(extraerFecha("31 de febrero de 2026", AHORA), null);
+});
+
+
+test("clasifica fechas seguras, ambiguas y ausentes", () => {
+  assert.deepEqual(
+    analizarFecha("Quiero reservar mañana", AHORA),
+    { estado: "seguro", valor: "2026-09-04", expresiones: ["manana"] }
+  );
+  assert.equal(
+    analizarFecha("mañana viernes", AHORA).estado,
+    "seguro"
+  );
+  assert.equal(
+    analizarFecha("mañana día 4", AHORA).estado,
+    "seguro"
+  );
+  assert.equal(
+    analizarFecha("mañana día 2", AHORA).estado,
+    "ambiguo"
+  );
+  assert.equal(
+    analizarFecha("mañana 10 de septiembre de 2026", AHORA).estado,
+    "ambiguo"
+  );
+  assert.equal(analizarFecha("Quiero reservar", AHORA).estado, "ausente");
 });

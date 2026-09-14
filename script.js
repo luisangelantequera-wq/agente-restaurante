@@ -51,6 +51,7 @@ let reservaGestion = null;
 let reservaGestionOriginal = null;
 let solicitudEspera = null;
 let datosListaEspera = null;
+let capturaGuiadaEstricta = false;
 const observadoresMensajes = new Set();
 
 
@@ -264,6 +265,99 @@ function extraerDatosIniciales(texto) {
       zonasRestauranteActivo()
     )
   };
+}
+
+
+function analizarDatosPrincipales(texto) {
+  const fecha = window.ContactiaFechas.analizarFecha(texto);
+  const personas = window.ContactiaEntrada.analizarPersonas(texto);
+  const hora = window.ContactiaEntrada.analizarHora(texto);
+  const zona = window.ContactiaZonas.analizarZonaPreferida(
+    texto,
+    zonasRestauranteActivo()
+  );
+  const analisis = { fecha, personas, hora, zona };
+
+  return {
+    datos: {
+      fecha: fecha.valor || "",
+      personas: personas.valor,
+      hora: hora.valor || "",
+      zona_preferida: zona.valor || ""
+    },
+    ambiguos: Object.entries(analisis)
+      .filter(([, resultado]) => resultado.estado === "ambiguo")
+      .map(([campo]) => campo)
+  };
+}
+
+
+function limpiarDatosPrincipales() {
+  datosReserva.fecha = "";
+  datosReserva.personas = null;
+  datosReserva.hora = "";
+  datosReserva.zona_preferida = "";
+}
+
+
+function iniciarCapturaGuiada(motivo = "") {
+  limpiarDatosPrincipales();
+  capturaGuiadaEstricta = true;
+  paso = "fecha";
+  agregarMensaje(
+    `${motivo ? `${motivo} ` : ""}` +
+    "Vamos a tomar los datos uno a uno. Primero, ¿qué día deseas reservar?",
+    "bot"
+  );
+}
+
+
+function mostrarConfirmacionDatosPrincipales() {
+  paso = "confirmacion_datos";
+  const zona = datosReserva.zona_preferida
+    ? `, en la zona ${datosReserva.zona_preferida}`
+    : "";
+
+  agregarMensaje(
+    `He entendido una reserva para el día ${mostrarFechaParaVoz(datosReserva.fecha)}, ` +
+    `para ${personasParaVoz(datosReserva.personas)} personas, a las ` +
+    `${datosReserva.hora}${zona}. ¿Son correctos estos datos? ` +
+    "Di «Sí, son correctos» o «No».",
+    "bot"
+  );
+}
+
+
+function continuarCapturaDatosPrincipales() {
+  if (!datosReserva.fecha) {
+    paso = "fecha";
+    agregarMensaje(
+      "¿Qué día deseas reservar? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
+      "bot"
+    );
+    return;
+  }
+
+  if (!datosReserva.personas) {
+    paso = "personas";
+    agregarMensaje(
+      "Perfecto 😊 ¿Para cuántas personas deseas reservar?",
+      "bot"
+    );
+    return;
+  }
+
+  if (!datosReserva.hora) {
+    paso = "hora";
+    agregarMensaje("¿A qué hora deseas reservar? Por ejemplo: 14:00.", "bot");
+    return;
+  }
+
+  if (preguntarZonaSiNecesaria()) {
+    return;
+  }
+
+  mostrarConfirmacionDatosPrincipales();
 }
 
 function extraerLocalizador(texto) {
@@ -937,6 +1031,11 @@ function repetirPreguntaPendiente() {
     return;
   }
 
+  if (paso === "confirmacion_datos") {
+    mostrarConfirmacionDatosPrincipales();
+    return;
+  }
+
   if (paso === "confirmacion_espera") {
     mostrarConfirmacionListaEspera();
     return;
@@ -1307,6 +1406,33 @@ async function procesarMensaje(texto, opciones = {}) {
   }
 
 
+  if (paso === "confirmacion_datos") {
+    const respuesta = window.ContactiaEntrada.interpretarValidacionDatos(
+      mensaje
+    );
+
+    if (respuesta === "si") {
+      capturaGuiadaEstricta = false;
+      paso = "comprobando";
+      await comprobarDisponibilidad();
+      return;
+    }
+
+    if (respuesta === "no") {
+      iniciarCapturaGuiada(
+        "De acuerdo. No consultaré la disponibilidad con esos datos."
+      );
+      return;
+    }
+
+    agregarMensaje(
+      "No he podido saber si los datos son correctos. Di «Sí, son correctos» o «No».",
+      "bot"
+    );
+    return;
+  }
+
+
   // INICIO
   if (paso === "inicio") {
     const textoMinusculas =
@@ -1378,58 +1504,22 @@ async function procesarMensaje(texto, opciones = {}) {
       textoMinusculas.includes("reserva") ||
       textoMinusculas.includes("mesa")
     ) {
-      const datosIniciales = extraerDatosIniciales(mensaje);
+      const analisisInicial = analizarDatosPrincipales(mensaje);
 
-      datosReserva.personas = datosIniciales.personas;
-      datosReserva.fecha = datosIniciales.fecha || "";
-      datosReserva.hora = datosIniciales.hora || "";
-      datosReserva.zona_preferida = datosIniciales.zona_preferida || "";
-
-      if (datosReserva.hora) {
-        anunciarHoraInterpretada(datosReserva.hora);
-      }
-
-      if (!datosReserva.personas) {
-        paso = "personas";
-
-        agregarMensaje(
-          "Perfecto 😊 ¿Para cuántas personas deseas reservar?",
-          "bot"
+      if (analisisInicial.ambiguos.length > 0) {
+        iniciarCapturaGuiada(
+          "Perdona, he detectado datos que podrían tener más de una interpretación."
         );
-
         return;
       }
 
-      if (!datosReserva.fecha) {
-        paso = "fecha";
-
-        agregarMensaje(
-          "¿Qué día deseas reservar? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
-          "bot"
-        );
-
-        return;
-      }
-
-      if (!datosReserva.hora) {
-        paso = "hora";
-
-        agregarMensaje(
-          "¿A qué hora deseas reservar? Por ejemplo: 14:00.",
-          "bot"
-        );
-
-        return;
-      }
-
-      if (preguntarZonaSiNecesaria()) {
-        return;
-      }
-
-      paso = "comprobando";
-
-      await comprobarDisponibilidad();
-
+      datosReserva.personas = analisisInicial.datos.personas;
+      datosReserva.fecha = analisisInicial.datos.fecha;
+      datosReserva.hora = analisisInicial.datos.hora;
+      datosReserva.zona_preferida = analisisInicial.datos.zona_preferida;
+      capturaGuiadaEstricta = !datosReserva.fecha &&
+        !datosReserva.personas && !datosReserva.hora;
+      continuarCapturaDatosPrincipales();
       return;
     }
 
@@ -1444,7 +1534,21 @@ async function procesarMensaje(texto, opciones = {}) {
 
   // PERSONAS
   if (paso === "personas") {
-    const datosAdelantados = extraerDatosIniciales(mensaje);
+    const analisisPersonas = window.ContactiaEntrada.analizarPersonas(
+      `${mensaje} personas`
+    );
+
+    if (analisisPersonas.estado === "ambiguo") {
+      agregarMensaje(
+        "He oído más de un número posible. ¿Para cuántas personas deseas reservar?",
+        "bot"
+      );
+      return;
+    }
+
+    const datosAdelantados = capturaGuiadaEstricta
+      ? { personas: extraerPersonas(mensaje) }
+      : extraerDatosIniciales(mensaje);
     const personas =
       datosAdelantados.personas ||
       extraerPersonas(`${mensaje} personas`);
@@ -1463,55 +1567,39 @@ async function procesarMensaje(texto, opciones = {}) {
 
     datosReserva.personas = personas;
 
-    if (datosAdelantados.fecha) {
+    if (!capturaGuiadaEstricta && datosAdelantados.fecha) {
       datosReserva.fecha = datosAdelantados.fecha;
     }
 
-    if (datosAdelantados.hora) {
+    if (!capturaGuiadaEstricta && datosAdelantados.hora) {
       datosReserva.hora = datosAdelantados.hora;
       anunciarHoraInterpretada(datosReserva.hora);
     }
 
-    if (datosAdelantados.zona_preferida) {
+    if (!capturaGuiadaEstricta && datosAdelantados.zona_preferida) {
       datosReserva.zona_preferida = datosAdelantados.zona_preferida;
     }
 
-    if (!datosReserva.fecha) {
-      paso = "fecha";
-
-      agregarMensaje(
-        "¿Qué día deseas reservar? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
-        "bot"
-      );
-
-      return;
-    }
-
-    if (!datosReserva.hora) {
-      paso = "hora";
-
-      agregarMensaje(
-        "¿A qué hora deseas reservar? Por ejemplo: 14:00.",
-        "bot"
-      );
-
-      return;
-    }
-
-    if (preguntarZonaSiNecesaria()) {
-      return;
-    }
-
-    paso = "comprobando";
-    await comprobarDisponibilidad();
-
+    continuarCapturaDatosPrincipales();
     return;
   }
 
 
   // FECHA
   if (paso === "fecha") {
-    const datosAdelantados = extraerDatosIniciales(mensaje);
+    const analisisFecha = window.ContactiaFechas.analizarFecha(mensaje);
+
+    if (analisisFecha.estado === "ambiguo") {
+      agregarMensaje(
+        "He oído más de un día posible. Dime únicamente el día de la reserva.",
+        "bot"
+      );
+      return;
+    }
+
+    const datosAdelantados = capturaGuiadaEstricta
+      ? { fecha: extraerFecha(mensaje) }
+      : extraerDatosIniciales(mensaje);
     const fechaExtraida = datosAdelantados.fecha;
 
     if (!fechaExtraida) {
@@ -1525,41 +1613,42 @@ async function procesarMensaje(texto, opciones = {}) {
 
     datosReserva.fecha = fechaExtraida;
 
-    if (datosAdelantados.hora) {
+    if (!capturaGuiadaEstricta && datosAdelantados.hora) {
       datosReserva.hora = datosAdelantados.hora;
       anunciarHoraInterpretada(datosReserva.hora);
     }
 
-    if (datosAdelantados.zona_preferida) {
+    if (!capturaGuiadaEstricta && datosAdelantados.personas) {
+      datosReserva.personas = datosAdelantados.personas;
+    }
+
+    if (!capturaGuiadaEstricta && datosAdelantados.zona_preferida) {
       datosReserva.zona_preferida = datosAdelantados.zona_preferida;
     }
 
-    if (!datosReserva.hora) {
-      paso = "hora";
-      agregarMensaje(
-        "¿A qué hora deseas reservar? Por ejemplo: 14:00.",
-        "bot"
-      );
-      return;
-    }
-
-    if (preguntarZonaSiNecesaria()) {
-      return;
-    }
-
-    paso = "comprobando";
-    await comprobarDisponibilidad();
-
+    continuarCapturaDatosPrincipales();
     return;
   }
 
 
   // HORA
   if (paso === "hora") {
-    const correcciones = {
-      ...extraerDatosIniciales(mensaje),
-      hora: extraerHora(mensaje, true)
-    };
+    const analisisHora = window.ContactiaEntrada.analizarHora(mensaje);
+
+    if (analisisHora.estado === "ambiguo") {
+      agregarMensaje(
+        "He oído más de una hora posible. Dime únicamente la hora que prefieres.",
+        "bot"
+      );
+      return;
+    }
+
+    const correcciones = capturaGuiadaEstricta
+      ? { hora: extraerHora(mensaje, true) }
+      : {
+        ...extraerDatosIniciales(mensaje),
+        hora: extraerHora(mensaje, true)
+      };
 
     if (
       !correcciones.hora &&
@@ -1580,47 +1669,38 @@ async function procesarMensaje(texto, opciones = {}) {
       anunciarHoraInterpretada(datosReserva.hora);
     }
 
-    if (correcciones.fecha) {
+    if (!capturaGuiadaEstricta && correcciones.fecha) {
       datosReserva.fecha = correcciones.fecha;
     }
 
-    if (correcciones.personas) {
+    if (!capturaGuiadaEstricta && correcciones.personas) {
       datosReserva.personas = correcciones.personas;
     }
 
-    if (correcciones.zona_preferida) {
+    if (!capturaGuiadaEstricta && correcciones.zona_preferida) {
       datosReserva.zona_preferida = correcciones.zona_preferida;
     }
 
-    if (!datosReserva.fecha) {
-      paso = "fecha";
-      agregarMensaje(
-        "¿Qué día deseas reservar? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
-        "bot"
-      );
-      return;
-    }
-
-    if (!datosReserva.hora) {
-      agregarMensaje(
-        "¿A qué hora deseas reservar? Por ejemplo: 14:00.",
-        "bot"
-      );
-      return;
-    }
-
-    if (preguntarZonaSiNecesaria()) {
-      return;
-    }
-
-    await comprobarDisponibilidad();
-
+    continuarCapturaDatosPrincipales();
     return;
   }
 
 
   // ZONA
   if (paso === "zona") {
+    const analisisZona = window.ContactiaZonas.analizarZonaPreferida(
+      mensaje,
+      zonasRestauranteActivo()
+    );
+
+    if (analisisZona.estado === "ambiguo") {
+      agregarMensaje(
+        `He oído más de una zona. Elige una: ${nombresZonasDisponibles().join(", ")}.`,
+        "bot"
+      );
+      return;
+    }
+
     const zona = window.ContactiaZonas.extraerZonaPreferida(
       mensaje,
       zonasRestauranteActivo()
@@ -1635,8 +1715,7 @@ async function procesarMensaje(texto, opciones = {}) {
     }
 
     datosReserva.zona_preferida = zona;
-    paso = "comprobando";
-    await comprobarDisponibilidad();
+    mostrarConfirmacionDatosPrincipales();
     return;
   }
 
@@ -1959,6 +2038,7 @@ window.ContactiaVozBridge = {
 // 1️⃣1️⃣ REINICIAR
 function reiniciarReserva() {
   paso = "inicio";
+  capturaGuiadaEstricta = false;
   localizadorGestion = "";
   reservaGestion = null;
   reservaGestionOriginal = null;
