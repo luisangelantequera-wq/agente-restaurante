@@ -49,6 +49,23 @@ test("acepta una hora breve solo después de haberla preguntado", () => {
 });
 
 
+test("extrae la hora de una frase libre y descarta el resto", () => {
+  for (const [entrada, esperado] of [
+    ["Quiero comer a las dos", "14:00"],
+    ["Me gustaría reservar sobre las dos", "14:00"],
+    ["Sería para las dos de la tarde, si puede ser", "14:00"],
+    ["Una mesa hacia las tres y media", "15:30"],
+    ["Preferimos comer a eso de la una", "13:00"],
+    ["Creo que dos por la tarde nos viene bien", "14:00"],
+    ["Mesa hacia las 14:15, por favor", "14:15"]
+  ]) {
+    assert.equal(extraerHora(entrada, true), esperado, entrada);
+  }
+
+  assert.equal(extraerHora("Quiero una mesa para dos personas", true), null);
+});
+
+
 test("repite al cliente la hora interpretada antes de continuar", () => {
   const script = fs.readFileSync(
     path.join(__dirname, "..", "script.js"),
