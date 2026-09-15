@@ -328,7 +328,86 @@ function mostrarConfirmacionDatosPrincipales() {
 }
 
 
-function continuarCapturaDatosPrincipales() {
+async function validarMomentoReservaAntesDeContinuar() {
+  try {
+    const respuesta = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        accion: "verificar",
+        restaurante_id: datosReserva.restaurante_id,
+        personas: datosReserva.personas,
+        fecha: datosReserva.fecha,
+        hora: datosReserva.hora,
+        zona_preferida: ""
+      })
+    });
+    const data = await respuesta.json();
+
+    if (!respuesta.ok || data.ok === false) {
+      const error = String(data.error || "");
+
+      if (error.startsWith("La fecha debe estar entre hoy")) {
+        agregarMensaje(
+          "Ese día ya ha pasado o está fuera del plazo de reservas. " +
+          "Indícame otro día.",
+          "bot"
+        );
+        datosReserva.fecha = "";
+        datosReserva.hora = "";
+        datosReserva.zona_preferida = "";
+        paso = "fecha";
+        return false;
+      }
+
+      agregarMensaje(
+        "No he podido comprobar si esa fecha y hora siguen siendo válidas. " +
+        "Inténtalo de nuevo.",
+        "bot"
+      );
+      datosReserva.hora = "";
+      paso = "hora";
+      return false;
+    }
+
+    if (!data.antelacion_insuficiente) {
+      return true;
+    }
+
+    agregarMensaje(
+      data.motivo ||
+        "Esa hora ya no cumple la antelación mínima. Indícame otra hora.",
+      "bot"
+    );
+    solicitudEspera = null;
+
+    if (data.cambio_requerido === "fecha") {
+      datosReserva.fecha = "";
+      datosReserva.hora = "";
+      datosReserva.zona_preferida = "";
+      paso = "fecha";
+    } else {
+      datosReserva.hora = "";
+      paso = "hora";
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Error al validar la fecha y hora:", error);
+    agregarMensaje(
+      "No he podido comprobar esa fecha y hora. Inténtalo de nuevo.",
+      "bot"
+    );
+    datosReserva.hora = "";
+    paso = "hora";
+    return false;
+  }
+}
+
+
+async function continuarCapturaDatosPrincipales() {
   if (!datosReserva.fecha) {
     paso = "fecha";
     agregarMensaje(
@@ -350,6 +429,10 @@ function continuarCapturaDatosPrincipales() {
   if (!datosReserva.hora) {
     paso = "hora";
     agregarMensaje("¿A qué hora deseas reservar? Por ejemplo: 14:00.", "bot");
+    return;
+  }
+
+  if (!(await validarMomentoReservaAntesDeContinuar())) {
     return;
   }
 
@@ -1545,7 +1628,7 @@ async function procesarMensaje(texto, opciones = {}) {
       datosReserva.zona_preferida = analisisInicial.datos.zona_preferida;
       capturaGuiadaEstricta = !datosReserva.fecha &&
         !datosReserva.personas && !datosReserva.hora;
-      continuarCapturaDatosPrincipales();
+      await continuarCapturaDatosPrincipales();
       return;
     }
 
@@ -1606,7 +1689,7 @@ async function procesarMensaje(texto, opciones = {}) {
       datosReserva.zona_preferida = datosAdelantados.zona_preferida;
     }
 
-    continuarCapturaDatosPrincipales();
+    await continuarCapturaDatosPrincipales();
     return;
   }
 
@@ -1655,7 +1738,7 @@ async function procesarMensaje(texto, opciones = {}) {
       datosReserva.zona_preferida = datosAdelantados.zona_preferida;
     }
 
-    continuarCapturaDatosPrincipales();
+    await continuarCapturaDatosPrincipales();
     return;
   }
 
@@ -1710,7 +1793,7 @@ async function procesarMensaje(texto, opciones = {}) {
       datosReserva.zona_preferida = correcciones.zona_preferida;
     }
 
-    continuarCapturaDatosPrincipales();
+    await continuarCapturaDatosPrincipales();
     return;
   }
 
