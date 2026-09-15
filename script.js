@@ -1437,6 +1437,14 @@ async function procesarMensaje(texto, opciones = {}) {
   if (paso === "inicio") {
     const textoMinusculas =
       normalizarTexto(mensaje);
+    const respuestaSaludo = window.ContactiaEntrada.crearRespuestaSaludo(
+      mensaje
+    );
+
+    if (respuestaSaludo) {
+      agregarMensaje(respuestaSaludo, "bot");
+      return;
+    }
 
     if (textoMinusculas.includes("modific") || textoMinusculas.includes("cambiar")) {
       if (!tokenGestionActivo && !localizadorGestion) {
@@ -1598,8 +1606,11 @@ async function procesarMensaje(texto, opciones = {}) {
     }
 
     const datosAdelantados = capturaGuiadaEstricta
-      ? { fecha: extraerFecha(mensaje) }
-      : extraerDatosIniciales(mensaje);
+      ? { fecha: analisisFecha.valor }
+      : {
+          ...extraerDatosIniciales(mensaje),
+          fecha: analisisFecha.valor || extraerFecha(mensaje)
+        };
     const fechaExtraida = datosAdelantados.fecha;
 
     if (!fechaExtraida) {
