@@ -111,7 +111,10 @@ function zonas(horarioTerraza = "") {
 }
 
 
-function instalarAirtableFalso({ horarioTerraza = "" } = {}) {
+function instalarAirtableFalso({
+  horarioTerraza = "",
+  antelacionMinima = 30
+} = {}) {
   return async (url) => {
     const ruta = new URL(url).pathname;
 
@@ -125,6 +128,7 @@ function instalarAirtableFalso({ horarioTerraza = "" } = {}) {
             estado: "activo",
             horario_reservas: horarioParaTodos("13:00-16:00"),
             intervalo_minutos: 15,
+            antelacion_minima_reserva_minutos: antelacionMinima,
             duracion_reserva_minutos: 90,
             margen_capacidad: 4,
             prefijo_reserva: "SOL"
@@ -322,6 +326,33 @@ test("la API no crea listas de espera fuera del horario de apertura", async () =
     assert.equal(respuesta.body.disponible, false);
     assert.equal(respuesta.body.cambio_requerido, "hora");
     assert.notEqual(respuesta.body.lista_espera_creada, true);
+  } finally {
+    global.fetch = fetchOriginal;
+  }
+});
+
+
+test("la API rechaza una reserva que no cumple la antelación del restaurante", async () => {
+  const fetchOriginal = global.fetch;
+  global.fetch = instalarAirtableFalso({ antelacionMinima: 10000 });
+
+  try {
+    const respuesta = await ejecutar({
+      accion: "verificar",
+      restaurante_id: 1,
+      fecha: fechaProxima(),
+      hora: "14:00",
+      personas: 2,
+      zona_preferida: "interior"
+    });
+
+    assert.equal(respuesta.status, 200);
+    assert.equal(respuesta.body.disponible, false);
+    assert.equal(respuesta.body.antelacion_insuficiente, true);
+    assert.equal(respuesta.body.antelacion_minima_minutos, 10000);
+    assert.equal(respuesta.body.cambio_requerido, "hora");
+    assert.deepEqual(respuesta.body.alternativas, []);
+    assert.match(respuesta.body.motivo, /al menos 10000 minutos/);
   } finally {
     global.fetch = fetchOriginal;
   }
