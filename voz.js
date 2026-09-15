@@ -12,6 +12,9 @@
   const selectorVoz = document.getElementById("voice-choice");
   const entradaTexto = document.getElementById("user-input");
   const botonEnviar = document.getElementById("send-btn");
+  const SALUDO_INICIAL =
+    "Bienvenido a Restaurante Sol. Soy su asistente virtual. " +
+    "¿Desea reservar, consultar, modificar o cancelar una reserva?";
   let conexion = null;
   let canal = null;
   let microfono = null;
@@ -23,6 +26,8 @@
   let temporizadorLimite = null;
   let colaHerramientas = Promise.resolve();
   let inicioTurno = null;
+  let saludoInicialPendiente = null;
+  let temporizadorSaludoInicial = null;
   const llamadasProcesadas = new Set();
 
 
@@ -161,6 +166,66 @@
   }
 
 
+  function finalizarSaludoInicial(error = null) {
+    if (!saludoInicialPendiente) {
+      return;
+    }
+
+    const pendiente = saludoInicialPendiente;
+    saludoInicialPendiente = null;
+
+    if (temporizadorSaludoInicial) {
+      window.clearTimeout(temporizadorSaludoInicial);
+      temporizadorSaludoInicial = null;
+    }
+
+    if (error) {
+      pendiente.reject(error);
+    } else {
+      pendiente.resolve();
+    }
+  }
+
+
+  function reproducirSaludoConOpenAI() {
+    if (audioRemoto) {
+      audioRemoto.muted = false;
+    }
+
+    cambiarEstado("Dando la bienvenida…");
+
+    return new Promise((resolve, reject) => {
+      saludoInicialPendiente = {
+        resolve,
+        reject,
+        responseId: null
+      };
+      temporizadorSaludoInicial = window.setTimeout(() => {
+        finalizarSaludoInicial(
+          new Error("El saludo inicial ha tardado demasiado.")
+        );
+      }, 30000);
+
+      try {
+        enviarEvento({
+          type: "response.create",
+          response: {
+            conversation: "none",
+            metadata: { contactia_phase: "initial_greeting" },
+            input: [],
+            output_modalities: ["audio"],
+            tool_choice: "none",
+            instructions:
+              `Pronuncia exactamente este saludo, sin añadir nada: ${SALUDO_INICIAL}`
+          }
+        });
+      } catch (error) {
+        finalizarSaludoInicial(error);
+      }
+    });
+  }
+
+
   function responderConOpenAI() {
     if (audioRemoto) {
       audioRemoto.muted = false;
@@ -272,6 +337,27 @@
 
 
   function procesarEvento(evento) {
+    if (
+      evento.type === "response.created" &&
+      evento.response?.metadata?.contactia_phase === "initial_greeting" &&
+      saludoInicialPendiente
+    ) {
+      saludoInicialPendiente.responseId = evento.response.id;
+      return;
+    }
+
+    if (
+      evento.type === "output_audio_buffer.stopped" &&
+      saludoInicialPendiente &&
+      (
+        !saludoInicialPendiente.responseId ||
+        evento.response_id === saludoInicialPendiente.responseId
+      )
+    ) {
+      finalizarSaludoInicial();
+      return;
+    }
+
     if (evento.type === "input_audio_buffer.speech_started") {
       cambiarEstado("Te escucho…");
       return;
@@ -302,18 +388,43 @@
     }
 
     if (evento.type === "response.done" && !respuestaEsLlamadaHerramienta(evento)) {
+      const esSaludoInicial =
+        evento.response?.metadata?.contactia_phase === "initial_greeting" ||
+        (
+          saludoInicialPendiente?.responseId &&
+          evento.response?.id === saludoInicialPendiente.responseId
+        );
+
+      if (esSaludoInicial) {
+        if (saludoInicialPendiente) {
+          saludoInicialPendiente.responseId = evento.response?.id || null;
+        }
+
+        if (evento.response?.status !== "completed") {
+          finalizarSaludoInicial(
+            new Error("No se pudo reproducir el saludo inicial.")
+          );
+        }
+        return;
+      }
+
       cambiarEstado("Te escucho. Puedes continuar.");
       return;
     }
 
     if (evento.type === "error") {
       console.error("Error de OpenAI Realtime:", evento.error?.code || "desconocido");
+      finalizarSaludoInicial(
+        new Error("No se pudo reproducir el saludo inicial.")
+      );
       cambiarEstado("Ha ocurrido un error de voz. Detén y vuelve a iniciar.");
     }
   }
 
 
   function cerrarVoz(mensaje = "Micrófono apagado") {
+    finalizarSaludoInicial();
+
     if (temporizadorLimite) {
       window.clearTimeout(temporizadorLimite);
       temporizadorLimite = null;
@@ -477,7 +588,6 @@
       });
       await canalAbierto;
 
-      pista.enabled = true;
       conectando = false;
       boton.disabled = false;
       boton.setAttribute("aria-pressed", "true");
@@ -485,11 +595,28 @@
       entradaTexto.disabled = true;
       botonEnviar.disabled = true;
       selectorVoz.disabled = true;
+
+      if (esVozGoogle()) {
+        cambiarEstado("Preparando el saludo…");
+        await reproducirConGoogle(SALUDO_INICIAL);
+      } else {
+        await reproducirSaludoConOpenAI();
+      }
+
+      if (!conexion || !microfono || pista.readyState === "ended") {
+        return;
+      }
+
+      pista.enabled = true;
       cambiarEstado("Te escucho. Puedes hablar.");
       temporizadorLimite = window.setTimeout(() => {
         cerrarVoz("La prueba de voz de 5 minutos ha terminado.");
       }, 5 * 60 * 1000);
     } catch (error) {
+      if (!conexion && error?.name === "AbortError") {
+        return;
+      }
+
       console.error("No se pudo iniciar la voz:", error);
       cerrarVoz(error.message || "No se pudo iniciar la voz.");
     }
