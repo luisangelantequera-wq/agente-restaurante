@@ -62,3 +62,41 @@ test("clasifica fechas seguras, ambiguas y ausentes", () => {
   );
   assert.equal(analizarFecha("Quiero reservar", AHORA).estado, "ausente");
 });
+
+
+test("acepta un día del mes aislado sin confundirlo con dos fechas", () => {
+  assert.deepEqual(
+    analizarFecha("El día 3", AHORA),
+    { estado: "seguro", valor: "2026-09-03", expresiones: ["el dia 3"] }
+  );
+  assert.deepEqual(
+    analizarFecha("El día 2", AHORA),
+    { estado: "seguro", valor: "2026-10-02", expresiones: ["el dia 2"] }
+  );
+  assert.deepEqual(
+    analizarFecha("El 15", AHORA),
+    { estado: "seguro", valor: "2026-09-15", expresiones: ["el 15"] }
+  );
+});
+
+
+test("distingue un día aislado de una referencia relativa contradictoria", () => {
+  const quinceSeptiembre = new Date(2026, 8, 15, 12, 0, 0, 0);
+
+  assert.equal(
+    analizarFecha("mañana día 15", quinceSeptiembre).estado,
+    "ambiguo"
+  );
+  assert.deepEqual(
+    analizarFecha("el día 15", quinceSeptiembre),
+    { estado: "seguro", valor: "2026-09-15", expresiones: ["el dia 15"] }
+  );
+  assert.deepEqual(
+    analizarFecha("mañana miércoles", quinceSeptiembre),
+    {
+      estado: "seguro",
+      valor: "2026-09-16",
+      expresiones: ["miercoles", "manana"]
+    }
+  );
+});
