@@ -16,6 +16,7 @@ test("la copia excluye datos personales y secretos", () => {
       fields: {
         id: 1,
         nombre: "Restaurante Sol",
+        antelacion_minima_reserva_minutos: 30,
         api_key_restaurante: "clave-no-publicable"
       }
     }],
@@ -77,6 +78,10 @@ test("la copia excluye datos personales y secretos", () => {
   assert.equal(copia.contiene_datos_personales_clientes, false);
   assert.equal(copia.tablas.RESERVAS[0].fields.fecha, "2026-09-01");
   assert.equal(copia.tablas.RESERVAS[0].fields.personas, 3);
+  assert.equal(
+    copia.tablas.RESTAURANTES[0].fields.antelacion_minima_reserva_minutos,
+    30
+  );
   assert.equal(
     copia.tablas.LISTA_ESPERA[0].fields.zona_preferida,
     "TERRAZA"
