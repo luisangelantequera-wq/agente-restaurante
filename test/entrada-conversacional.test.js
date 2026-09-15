@@ -6,6 +6,7 @@ const {
   aplicarCorreccionesReserva,
   analizarHora,
   analizarPersonas,
+  crearRespuestaSaludo,
   detectarCampoCorreccion,
   extraerDigitosTelefonoHablado,
   extraerHora,
@@ -18,6 +19,27 @@ const {
   puedeOfrecerListaEspera,
   telefonoValido
 } = require("../lib/entrada-conversacional");
+
+
+test("responde de forma natural cuando el cliente solo saluda", () => {
+  const casos = [
+    ["Hola", "Hola."],
+    ["Buenos días", "Buenos días."],
+    ["Hola, buenos días", "Hola, buenos días."],
+    ["Buenas tardes", "Buenas tardes."],
+    ["Hola, buenas noches", "Hola, buenas noches."]
+  ];
+
+  for (const [entrada, saludo] of casos) {
+    assert.equal(
+      crearRespuestaSaludo(entrada),
+      `${saludo} ¿Quieres reservar, consultar, modificar o cancelar una reserva?`
+    );
+  }
+
+  assert.equal(crearRespuestaSaludo("Hola, quiero reservar"), null);
+  assert.equal(crearRespuestaSaludo("Quiero reservar"), null);
+});
 
 
 test("interpreta horas coloquiales según el contexto del restaurante", () => {
