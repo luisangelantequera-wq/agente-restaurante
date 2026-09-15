@@ -511,6 +511,12 @@ async function comprobarDisponibilidad() {
       return;
     }
 
+    if (data.antelacion_insuficiente) {
+      solicitudEspera = null;
+      paso = "hora";
+      return;
+    }
+
     const puedeOfrecerListaEspera =
       window.ContactiaEntrada.puedeOfrecerListaEspera(data);
 
@@ -764,6 +770,18 @@ async function crearReserva() {
     }
 
     if (data.reservado === false) {
+      if (data.antelacion_insuficiente) {
+        agregarMensaje(
+          data.motivo ||
+            "La hora solicitada ya no cumple la antelación mínima.",
+          "bot"
+        );
+        agregarMensaje("Indícame otra hora o día.", "bot");
+        solicitudEspera = null;
+        paso = "hora";
+        return;
+      }
+
       agregarMensaje(
         "Lo siento, mientras completábamos los datos esa mesa ha dejado de estar disponible.",
         "bot"
