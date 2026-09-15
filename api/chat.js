@@ -27,6 +27,10 @@ const {
 const {
   zonaCoincide
 } = require("../lib/zona-reserva");
+const {
+  obtenerAntelacionMinimaReserva,
+  validarAntelacionReserva
+} = require("../lib/antelacion-reserva");
 const CADUCIDAD_RESERVA_PENDIENTE_MS = 2 * 60 * 1000;
 const NOMBRE_RESTAURANTE_GENERICO = "el restaurante";
 const MAX_REQUEST_BODY_BYTES = 32 * 1024;
@@ -66,6 +70,13 @@ const ACCIONES_CON_FECHA_RESERVA = new Set([
 ]);
 const ACCIONES_ZONA_CLIENTE = new Set([
   "lista_espera_crear",
+  "reservar",
+  "verificar"
+]);
+const ACCIONES_ANTELACION_CLIENTE = new Set([
+  "lista_espera_crear",
+  "modificar",
+  "reactivar",
   "reservar",
   "verificar"
 ]);
@@ -189,6 +200,44 @@ function fechaReservaDentroDeRango(fecha) {
   );
 
   return diferenciaDias >= 0 && diferenciaDias <= MAX_DIAS_ANTELACION;
+}
+
+
+function debeAplicarAntelacionCliente(
+  accion,
+  sesionRestauranteAutorizada,
+  claveRestaurante
+) {
+  if (!ACCIONES_ANTELACION_CLIENTE.has(accion)) {
+    return false;
+  }
+
+  if (["modificar", "reactivar"].includes(accion)) {
+    return !sesionRestauranteAutorizada && !claveRestaurante;
+  }
+
+  return true;
+}
+
+
+function datosAntelacionInsuficiente(accion, validacion, minutos) {
+  return {
+    ok: true,
+    disponible: false,
+    alternativas: [],
+    motivo: validacion.motivo,
+    cambio_requerido: validacion.cambioRequerido,
+    antelacion_insuficiente: true,
+    antelacion_minima_minutos: minutos,
+    ...(["reservar", "reservar_panel"].includes(accion)
+      ? { reservado: false }
+      : {}),
+    ...(accion === "lista_espera_crear"
+      ? { lista_espera_creada: false }
+      : {}),
+    ...(accion === "modificar" ? { modificada: false } : {}),
+    ...(accion === "reactivar" ? { reactivada: false } : {})
+  };
 }
 
 
@@ -1142,7 +1191,9 @@ async function buscarHorariosAlternativos(
   intervaloMinutos,
   camposRestaurante,
   reservaExcluirId = null,
-  zonaPreferidaId = null
+  zonaPreferidaId = null,
+  antelacionMinimaReservaMinutos = null,
+  ahora = new Date()
 ) {
   const horaSolicitada = horaAMinutos(hora);
   const intervalo = Number(intervaloMinutos);
@@ -1225,6 +1276,18 @@ async function buscarHorariosAlternativos(
 
   for (const candidato of candidatos) {
     const horaCandidata = candidato.hora;
+    const cumpleAntelacion = antelacionMinimaReservaMinutos === null ||
+      validarAntelacionReserva({
+        fecha,
+        hora: horaCandidata,
+        antelacionMinimaMinutos: antelacionMinimaReservaMinutos,
+        ahora
+      }).valido;
+
+    if (!cumpleAntelacion) {
+      continue;
+    }
+
     const validacionHorario = validarHorarioRestaurante(
       camposRestaurante,
       fecha,
@@ -2900,6 +2963,34 @@ module.exports = async (req, res) => {
       });
     }
 
+    const antelacionMinimaReservaMinutos =
+      obtenerAntelacionMinimaReserva(restaurante.fields);
+    const aplicaAntelacionCliente = debeAplicarAntelacionCliente(
+      accion,
+      sesionRestauranteAutorizada,
+      clave_restaurante
+    );
+
+    if (aplicaAntelacionCliente) {
+      const validacionAntelacion = validarAntelacionReserva({
+        fecha,
+        hora,
+        antelacionMinimaMinutos: antelacionMinimaReservaMinutos
+      });
+
+      if (!validacionAntelacion.valido) {
+        return responder(
+          res,
+          200,
+          datosAntelacionInsuficiente(
+            accion,
+            validacionAntelacion,
+            antelacionMinimaReservaMinutos
+          )
+        );
+      }
+    }
+
     let zonaReserva = null;
     let zonasActivas = [];
 
@@ -2980,7 +3071,10 @@ const prefijoReserva = normalizarPrefijoReserva(
           intervaloMinutos,
           camposHorarioReserva,
           null,
-          zonaReserva?.id || null
+          zonaReserva?.id || null,
+          aplicaAntelacionCliente
+            ? antelacionMinimaReservaMinutos
+            : null
         )
         : [];
 
@@ -3222,7 +3316,10 @@ await buscarAsignacionDisponible(
             intervaloMinutos,
             camposHorarioReserva,
             null,
-            zonaReserva?.id || null
+            zonaReserva?.id || null,
+            aplicaAntelacionCliente
+              ? antelacionMinimaReservaMinutos
+              : null
           )
           : [];
 
@@ -3352,7 +3449,11 @@ await buscarAsignacionDisponible(
           duracionReservaMinutos,
           intervaloMinutos,
           restaurante.fields,
-          reservaActual.id
+          reservaActual.id,
+          null,
+          aplicaAntelacionCliente
+            ? antelacionMinimaReservaMinutos
+            : null
         );
 
         return responder(res, 200, {
@@ -3987,7 +4088,10 @@ await buscarAsignacionDisponible(
           intervaloMinutos,
           camposHorarioReserva,
           null,
-          esReservaPanel ? null : zonaReserva?.id || null
+          esReservaPanel ? null : zonaReserva?.id || null,
+          aplicaAntelacionCliente
+            ? antelacionMinimaReservaMinutos
+            : null
         );
 
         return responder(res, 200, {
@@ -4017,6 +4121,27 @@ await buscarAsignacionDisponible(
       const urlCrearReserva =
         `https://api.airtable.com/v0/` +
         `${process.env.AIRTABLE_BASE_ID}/RESERVAS`;
+
+
+      if (aplicaAntelacionCliente) {
+        const validacionAntelacionActual = validarAntelacionReserva({
+          fecha,
+          hora,
+          antelacionMinimaMinutos: antelacionMinimaReservaMinutos
+        });
+
+        if (!validacionAntelacionActual.valido) {
+          return responder(
+            res,
+            200,
+            datosAntelacionInsuficiente(
+              accion,
+              validacionAntelacionActual,
+              antelacionMinimaReservaMinutos
+            )
+          );
+        }
+      }
 
 
       const nuevaReserva = {
@@ -4245,6 +4370,7 @@ await buscarAsignacionDisponible(
 
 module.exports._seguridad = {
   camposHorarioParaZona,
+  debeAplicarAntelacionCliente,
   generarEnlaceGestion,
   generarIdReserva,
   nombreZona,
