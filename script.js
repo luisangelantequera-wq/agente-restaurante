@@ -1716,7 +1716,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (!fechaExtraida) {
       agregarMensaje(
-        "No he podido identificar la fecha. Puedes escribir, por ejemplo: 22/08/2026, mañana o el próximo martes.",
+        "Perdón, ¿puede indicarme de nuevo la fecha?",
         "bot"
       );
 
