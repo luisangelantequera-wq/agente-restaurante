@@ -411,7 +411,7 @@ async function continuarCapturaDatosPrincipales() {
   if (!datosReserva.fecha) {
     paso = "fecha";
     agregarMensaje(
-      "¿Qué día deseas reservar? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
+      "¿Qué día deseas reservar?",
       "bot"
     );
     return;
@@ -428,7 +428,7 @@ async function continuarCapturaDatosPrincipales() {
 
   if (!datosReserva.hora) {
     paso = "hora";
-    agregarMensaje("¿A qué hora deseas reservar? Por ejemplo: 14:00.", "bot");
+    agregarMensaje("¿A qué hora deseas reservar?", "bot");
     return;
   }
 
