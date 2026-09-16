@@ -1750,7 +1750,10 @@ async function procesarMensaje(texto, opciones = {}) {
       return;
     }
 
-    if (textoMinusculas.includes("cancel")) {
+    if (
+      textoMinusculas.includes("cancel") ||
+      textoMinusculas.includes("camcel")
+    ) {
       if (!tokenGestionActivo && !localizadorGestion) {
         avisarGestionSegura();
         return;
@@ -1816,7 +1819,7 @@ async function procesarMensaje(texto, opciones = {}) {
     }
 
     agregarMensaje(
-      "Puede escribir: quiero reservar, consultar, modificar o cancelar una reserva.",
+      "Puede indicar: reservar, consultar, modificar o cancelar.",
       "bot"
     );
 
