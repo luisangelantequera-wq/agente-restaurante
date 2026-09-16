@@ -342,6 +342,59 @@ function mostrarConfirmacionDatosPrincipales() {
   );
 }
 
+async function procesarCorreccionDatosPrincipales(mensaje) {
+  const correcciones = extraerDatosIniciales(mensaje);
+
+  if (window.ContactiaEntrada.hayCorreccionesReserva(correcciones)) {
+    datosReserva = window.ContactiaEntrada.aplicarCorreccionesReserva(
+      datosReserva,
+      correcciones
+    );
+
+    if (correcciones.hora) {
+      anunciarHoraInterpretada(datosReserva.hora);
+    }
+
+    await continuarCapturaDatosPrincipales();
+    return true;
+  }
+
+  const campoCorreccion = window.ContactiaEntrada
+    .detectarCampoCorreccion(mensaje);
+
+  if (campoCorreccion === "hora") {
+    paso = "hora";
+    agregarMensaje("¿A qué hora desea cambiar la reserva?", "bot");
+    return true;
+  }
+
+  if (campoCorreccion === "fecha") {
+    paso = "fecha";
+    agregarMensaje("¿Para qué día desea cambiar la reserva?", "bot");
+    return true;
+  }
+
+  if (campoCorreccion === "personas") {
+    paso = "personas";
+    agregarMensaje("¿Para cuántas personas desea cambiar la reserva?", "bot");
+    return true;
+  }
+
+  if (campoCorreccion === "zona") {
+    paso = "zona";
+    agregarMensaje(
+      `¿Qué zona prefiere? Puede elegir: ${describirOpcionesZonas(
+        nombresZonasDisponibles()
+      )}.`,
+      "bot"
+    );
+    return true;
+  }
+
+  return false;
+}
+
+
 
 async function validarMomentoReservaAntesDeContinuar() {
   try {
@@ -1127,6 +1180,9 @@ function repetirPreguntaPendiente() {
     modificar_personas: "¿Para cuántas personas será finalmente?",
     seleccion_modificacion:
       "¿Quieres cambiar la fecha, la hora o el número de personas?",
+    seleccion_correccion_datos:
+      "¿Qué dato desea cambiar? Puede indicar una nueva hora, otro día, " +
+      "el número de personas o la zona.",
     localizador_consulta: "Indícame el localizador de tu reserva.",
     localizador_cancelacion:
       "Indícame el localizador de la reserva que quieres cancelar.",
@@ -1535,14 +1591,38 @@ async function procesarMensaje(texto, opciones = {}) {
     }
 
     if (respuesta === "no") {
-      iniciarCapturaGuiada(
-        "De acuerdo. No consultaré la disponibilidad con esos datos."
+      capturaGuiadaEstricta = false;
+
+      if (await procesarCorreccionDatosPrincipales(mensaje)) {
+        return;
+      }
+
+      paso = "seleccion_correccion_datos";
+      agregarMensaje(
+        "De acuerdo. ¿Qué dato desea cambiar? Puede indicar directamente " +
+        "una nueva hora, otro día, el número de personas o la zona.",
+        "bot"
       );
       return;
     }
 
     agregarMensaje(
-      "No he podido saber si los datos son correctos. Di «Sí, son correctos» o «No».",
+      "No he podido saber si los datos son correctos. Indique " +
+      "«Sí son correctos» o «No son correctos».",
+      "bot"
+    );
+    return;
+  }
+
+
+  if (paso === "seleccion_correccion_datos") {
+    if (await procesarCorreccionDatosPrincipales(mensaje)) {
+      return;
+    }
+
+    agregarMensaje(
+      "No he podido identificar el cambio. Puede indicar una nueva hora, " +
+      "otro día, el número de personas o la zona.",
       "bot"
     );
     return;
