@@ -50,6 +50,7 @@ const ACCIONES_PERMITIDAS = new Set([
   "cambiar_mesas",
   "cancelar",
   "consultar",
+  "enviar_contacto_restaurante",
   "lista_espera_crear",
   "modificar",
   "ocupar_mesa",
@@ -1604,6 +1605,33 @@ function obtenerTelefonoRestaurante(restaurante) {
 }
 
 
+function describirHorarioReservas(restaurante) {
+  const campos = restaurante?.fields || {};
+  const horario = leerJSONCampo(
+    campos.horario_reservas,
+    {},
+    "horario_reservas"
+  );
+  const diasCierre = new Set(
+    leerJSONCampo(campos.dias_cierre, [], "dias_cierre")
+      .map((dia) => String(dia).trim().toLowerCase())
+  );
+  const dias = [
+    "lunes", "martes", "miércoles", "jueves",
+    "viernes", "sábado", "domingo"
+  ];
+
+  return dias.map((dia) => {
+    const rangos = Array.isArray(horario[dia]) ? horario[dia] : [];
+    const detalle = diasCierre.has(dia) || rangos.length === 0
+      ? "cerrado"
+      : rangos.map(String).join(" y ");
+
+    return `${dia[0].toUpperCase()}${dia.slice(1)}: ${detalle}`;
+  });
+}
+
+
 async function enviarCorreoResend({
   destinatario,
   asunto,
@@ -1714,6 +1742,46 @@ async function enviarCorreoConfirmacionReserva({
     texto,
     html,
     contexto: "confirmación"
+  });
+}
+
+
+async function enviarCorreoContactoRestaurante({
+  destinatario,
+  nombreRestaurante,
+  telefono,
+  horario
+}) {
+  const nombre = normalizarTexto(nombreRestaurante) ||
+    NOMBRE_RESTAURANTE_GENERICO;
+  const telefonoTexto = normalizarTexto(telefono) || "No disponible";
+  const lineasHorario = Array.isArray(horario) ? horario : [];
+  const asunto = `Teléfono y horario de reservas de ${nombre}`;
+  const texto =
+    `Información de contacto de ${nombre}\n\n` +
+    `Teléfono: ${telefonoTexto}\n\n` +
+    `Horario de reservas:\n${lineasHorario.join("\n")}\n\n` +
+    "Para una reserva especial, contacte directamente con el restaurante.";
+  const html = `
+    <h2>${escaparHtml(nombre)}</h2>
+    <p><strong>Teléfono:</strong> ${escaparHtml(telefonoTexto)}</p>
+    <p><strong>Horario de reservas:</strong></p>
+    <ul>
+      ${lineasHorario.map((linea) =>
+        `<li>${escaparHtml(linea)}</li>`
+      ).join("")}
+    </ul>
+    <p>
+      Para una reserva especial, contacte directamente con el restaurante.
+    </p>
+  `;
+
+  return enviarCorreoResend({
+    destinatario,
+    asunto,
+    texto,
+    html,
+    contexto: "contacto del restaurante"
   });
 }
 
@@ -2975,6 +3043,42 @@ module.exports = async (req, res) => {
         correo_enviado: correoEnviado,
         correo_restaurante_enviado: correoRestauranteEnviado,
         reserva: resumirReserva(reservaActualizada)
+      });
+    }
+
+
+    if (accion === "enviar_contacto_restaurante") {
+      const destinatario = String(email || "").trim().toLowerCase();
+
+      if (
+        destinatario.length > 254 ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destinatario)
+      ) {
+        return responder(res, 400, {
+          ok: false,
+          error: "El correo electrónico no es válido."
+        });
+      }
+
+      const restauranteContacto = await buscarRestaurante(restaurante_id);
+
+      if (!restauranteContacto) {
+        return responder(res, 404, {
+          ok: false,
+          error: "Restaurante no encontrado."
+        });
+      }
+
+      const correoEnviado = await enviarCorreoContactoRestaurante({
+        destinatario,
+        nombreRestaurante: obtenerNombreRestaurante(restauranteContacto),
+        telefono: obtenerTelefonoRestaurante(restauranteContacto),
+        horario: describirHorarioReservas(restauranteContacto)
+      });
+
+      return responder(res, 200, {
+        ok: true,
+        correo_enviado: correoEnviado
       });
     }
 
@@ -4429,6 +4533,7 @@ await buscarAsignacionDisponible(
 module.exports._seguridad = {
   camposHorarioParaZona,
   debeAplicarAntelacionCliente,
+  describirHorarioReservas,
   generarEnlaceGestion,
   generarIdReserva,
   nombreZona,
