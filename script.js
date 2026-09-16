@@ -176,6 +176,20 @@ function nombresZonasDisponibles() {
 }
 
 
+function describirOpcionesZonas(zonas) {
+  if (zonas.length <= 1) {
+    return zonas.length === 1 ? `en ${zonas[0]}` : "";
+  }
+
+  const opcionesIniciales = zonas
+    .slice(0, -1)
+    .map((zona) => `en ${zona}`)
+    .join(", ");
+
+  return `${opcionesIniciales} o ${zonas.at(-1)}`;
+}
+
+
 function preguntarZonaSiNecesaria() {
   const zonas = nombresZonasDisponibles();
 
@@ -185,7 +199,7 @@ function preguntarZonaSiNecesaria() {
 
   paso = "zona";
   agregarMensaje(
-    `¿En qué zona prefieres la mesa? Opciones: ${zonas.join(", ")}.`,
+    `¿En qué zona prefieres la mesa? Puedes elegir: ${describirOpcionesZonas(zonas)}.`,
     "bot"
   );
   return true;
@@ -319,10 +333,11 @@ function mostrarConfirmacionDatosPrincipales() {
     : "";
 
   agregarMensaje(
-    `He entendido una reserva para el día ${mostrarFechaParaVoz(datosReserva.fecha)}, ` +
-    `para ${personasParaVoz(datosReserva.personas)} personas, a las ` +
-    `${datosReserva.hora}${zona}. ¿Son correctos estos datos? ` +
-    "Di «Sí, son correctos» o «No».",
+    `Vamos a revisar los datos, ha solicitado una reserva para el día ` +
+    `${mostrarFechaParaVoz(datosReserva.fecha)}, para ` +
+    `${personasParaVoz(datosReserva.personas)} personas, a las ` +
+    `${datosReserva.hora}${zona}. ¿Son correctos los datos? ` +
+    "Indique «Sí son correctos» o «No».",
     "bot"
   );
 }
@@ -1121,7 +1136,7 @@ function repetirPreguntaPendiente() {
 
   if (paso === "zona") {
     agregarMensaje(
-      `¿En qué zona prefieres la mesa? Opciones: ${nombresZonasDisponibles().join(", ")}.`,
+      `¿En qué zona prefieres la mesa? Puedes elegir: ${describirOpcionesZonas(nombresZonasDisponibles())}.`,
       "bot"
     );
     return;
