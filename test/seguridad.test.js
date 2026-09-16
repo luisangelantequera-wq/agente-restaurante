@@ -180,6 +180,26 @@ test("una mesa sin mínimo conserva el margen anterior como respaldo", () => {
 });
 
 
+test("el correo de contacto resume el horario configurado", () => {
+  const lineas = chat._seguridad.describirHorarioReservas({
+    fields: {
+      horario_reservas: JSON.stringify({
+        martes: ["13:30-16:00", "20:00-23:00"],
+        miércoles: ["13:30-16:00"]
+      }),
+      dias_cierre: JSON.stringify(["lunes"])
+    }
+  });
+
+  assert.deepEqual(lineas.slice(0, 3), [
+    "Lunes: cerrado",
+    "Martes: 13:30-16:00 y 20:00-23:00",
+    "Miércoles: 13:30-16:00"
+  ]);
+  assert.equal(lineas.at(-1), "Domingo: cerrado");
+});
+
+
 test("el enlace de gestión utiliza el fragmento y no la consulta", () => {
   const token = "a".repeat(48);
   const enlace = chat._seguridad.generarEnlaceGestion(token);
