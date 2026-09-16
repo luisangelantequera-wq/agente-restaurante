@@ -1947,6 +1947,17 @@ async function procesarMensaje(texto, opciones = {}) {
 
   // NOMBRE
   if (paso === "nombre") {
+    const valorNombre = String(mensaje || "").trim();
+
+    if (emailValido(valorNombre)) {
+      datosReserva.email = valorNombre;
+      agregarMensaje(
+        "He guardado el correo electrónico. ¿A nombre de quién hacemos la reserva?",
+        "bot"
+      );
+      return;
+    }
+
     const nombre = window.ContactiaEntrada.normalizarNombreCliente(mensaje);
 
     if (nombre.length < 2) {
@@ -1954,41 +1965,47 @@ async function procesarMensaje(texto, opciones = {}) {
         "Indícame un nombre válido.",
         "bot"
       );
-
       return;
     }
 
     datosReserva.nombre = nombre;
-    paso = "email";
 
+    if (datosReserva.email) {
+      paso = "telefono";
+      agregarMensaje(
+        "¿Cuál es tu número de teléfono móvil?",
+        "bot"
+      );
+      return;
+    }
+
+    paso = "email";
     agregarMensaje(
       "¿Cuál es tu correo electrónico?",
       "bot"
     );
-
     return;
   }
 
 
   // EMAIL
   if (paso === "email") {
-    if (!emailValido(mensaje)) {
+    const email = String(mensaje || "").trim();
+
+    if (!emailValido(email)) {
       agregarMensaje(
         "Ese correo no parece válido. Por ejemplo: nombre@email.com",
         "bot"
       );
-
       return;
     }
 
-    datosReserva.email = mensaje;
+    datosReserva.email = email;
     paso = "telefono";
-
     agregarMensaje(
       "¿Cuál es tu número de teléfono móvil?",
       "bot"
     );
-
     return;
   }
 
@@ -2011,8 +2028,7 @@ async function procesarMensaje(texto, opciones = {}) {
     paso = "observaciones";
 
     agregarMensaje(
-      "¿Quieres añadir alguna observación? Por ejemplo: alergias, trona, " +
-      "accesibilidad o una ubicación preferida. Si no, responde: no.",
+      "¿Quieres añadir alguna observación? Si no, responde: no.",
       "bot"
     );
 
