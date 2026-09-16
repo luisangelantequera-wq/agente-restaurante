@@ -232,6 +232,23 @@ test("detecta la intención de corregir antes de cancelar la reserva", () => {
 });
 
 
+test("permite pedir la cancelación de forma breve", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(
+    script,
+    /textoMinusculas\.includes\("cancel"\)[\s\S]{0,100}textoMinusculas\.includes\("camcel"\)/
+  );
+  assert.match(
+    script,
+    /Puede indicar: reservar, consultar, modificar o cancelar\./
+  );
+});
+
+
 test("valida los datos solo con una respuesta inequívoca", () => {
   for (const respuesta of [
     "Sí",
