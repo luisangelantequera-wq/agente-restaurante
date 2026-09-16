@@ -535,6 +535,59 @@ function telefonoParaEnlace(texto) {
 }
 
 
+function ofrecerContactoEspecial(data) {
+  solicitudEspera = null;
+  const telefono = telefonoParaEnlace(data.telefono_restaurante);
+  const contacto = telefono
+    ? `Puede llamar directamente al restaurante: tel:${telefono}\n`
+    : "Puede contactar directamente con el restaurante.";
+
+  agregarMensaje(
+    `Para una reserva de ${datosReserva.personas} personas necesitamos que ` +
+    `el restaurante compruebe si puede realizar una organización especial. ` +
+    `${contacto} ¿Desea que le envíe por correo el número de teléfono y el ` +
+    `horario de reservas? Indique «Sí» o «No».`,
+    "bot"
+  );
+  paso = "contacto_especial_oferta";
+}
+
+
+async function enviarContactoEspecial(email) {
+  agregarMensaje("Un momento, estoy enviando la información...", "bot");
+
+  try {
+    const respuesta = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accion: "enviar_contacto_restaurante",
+        restaurante_id: datosReserva.restaurante_id,
+        email
+      })
+    });
+    const data = await respuesta.json();
+
+    if (!respuesta.ok || data.ok === false || !data.correo_enviado) {
+      throw new Error(data.error || "No se pudo enviar el correo.");
+    }
+
+    agregarMensaje(
+      "Ya le he enviado por correo el teléfono y el horario de reservas del restaurante.",
+      "bot"
+    );
+  } catch (error) {
+    console.error("Error al enviar el contacto del restaurante:", error);
+    agregarMensaje(
+      "No he podido enviar el correo. El teléfono continúa disponible en pantalla.",
+      "bot"
+    );
+  }
+
+  reiniciarReserva();
+}
+
+
 // 7️⃣ NORMALIZAR TELÉFONO ESPAÑOL
 function normalizarTelefono(texto) {
   return window.ContactiaEntrada.normalizarTelefono(texto);
@@ -635,17 +688,7 @@ async function comprobarDisponibilidad() {
       : [];
 
     if (data.requiere_contacto_restaurante) {
-      solicitudEspera = null;
-      const telefono = telefonoParaEnlace(data.telefono_restaurante);
-      const contacto = telefono
-        ? `Puede llamar directamente al restaurante: tel:${telefono}`
-        : "Contacte directamente con el restaurante para consultarlo.";
-
-  agregarMensaje(
-    `Para una reserva de ${datosReserva.personas} personas necesitamos que el restaurante compruebe si puede realizar una organización especial.\n\n${contacto}`,
-    "bot"
-  );
-      paso = "hora";
+      ofrecerContactoEspecial(data);
       return;
     }
 
@@ -840,15 +883,7 @@ async function crearListaEspera() {
     }
 
     if (data.requiere_contacto_restaurante) {
-      const telefonoRestaurante = telefonoParaEnlace(data.telefono_restaurante);
-      agregarMensaje(
-        data.motivo +
-        (telefonoRestaurante
-          ? ` Puede llamar al restaurante: tel:${telefonoRestaurante}`
-          : " Contacte directamente con el restaurante."),
-        "bot"
-      );
-      reiniciarReserva();
+      ofrecerContactoEspecial(data);
       return;
     }
 
@@ -1316,6 +1351,60 @@ async function procesarMensaje(texto, opciones = {}) {
   }
 
   agregarMensaje(mensaje, "user");
+
+  if (paso === "contacto_especial_oferta") {
+    const respuesta = window.ContactiaEntrada.interpretarRespuestaBinaria(
+      mensaje
+    );
+
+    if (respuesta === "si") {
+      paso = "contacto_especial_email";
+      agregarMensaje(
+        "¿A qué correo desea que le envíe la información?",
+        "bot"
+      );
+      return;
+    }
+
+    if (respuesta === "no") {
+      agregarMensaje(
+        "De acuerdo. El teléfono continúa disponible en pantalla.",
+        "bot"
+      );
+      reiniciarReserva();
+      return;
+    }
+
+    agregarMensaje(
+      "No he podido distinguir su respuesta. Indique «Sí» o «No».",
+      "bot"
+    );
+    return;
+  }
+
+  if (paso === "contacto_especial_email") {
+    const email = String(mensaje || "").trim();
+
+    if (!emailValido(email)) {
+      agregarMensaje(
+        "Ese correo no parece válido. Indíquemelo de nuevo.",
+        "bot"
+      );
+      return;
+    }
+
+    paso = "procesando_contacto_especial";
+    await enviarContactoEspecial(email);
+    return;
+  }
+
+  if (paso === "procesando_contacto_especial") {
+    agregarMensaje(
+      "Estoy enviando la información. Espere un momento.",
+      "bot"
+    );
+    return;
+  }
 
   if (await atenderPreguntaInformativa(mensaje, opciones)) {
     return;
@@ -2165,6 +2254,12 @@ async function procesarMensaje(texto, opciones = {}) {
 
 function prepararRespuestaParaVoz(texto) {
   return String(texto || "")
+    .replace(/tel:\+?(\d+)/gi, (_, digitos) => {
+      const numero = digitos.startsWith("34") && digitos.length === 11
+        ? digitos.slice(2)
+        : digitos;
+      return `teléfono ${numero.split("").join(", ")}`;
+    })
     .replace(
       /\n+Enlace para consultar, modificar o cancelar:\nhttps?:\/\/\S+/gi,
       "\nEl enlace de gestión aparece en pantalla y se ha enviado por correo."
