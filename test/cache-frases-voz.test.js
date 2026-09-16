@@ -61,6 +61,14 @@ test("las fechas habladas incluyen el día de la semana", () => {
     script,
     /\$\{nombreDia\} \$\{Number\(dia\)\} de \$\{nombreMes\} de/
   );
+  assert.match(
+    script,
+    /Fecha: \$\{mostrarFechaParaVoz\(datosReserva\.fecha\)\}/
+  );
+  assert.doesNotMatch(
+    script,
+    /reserva para el día ` \+\s*\n\s*`\$\{mostrarFechaParaVoz/
+  );
 });
 
 

@@ -222,6 +222,10 @@ test("la interfaz activa el micrófono solo bajo el parámetro de prueba", () =>
   assert.match(voz, /output_modalities: \["text"\]/);
   assert.match(voz, /audioRemoto\.muted = esVozGoogle\(\)/);
   assert.match(voz, /audioRemoto\.muted = false/);
+  assert.match(voz, /function ajustarEsperaSegunPaso\(pasoActual\)/);
+  assert.match(voz, /\["email", "espera_email"\]\.includes\(pasoActual\)/);
+  assert.match(voz, /eagerness: nuevaEagerness/);
+  assert.match(voz, /type: "session\.update"/);
   assert.match(voz, /Google no está disponible\. Uso la voz de OpenAI/);
   assert.doesNotMatch(voz, /OPENAI_API_KEY/);
   assert.doesNotMatch(voz, /GOOGLE_TTS_CREDENTIALS_JSON/);

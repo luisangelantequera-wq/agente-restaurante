@@ -333,7 +333,7 @@ function mostrarConfirmacionDatosPrincipales() {
     : "";
 
   agregarMensaje(
-    `Vamos a revisar los datos, ha solicitado una reserva para el día ` +
+    `Vamos a revisar los datos, ha solicitado una reserva para el ` +
     `${mostrarFechaParaVoz(datosReserva.fecha)}, para ` +
     `${personasParaVoz(datosReserva.personas)} personas, a las ` +
     `${datosReserva.hora}${zona}. ¿Son correctos los datos? ` +
@@ -739,7 +739,7 @@ function mostrarConfirmacionNuevaReserva() {
 
   agregarMensaje(
     `Por favor, revise su reserva:\n\n` +
-    `📅 Fecha: ${mostrarFecha(datosReserva.fecha)}\n` +
+    `📅 Fecha: ${mostrarFechaParaVoz(datosReserva.fecha)}\n` +
     `🕒 Hora: ${datosReserva.hora}\n` +
     `👥 Personas: ${datosReserva.personas}\n` +
     lineaZona +
@@ -2225,7 +2225,7 @@ function prepararRespuestasParaVoz(respuestas) {
       .replace(/^\+34/, "");
 
     return (
-      `Ha solicitado una reserva para el día ` +
+      `Ha solicitado una reserva para el ` +
       `${mostrarFechaParaVoz(datosReserva.fecha)} a las ${datosReserva.hora}, ` +
       `para ${personasParaVoz(datosReserva.personas)} personas${zona} del ` +
       `restaurante, a nombre de ${datosReserva.nombre}, con correo ` +

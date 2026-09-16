@@ -28,6 +28,7 @@
   let inicioTurno = null;
   let saludoInicialPendiente = null;
   let temporizadorSaludoInicial = null;
+  let eagernessVadActual = "medium";
   const llamadasProcesadas = new Set();
 
 
@@ -53,6 +54,39 @@
     }
 
     canal.send(JSON.stringify(evento));
+  }
+
+
+  function ajustarEsperaSegunPaso(pasoActual) {
+    const nuevaEagerness = ["email", "espera_email"].includes(pasoActual)
+      ? "low"
+      : "medium";
+
+    if (
+      nuevaEagerness === eagernessVadActual ||
+      !canal ||
+      canal.readyState !== "open"
+    ) {
+      return;
+    }
+
+    enviarEvento({
+      type: "session.update",
+      session: {
+        type: "realtime",
+        audio: {
+          input: {
+            turn_detection: {
+              type: "semantic_vad",
+              eagerness: nuevaEagerness,
+              create_response: false,
+              interrupt_response: true
+            }
+          }
+        }
+      }
+    });
+    eagernessVadActual = nuevaEagerness;
   }
 
 
@@ -292,6 +326,8 @@
       };
     }
 
+    ajustarEsperaSegunPaso(resultado?.paso);
+
     enviarEvento({
       type: "conversation.item.create",
       item: {
@@ -468,6 +504,7 @@
     audioRemoto = null;
     audioGoogle = null;
     inicioTurno = null;
+    eagernessVadActual = "medium";
     conectando = false;
     boton.disabled = false;
     boton.setAttribute("aria-pressed", "false");
