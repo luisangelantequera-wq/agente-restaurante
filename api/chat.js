@@ -3009,7 +3009,7 @@ module.exports = async (req, res) => {
             zonas_disponibles: zonasDisponibles,
             motivo: zona_preferida
               ? "La zona indicada no está disponible en este restaurante."
-              : "Selecciona una zona antes de comprobar la disponibilidad."
+              : "Seleccione una zona antes de comprobar la disponibilidad."
           };
 
           if (accion === "reservar") {

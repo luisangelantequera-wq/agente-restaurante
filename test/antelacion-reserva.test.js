@@ -30,7 +30,7 @@ test("rechaza una fecha y hora pasadas en horario de Madrid", () => {
   assert.equal(resultado.cambioRequerido, "hora");
   assert.equal(
     resultado.motivo,
-    "Hoy ya no es posible reservar a esa hora. Indícame otra hora."
+    "Hoy ya no es posible reservar a esa hora. Indíqueme otra hora."
   );
 });
 

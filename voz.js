@@ -162,7 +162,7 @@
         pista.enabled = true;
       }
     }
-    cambiarEstado("Te escucho. Puedes continuar.");
+    cambiarEstado("Le escucho. Puede continuar.");
   }
 
 
@@ -288,7 +288,7 @@
       resultado = {
         ok: false,
         respuesta:
-          "No he podido procesar ese mensaje. Repítelo, por favor."
+          "No he podido procesar ese mensaje. Repítalo, por favor."
       };
     }
 
@@ -331,7 +331,7 @@
       .then(() => ejecutarHerramienta(llamada))
       .catch((error) => {
         console.error("Error en la cola de voz:", error);
-        cambiarEstado("Ha ocurrido un error. Detén la voz y vuelve a intentarlo.");
+        cambiarEstado("Ha ocurrido un error. Detenga la voz y vuelva a intentarlo.");
       });
   }
 
@@ -359,7 +359,7 @@
     }
 
     if (evento.type === "input_audio_buffer.speech_started") {
-      cambiarEstado("Te escucho…");
+      cambiarEstado("Le escucho…");
       return;
     }
 
@@ -408,7 +408,7 @@
         return;
       }
 
-      cambiarEstado("Te escucho. Puedes continuar.");
+      cambiarEstado("Le escucho. Puede continuar.");
       return;
     }
 
@@ -417,7 +417,7 @@
       finalizarSaludoInicial(
         new Error("No se pudo reproducir el saludo inicial.")
       );
-      cambiarEstado("Ha ocurrido un error de voz. Detén y vuelve a iniciar.");
+      cambiarEstado("Ha ocurrido un error de voz. Detenga la voz y vuelva a iniciar.");
     }
   }
 
@@ -608,7 +608,7 @@
       }
 
       pista.enabled = true;
-      cambiarEstado("Te escucho. Puedes hablar.");
+      cambiarEstado("Le escucho. Puede hablar.");
       temporizadorLimite = window.setTimeout(() => {
         cerrarVoz("La prueba de voz de 5 minutos ha terminado.");
       }, 5 * 60 * 1000);

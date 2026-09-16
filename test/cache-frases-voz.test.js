@@ -50,6 +50,20 @@ test("la síntesis compartida acepta únicamente identificadores aprobados", () 
 });
 
 
+test("las fechas habladas incluyen el día de la semana", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(script, /const diasSemana = \[/);
+  assert.match(
+    script,
+    /\$\{nombreDia\} \$\{Number\(dia\)\} de \$\{nombreMes\} de/
+  );
+});
+
+
 test("Google pronuncia las horas en formato inequívoco de 24 horas", () => {
   assert.equal(
     verbalizarHoraConfirmada("He entendido las 13:00 horas."),

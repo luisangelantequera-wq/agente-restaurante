@@ -80,7 +80,7 @@ let tokenGestionActivo = obtenerTokenGestionInicial();
 
 function avisarGestionSegura() {
   agregarMensaje(
-    "Por seguridad, para consultar, modificar o cancelar una reserva debes abrir el enlace de gestión que recibiste en el correo de confirmación.",
+    "Por seguridad, para consultar, modificar o cancelar una reserva debe abrir el enlace de gestión que recibió en el correo de confirmación.",
     "bot"
   );
 }
@@ -199,7 +199,7 @@ function preguntarZonaSiNecesaria() {
 
   paso = "zona";
   agregarMensaje(
-    `¿En qué zona prefieres la mesa? Puedes elegir: ${describirOpcionesZonas(zonas)}.`,
+    `¿En qué zona prefiere la mesa? Puede elegir: ${describirOpcionesZonas(zonas)}.`,
     "bot"
   );
   return true;
@@ -227,7 +227,7 @@ async function cargarRestauranteActivo() {
       agregarMensaje(
         respuesta.status === 404
           ? "No hemos encontrado este restaurante o no está disponible."
-          : "No hemos podido cargar el restaurante. Inténtalo de nuevo más tarde.",
+          : "No hemos podido cargar el restaurante. Inténtelo de nuevo más tarde.",
         "bot"
       );
       return false;
@@ -238,7 +238,7 @@ async function cargarRestauranteActivo() {
   } catch (error) {
     console.error("Error al cargar el restaurante:", error);
     agregarMensaje(
-      "No hemos podido cargar el restaurante. Inténtalo de nuevo más tarde.",
+      "No hemos podido cargar el restaurante. Inténtelo de nuevo más tarde.",
       "bot"
     );
     return false;
@@ -320,7 +320,7 @@ function iniciarCapturaGuiada(motivo = "") {
   paso = "fecha";
   agregarMensaje(
     `${motivo ? `${motivo} ` : ""}` +
-    "Vamos a tomar los datos uno a uno. Primero, ¿qué día deseas reservar?",
+    "Vamos a tomar los datos uno a uno. Primero, ¿qué día desea reservar?",
     "bot"
   );
 }
@@ -420,7 +420,7 @@ async function validarMomentoReservaAntesDeContinuar() {
       if (error.startsWith("La fecha debe estar entre hoy")) {
         agregarMensaje(
           "Ese día ya ha pasado o está fuera del plazo de reservas. " +
-          "Indícame otro día.",
+          "Indíqueme otro día.",
           "bot"
         );
         datosReserva.fecha = "";
@@ -432,7 +432,7 @@ async function validarMomentoReservaAntesDeContinuar() {
 
       agregarMensaje(
         "No he podido comprobar si esa fecha y hora siguen siendo válidas. " +
-        "Inténtalo de nuevo.",
+        "Inténtelo de nuevo.",
         "bot"
       );
       datosReserva.hora = "";
@@ -446,7 +446,7 @@ async function validarMomentoReservaAntesDeContinuar() {
 
     agregarMensaje(
       data.motivo ||
-        "Esa hora ya no cumple la antelación mínima. Indícame otra hora.",
+        "Esa hora ya no cumple la antelación mínima. Indíqueme otra hora.",
       "bot"
     );
     solicitudEspera = null;
@@ -465,7 +465,7 @@ async function validarMomentoReservaAntesDeContinuar() {
   } catch (error) {
     console.error("Error al validar la fecha y hora:", error);
     agregarMensaje(
-      "No he podido comprobar esa fecha y hora. Inténtalo de nuevo.",
+      "No he podido comprobar esa fecha y hora. Inténtelo de nuevo.",
       "bot"
     );
     datosReserva.hora = "";
@@ -479,7 +479,7 @@ async function continuarCapturaDatosPrincipales() {
   if (!datosReserva.fecha) {
     paso = "fecha";
     agregarMensaje(
-      "¿Qué día deseas reservar?",
+      "¿Qué día desea reservar?",
       "bot"
     );
     return;
@@ -488,7 +488,7 @@ async function continuarCapturaDatosPrincipales() {
   if (!datosReserva.personas) {
     paso = "personas";
     agregarMensaje(
-      "Perfecto 😊 ¿Para cuántas personas deseas reservar?",
+      "Perfecto 😊 ¿Para cuántas personas desea reservar?",
       "bot"
     );
     return;
@@ -496,7 +496,7 @@ async function continuarCapturaDatosPrincipales() {
 
   if (!datosReserva.hora) {
     paso = "hora";
-    agregarMensaje("¿A qué hora deseas reservar?", "bot");
+    agregarMensaje("¿A qué hora desea reservar?", "bot");
     return;
   }
 
@@ -587,7 +587,7 @@ async function comprobarDisponibilidad() {
         : nombresZonasDisponibles();
       paso = "zona";
       agregarMensaje(
-        `${data.motivo || "Selecciona una zona."} Opciones: ${zonas.join(", ")}.`,
+        `${data.motivo || "Seleccione una zona."} Opciones: ${zonas.join(", ")}.`,
         "bot"
       );
       return;
@@ -638,8 +638,8 @@ async function comprobarDisponibilidad() {
       solicitudEspera = null;
       const telefono = telefonoParaEnlace(data.telefono_restaurante);
       const contacto = telefono
-        ? `Puedes llamar directamente al restaurante: tel:${telefono}`
-        : "Contacta directamente con el restaurante para consultarlo.";
+        ? `Puede llamar directamente al restaurante: tel:${telefono}`
+        : "Contacte directamente con el restaurante para consultarlo.";
 
   agregarMensaje(
     `Para una reserva de ${datosReserva.personas} personas necesitamos que el restaurante compruebe si puede realizar una organización especial.\n\n${contacto}`,
@@ -652,7 +652,7 @@ async function comprobarDisponibilidad() {
     if (data.cambio_requerido === "fecha") {
       solicitudEspera = null;
       agregarMensaje(
-        "¿Qué otro día te viene bien? Puedes decirme, por ejemplo, mañana, el martes o una fecha concreta.",
+        "¿Qué otro día le viene bien? Puede indicarme, por ejemplo, mañana, el martes o una fecha concreta.",
         "bot"
       );
 
@@ -684,28 +684,28 @@ async function comprobarDisponibilidad() {
     if (alternativas.length > 0) {
       if (alternativas.length === 1) {
         agregarMensaje(
-          `Pero tengo disponibilidad a las ${alternativas[0]}. ¿Te viene bien esa hora?`,
+          `Pero tengo disponibilidad a las ${alternativas[0]}. ¿Le viene bien esa hora?`,
           "bot"
         );
       } else {
         agregarMensaje(
           `Pero tengo disponibilidad a las:\n${alternativas
             .map((horaAlternativa) => `• ${horaAlternativa}`)
-            .join("\n")}\n\n¿Te viene bien alguna de estas horas?`,
+            .join("\n")}\n\n¿Le viene bien alguna de estas horas?`,
           "bot"
         );
       }
     } else {
       agregarMensaje(
-        "No hay otros horarios disponibles en la hora anterior o posterior. Puedes indicarme otra hora, otro día o un número diferente de personas.",
+        "No hay otros horarios disponibles en la hora anterior o posterior. Puede indicarme otra hora, otro día o un número diferente de personas.",
         "bot"
       );
     }
 
     if (puedeOfrecerListaEspera) {
       agregarMensaje(
-        `Si prefieres mantener las ${solicitudEspera.hora}, puedo apuntarte ` +
-        "a la lista de espera. Escribe: lista de espera.",
+        `Si prefiere mantener las ${solicitudEspera.hora}, puedo apuntarle ` +
+        "a la lista de espera. Indique: lista de espera.",
         "bot"
       );
     }
@@ -719,7 +719,7 @@ async function comprobarDisponibilidad() {
     );
 
     agregarMensaje(
-      "No he podido conectar con el servidor. Inténtalo de nuevo.",
+      "No he podido conectar con el servidor. Inténtelo de nuevo.",
       "bot"
     );
 
@@ -738,7 +738,7 @@ function mostrarConfirmacionNuevaReserva() {
     : "";
 
   agregarMensaje(
-    `Por favor, revisa tu reserva:\n\n` +
+    `Por favor, revise su reserva:\n\n` +
     `📅 Fecha: ${mostrarFecha(datosReserva.fecha)}\n` +
     `🕒 Hora: ${datosReserva.hora}\n` +
     `👥 Personas: ${datosReserva.personas}\n` +
@@ -747,8 +747,8 @@ function mostrarConfirmacionNuevaReserva() {
     `📧 Email: ${datosReserva.email}\n` +
     `📱 Teléfono: ${datosReserva.telefono}\n` +
     lineaObservaciones +
-    `\n¿Confirmas la reserva? Di «Sí, confirmo la reserva» o «No, no confirmo». ` +
-    `Si quieres corregir un dato, dímelo ahora.`,
+    `\n¿Confirma la reserva? Indique «Sí, confirmo la reserva» o «No, no confirmo». ` +
+    `Si desea corregir un dato, indíquemelo ahora.`,
     "bot"
   );
 }
@@ -765,7 +765,7 @@ function iniciarListaEspera() {
   paso = "espera_nombre";
   agregarMensaje(
     "De acuerdo. La lista de espera no bloquea ninguna mesa, pero el " +
-    "restaurante podrá avisarte si se libera una. ¿A qué nombre te apunto?",
+    "restaurante podrá avisarle si se libera una. ¿A qué nombre le apunto?",
     "bot"
   );
 }
@@ -781,7 +781,7 @@ function mostrarConfirmacionListaEspera() {
     : "";
 
   agregarMensaje(
-    `Voy a apuntarte en la lista de espera:\n\n` +
+    `Voy a apuntarle en la lista de espera:\n\n` +
     `📅 Fecha: ${mostrarFecha(datosListaEspera.fecha)}\n` +
     `🕒 Hora solicitada: ${datosListaEspera.hora}\n` +
     `👥 Personas: ${datosListaEspera.personas}\n` +
@@ -790,8 +790,8 @@ function mostrarConfirmacionListaEspera() {
     `📧 Email: ${datosListaEspera.email}\n` +
     `📱 Teléfono: ${datosListaEspera.telefono}\n` +
     lineaObservaciones +
-    `\n¿Confirmas que quieres entrar en la lista de espera? ` +
-    `Di «Sí, confirmo la lista de espera» o «No, no confirmo».`,
+    `\n¿Confirma que desea entrar en la lista de espera? ` +
+    `Indique «Sí, confirmo la lista de espera» o «No, no confirmo».`,
     "bot"
   );
 }
@@ -831,8 +831,8 @@ async function crearListaEspera() {
       solicitudEspera = null;
       datosListaEspera = null;
       agregarMensaje(
-        "¡Se acaba de liberar una mesa adecuada! No te he añadido a la " +
-        "lista de espera; puedes confirmar ahora la reserva.",
+        "¡Se acaba de liberar una mesa adecuada! No le he añadido a la " +
+        "lista de espera; puede confirmar ahora la reserva.",
         "bot"
       );
       mostrarConfirmacionNuevaReserva();
@@ -844,8 +844,8 @@ async function crearListaEspera() {
       agregarMensaje(
         data.motivo +
         (telefonoRestaurante
-          ? ` Puedes llamar al restaurante: tel:${telefonoRestaurante}`
-          : " Contacta directamente con el restaurante."),
+          ? ` Puede llamar al restaurante: tel:${telefonoRestaurante}`
+          : " Contacte directamente con el restaurante."),
         "bot"
       );
       reiniciarReserva();
@@ -858,10 +858,10 @@ async function crearListaEspera() {
 
     agregarMensaje(
       data.ya_existia
-        ? `Ya estabas en la lista de espera con el código ${data.id_espera}. ` +
-          "El restaurante conserva tu solicitud."
-        : `✅ Te he apuntado a la lista de espera. Tu código es: ${data.id_espera}.\n\n` +
-          "Esto no es una reserva confirmada. El restaurante utilizará tus " +
+        ? `Ya estaba en la lista de espera con el código ${data.id_espera}. ` +
+          "El restaurante conserva su solicitud."
+        : `✅ Le he apuntado a la lista de espera. Su código es: ${data.id_espera}.\n\n` +
+          "Esto no es una reserva confirmada. El restaurante utilizará sus " +
           "datos de contacto si se libera una mesa.",
       "bot"
     );
@@ -880,7 +880,7 @@ async function crearListaEspera() {
 // 9️⃣ CREAR LA RESERVA REAL
 async function crearReserva() {
   agregarMensaje(
-    "Gracias 😊 Estoy creando tu reserva...",
+    "Gracias 😊 Estoy creando su reserva...",
     "bot"
   );
 
@@ -927,7 +927,7 @@ async function crearReserva() {
             "La hora solicitada ya no cumple la antelación mínima.",
           "bot"
         );
-        agregarMensaje("Indícame otra hora o día.", "bot");
+        agregarMensaje("Indíqueme otra hora o día.", "bot");
         solicitudEspera = null;
         paso = "hora";
         return;
@@ -939,7 +939,7 @@ async function crearReserva() {
       );
 
       agregarMensaje(
-        "Puedes volver a empezar escribiendo: quiero reservar.",
+        "Puede volver a empezar escribiendo: quiero reservar.",
         "bot"
       );
 
@@ -951,7 +951,7 @@ async function crearReserva() {
       tokenGestionActivo = data.token_gestion || "";
       localizadorGestion = data.id_reserva;
       agregarMensaje(
-        `✅ Reserva confirmada.\n\nTu localizador es: ${data.id_reserva}\n\nFecha: ${mostrarFecha(datosReserva.fecha)}\nHora: ${datosReserva.hora}\nPersonas: ${datosReserva.personas}` +
+        `✅ Reserva confirmada.\n\nSu localizador es: ${data.id_reserva}\n\nFecha: ${mostrarFecha(datosReserva.fecha)}\nHora: ${datosReserva.hora}\nPersonas: ${datosReserva.personas}` +
         (datosReserva.zona_preferida
           ? `\nZona: ${datosReserva.zona_preferida}`
           : "") +
@@ -1016,7 +1016,7 @@ async function solicitarGestionReserva(accion, localizador, datosAdicionales = {
     return data;
   } catch (error) {
     console.error("Error al gestionar la reserva:", error);
-    agregarMensaje("No he podido conectar con el servidor. Inténtalo de nuevo.", "bot");
+    agregarMensaje("No he podido conectar con el servidor. Inténtelo de nuevo.", "bot");
     paso = "inicio";
     return null;
   }
@@ -1058,8 +1058,8 @@ async function consultarReserva(localizador, paraCancelar = false) {
     localizadorGestion = localizador;
     paso = "confirmacion_cancelacion";
     agregarMensaje(
-      "¿Confirmas que quieres cancelar esta reserva? " +
-      "Di «Sí, confirmo la cancelación» o «No, no confirmo».",
+      "¿Confirma que desea cancelar esta reserva? " +
+      "Indique «Sí, confirmo la cancelación» o «No, no confirmo».",
       "bot"
     );
     return;
@@ -1067,7 +1067,7 @@ async function consultarReserva(localizador, paraCancelar = false) {
 
   paso = "inicio";
   agregarMensaje(
-    "Puedes hacer una nueva reserva, modificar esta o cancelarla.",
+    "Puede hacer una nueva reserva, modificar esta o cancelarla.",
     "bot"
   );
 }
@@ -1091,7 +1091,7 @@ async function prepararModificacion(localizador) {
   reservaGestionOriginal = { ...data.reserva };
   agregarMensaje(`He encontrado esta reserva:\n\n${mostrarResumenReserva(data.reserva)}`, "bot");
   paso = "seleccion_modificacion";
-  agregarMensaje("¿Qué quieres cambiar: la fecha, la hora o el número de personas?", "bot");
+  agregarMensaje("¿Qué desea cambiar: la fecha, la hora o el número de personas?", "bot");
 }
 
 
@@ -1131,7 +1131,7 @@ async function modificarReserva() {
     reservaGestion = { ...reservaGestionOriginal };
     paso = "seleccion_modificacion";
     agregarMensaje(
-      "La reserva original no se ha modificado. Puedes indicarme otra fecha, otra hora o un número diferente de personas.",
+      "La reserva original no se ha modificado. Puede indicarme otra fecha, otra hora o un número diferente de personas.",
       "bot"
     );
     return;
@@ -1145,7 +1145,7 @@ function confirmarModificacion() {
   paso = "confirmacion_modificacion";
   agregarMensaje(
     `La reserva quedaría así:\n\n${mostrarResumenReserva(reservaGestion)}\n\n` +
-    "¿Confirmas el cambio? Di «Sí, confirmo el cambio» o «No, no confirmo».",
+    "¿Confirma el cambio? Indique «Sí, confirmo el cambio» o «No, no confirmo».",
     "bot"
   );
 }
@@ -1159,40 +1159,40 @@ function esIntencionOperativa(texto) {
 
 function repetirPreguntaPendiente() {
   const preguntas = {
-    inicio: "¿Quieres reservar, consultar, modificar o cancelar una reserva?",
-    personas: "¿Para cuántas personas deseas reservar?",
-    fecha: "¿Qué día deseas reservar?",
+    inicio: "¿Desea reservar, consultar, modificar o cancelar una reserva?",
+    personas: "¿Para cuántas personas desea reservar?",
+    fecha: "¿Qué día desea reservar?",
     hora: solicitudEspera
-      ? "¿Prefieres otra hora, otro día o que te añada a la lista de espera?"
-      : "¿A qué hora deseas reservar?",
+      ? "¿Prefiere otra hora, otro día o que le añada a la lista de espera?"
+      : "¿A qué hora desea reservar?",
     nombre: "¿A nombre de quién hacemos la reserva?",
-    email: "¿Cuál es tu correo electrónico?",
-    telefono: "¿Cuál es tu número de teléfono móvil?",
+    email: "¿Cuál es su correo electrónico?",
+    telefono: "¿Cuál es su número de teléfono móvil?",
     observaciones:
-      "¿Quieres añadir alguna observación? Si no, responde: no.",
-    espera_nombre: "¿A nombre de quién te añadimos a la lista de espera?",
-    espera_email: "¿Cuál es tu correo electrónico?",
-    espera_telefono: "¿Cuál es tu número de teléfono móvil?",
+      "¿Desea añadir alguna observación? Si no, responda: no.",
+    espera_nombre: "¿A nombre de quién le añadimos a la lista de espera?",
+    espera_email: "¿Cuál es su correo electrónico?",
+    espera_telefono: "¿Cuál es su número de teléfono móvil?",
     espera_observaciones:
-      "¿Quieres añadir alguna observación para el restaurante? Si no, responde: no.",
-    modificar_fecha: "¿Qué nueva fecha quieres?",
-    modificar_hora: "¿A qué nueva hora quieres reservar?",
+      "¿Desea añadir alguna observación para el restaurante? Si no, responda: no.",
+    modificar_fecha: "¿Qué nueva fecha desea?",
+    modificar_hora: "¿A qué nueva hora desea reservar?",
     modificar_personas: "¿Para cuántas personas será finalmente?",
     seleccion_modificacion:
-      "¿Quieres cambiar la fecha, la hora o el número de personas?",
+      "¿Desea cambiar la fecha, la hora o el número de personas?",
     seleccion_correccion_datos:
       "¿Qué dato desea cambiar? Puede indicar una nueva hora, otro día, " +
       "el número de personas o la zona.",
-    localizador_consulta: "Indícame el localizador de tu reserva.",
+    localizador_consulta: "Indíqueme el localizador de su reserva.",
     localizador_cancelacion:
-      "Indícame el localizador de la reserva que quieres cancelar.",
+      "Indíqueme el localizador de la reserva que desea cancelar.",
     localizador_modificacion:
-      "Indícame el localizador de la reserva que quieres modificar."
+      "Indíqueme el localizador de la reserva que desea modificar."
   };
 
   if (paso === "zona") {
     agregarMensaje(
-      `¿En qué zona prefieres la mesa? Puedes elegir: ${describirOpcionesZonas(nombresZonasDisponibles())}.`,
+      `¿En qué zona prefiere la mesa? Puede elegir: ${describirOpcionesZonas(nombresZonasDisponibles())}.`,
       "bot"
     );
     return;
@@ -1220,8 +1220,8 @@ function repetirPreguntaPendiente() {
 
   if (paso === "confirmacion_cancelacion") {
     agregarMensaje(
-      "Volvamos a tu solicitud. ¿Confirmas que quieres cancelar esta reserva? " +
-      "Di «Sí, confirmo la cancelación» o «No, no confirmo».",
+      "Volvamos a su solicitud. ¿Confirma que desea cancelar esta reserva? " +
+      "Indique «Sí, confirmo la cancelación» o «No, no confirmo».",
       "bot"
     );
     return;
@@ -1230,7 +1230,7 @@ function repetirPreguntaPendiente() {
   const pregunta = preguntas[paso];
 
   if (pregunta) {
-    agregarMensaje(`Volvamos a tu solicitud. ${pregunta}`, "bot");
+    agregarMensaje(`Volvamos a su solicitud. ${pregunta}`, "bot");
   }
 }
 
@@ -1278,7 +1278,7 @@ async function atenderPreguntaInformativa(mensaje, opciones = {}) {
 
     if (opciones.origen === "voz") {
       agregarMensaje(
-        "Perdona, no te he entendido. ¿Puedes repetir la pregunta?",
+        "Perdone, no le he entendido. ¿Puede repetir la pregunta?",
         "bot"
       );
       return true;
@@ -1286,8 +1286,8 @@ async function atenderPreguntaInformativa(mensaje, opciones = {}) {
 
     const telefono = telefonoParaEnlace(datos.telefono_restaurante);
     const contacto = telefono
-      ? ` Puedes consultarlo directamente con el restaurante: tel:${telefono}`
-      : " Puedes consultarlo directamente con el restaurante.";
+      ? ` Puede consultarlo directamente con el restaurante: tel:${telefono}`
+      : " Puede consultarlo directamente con el restaurante.";
 
     agregarMensaje(
       `No dispongo todavía de una respuesta aprobada para esa pregunta.${contacto}`,
@@ -1298,7 +1298,7 @@ async function atenderPreguntaInformativa(mensaje, opciones = {}) {
   } catch (error) {
     console.error("Error al consultar información del restaurante:", error);
     agregarMensaje(
-      "Ahora mismo no puedo consultar la información del restaurante. Puedes continuar con la reserva.",
+      "Ahora mismo no puedo consultar la información del restaurante. Puede continuar con la reserva.",
       "bot"
     );
     repetirPreguntaPendiente();
@@ -1330,13 +1330,13 @@ async function procesarMensaje(texto, opciones = {}) {
     const nombre = window.ContactiaEntrada.normalizarNombreCliente(mensaje);
 
     if (nombre.length < 2) {
-      agregarMensaje("Indícame un nombre válido.", "bot");
+      agregarMensaje("Indíqueme un nombre válido.", "bot");
       return;
     }
 
     datosListaEspera.nombre = nombre;
     paso = "espera_email";
-    agregarMensaje("¿Cuál es tu correo electrónico?", "bot");
+    agregarMensaje("¿Cuál es su correo electrónico?", "bot");
     return;
   }
 
@@ -1351,14 +1351,14 @@ async function procesarMensaje(texto, opciones = {}) {
 
     datosListaEspera.email = mensaje;
     paso = "espera_telefono";
-    agregarMensaje("¿Cuál es tu número de teléfono móvil?", "bot");
+    agregarMensaje("¿Cuál es su número de teléfono móvil?", "bot");
     return;
   }
 
   if (paso === "espera_telefono") {
     if (!telefonoValido(mensaje)) {
       agregarMensaje(
-        "Ese número no parece válido. Di las nueve cifras del móvil, por " +
+        "Ese número no parece válido. Indique las nueve cifras del móvil, por " +
         "ejemplo: 612345678. No hace falta indicar +34.",
         "bot"
       );
@@ -1368,7 +1368,7 @@ async function procesarMensaje(texto, opciones = {}) {
     datosListaEspera.telefono = normalizarTelefono(mensaje);
     paso = "espera_observaciones";
     agregarMensaje(
-      "¿Quieres añadir alguna observación para el restaurante? Si no, responde: no.",
+      "¿Desea añadir alguna observación para el restaurante? Si no, responda: no.",
       "bot"
     );
     return;
@@ -1382,7 +1382,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (mensaje.length > 1000) {
       agregarMensaje(
-        "La observación es demasiado larga. Resúmela en un máximo de 1000 caracteres.",
+        "La observación es demasiado larga. Resúmala en un máximo de 1000 caracteres.",
         "bot"
       );
       return;
@@ -1408,14 +1408,14 @@ async function procesarMensaje(texto, opciones = {}) {
       datosListaEspera = null;
       paso = "hora";
       agregarMensaje(
-        "De acuerdo. No te he añadido a la lista de espera. Puedes indicarme otra hora, otro día o un número diferente de personas.",
+        "De acuerdo. No le he añadido a la lista de espera. Puede indicarme otra hora, otro día o un número diferente de personas.",
         "bot"
       );
       return;
     }
 
     agregarMensaje(
-      "No he podido distinguir tu respuesta. Di «Sí, confirmo la lista de " +
+      "No he podido distinguir su respuesta. Indique «Sí, confirmo la lista de " +
       "espera» o «No, no confirmo».",
       "bot"
     );
@@ -1424,7 +1424,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
   if (paso === "procesando_espera") {
     agregarMensaje(
-      "Estoy procesando tu solicitud de lista de espera. Espera un momento.",
+      "Estoy procesando su solicitud de lista de espera. Espere un momento.",
       "bot"
     );
     return;
@@ -1473,15 +1473,15 @@ async function procesarMensaje(texto, opciones = {}) {
       confirmarModificacion();
     } else if (respuesta.includes("fecha") || respuesta.includes("dia")) {
       paso = "modificar_fecha";
-      agregarMensaje("¿Qué nueva fecha quieres? Puedes decir, por ejemplo, el martes o 25/08/2026.", "bot");
+      agregarMensaje("¿Qué nueva fecha desea? Puede indicar, por ejemplo, el martes o 25/08/2026.", "bot");
     } else if (respuesta.includes("hora")) {
       paso = "modificar_hora";
-      agregarMensaje("¿A qué nueva hora quieres reservar?", "bot");
+      agregarMensaje("¿A qué nueva hora desea reservar?", "bot");
     } else if (respuesta.includes("persona") || respuesta.includes("comensal")) {
       paso = "modificar_personas";
       agregarMensaje("¿Para cuántas personas será finalmente?", "bot");
     } else {
-      agregarMensaje("Indícame si quieres cambiar la fecha, la hora o el número de personas.", "bot");
+      agregarMensaje("Indíqueme si desea cambiar la fecha, la hora o el número de personas.", "bot");
     }
     return;
   }
@@ -1511,7 +1511,7 @@ async function procesarMensaje(texto, opciones = {}) {
   if (paso === "modificar_personas") {
     const personas = extraerPersonas(`${mensaje} personas`);
     if (!Number.isInteger(personas) || personas <= 0) {
-      agregarMensaje("Indícame un número válido de personas.", "bot");
+      agregarMensaje("Indíqueme un número válido de personas.", "bot");
       return;
     }
     reservaGestion.personas = personas;
@@ -1534,7 +1534,7 @@ async function procesarMensaje(texto, opciones = {}) {
       return;
     }
     agregarMensaje(
-      "No he podido distinguir tu respuesta. Di «Sí, confirmo el cambio» " +
+      "No he podido distinguir su respuesta. Indique «Sí, confirmo el cambio» " +
       "o «No, no confirmo».",
       "bot"
     );
@@ -1548,7 +1548,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (respuesta === "si") {
       paso = "procesando_cancelacion";
-      agregarMensaje("Un momento, estoy cancelando tu reserva...", "bot");
+      agregarMensaje("Un momento, estoy cancelando su reserva...", "bot");
       const data = await solicitarGestionReserva("cancelar", localizadorGestion);
 
       if (data?.cancelada) {
@@ -1570,7 +1570,7 @@ async function procesarMensaje(texto, opciones = {}) {
     }
 
     agregarMensaje(
-      "No he podido distinguir tu respuesta. Di «Sí, confirmo la " +
+      "No he podido distinguir su respuesta. Indique «Sí, confirmo la " +
       "cancelación» o «No, no confirmo».",
       "bot"
     );
@@ -1654,7 +1654,7 @@ async function procesarMensaje(texto, opciones = {}) {
         await prepararModificacion(localizadorGestion);
       } else {
         paso = "localizador_modificacion";
-        agregarMensaje("Indícame el localizador de la reserva que quieres modificar.", "bot");
+        agregarMensaje("Indíqueme el localizador de la reserva que desea modificar.", "bot");
       }
 
       return;
@@ -1674,7 +1674,7 @@ async function procesarMensaje(texto, opciones = {}) {
         await consultarReserva(localizadorGestion, true);
       } else {
         paso = "localizador_cancelacion";
-        agregarMensaje("Indícame el localizador de la reserva que quieres cancelar.", "bot");
+        agregarMensaje("Indíqueme el localizador de la reserva que desea cancelar.", "bot");
       }
 
       return;
@@ -1692,7 +1692,7 @@ async function procesarMensaje(texto, opciones = {}) {
         await consultarReserva(localizador);
       } else {
         paso = "localizador_consulta";
-        agregarMensaje("Indícame el localizador de tu reserva.", "bot");
+        agregarMensaje("Indíqueme el localizador de su reserva.", "bot");
       }
 
       return;
@@ -1710,7 +1710,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
       if (analisisInicial.ambiguos.length > 0) {
         iniciarCapturaGuiada(
-          "Perdona, he detectado datos que podrían tener más de una interpretación."
+          "Perdone, he detectado datos que podrían tener más de una interpretación."
         );
         return;
       }
@@ -1726,7 +1726,7 @@ async function procesarMensaje(texto, opciones = {}) {
     }
 
     agregarMensaje(
-      "Puedes escribir: quiero reservar, consultar, modificar o cancelar una reserva.",
+      "Puede escribir: quiero reservar, consultar, modificar o cancelar una reserva.",
       "bot"
     );
 
@@ -1742,7 +1742,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (analisisPersonas.estado === "ambiguo") {
       agregarMensaje(
-        "He oído más de un número posible. ¿Para cuántas personas deseas reservar?",
+        "He oído más de un número posible. ¿Para cuántas personas desea reservar?",
         "bot"
       );
       return;
@@ -1760,7 +1760,7 @@ async function procesarMensaje(texto, opciones = {}) {
       personas <= 0
     ) {
       agregarMensaje(
-        "Indícame el número de personas. Por ejemplo: 2.",
+        "Indíqueme el número de personas. Por ejemplo: 2.",
         "bot"
       );
 
@@ -1793,7 +1793,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (analisisFecha.estado === "ambiguo") {
       agregarMensaje(
-        "He oído más de un día posible. Dime únicamente el día de la reserva.",
+        "He oído más de un día posible. Dígame únicamente el día de la reserva.",
         "bot"
       );
       return;
@@ -1861,7 +1861,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (analisisHora.estado === "ambiguo") {
       agregarMensaje(
-        "He oído más de una hora posible. Dime únicamente la hora que prefieres.",
+        "He oído más de una hora posible. Dígame únicamente la hora que prefiere.",
         "bot"
       );
       return;
@@ -1881,7 +1881,7 @@ async function procesarMensaje(texto, opciones = {}) {
       !correcciones.zona_preferida
     ) {
       agregarMensaje(
-        "No he podido identificar la hora. Dímela, por ejemplo: dos de la tarde o 14:00.",
+        "No he podido identificar la hora. Indíquemela, por ejemplo: dos de la tarde o 14:00.",
         "bot"
       );
 
@@ -1919,7 +1919,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (analisisZona.estado === "ambiguo") {
       agregarMensaje(
-        `He oído más de una zona. Elige una: ${nombresZonasDisponibles().join(", ")}.`,
+        `He oído más de una zona. Elija una: ${nombresZonasDisponibles().join(", ")}.`,
         "bot"
       );
       return;
@@ -1961,7 +1961,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (nombre.length < 2) {
       agregarMensaje(
-        "Indícame un nombre válido.",
+        "Indíqueme un nombre válido.",
         "bot"
       );
       return;
@@ -1972,7 +1972,7 @@ async function procesarMensaje(texto, opciones = {}) {
     if (datosReserva.email) {
       paso = "telefono";
       agregarMensaje(
-        "¿Cuál es tu número de teléfono móvil?",
+        "¿Cuál es su número de teléfono móvil?",
         "bot"
       );
       return;
@@ -1980,7 +1980,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     paso = "email";
     agregarMensaje(
-      "¿Cuál es tu correo electrónico?",
+      "¿Cuál es su correo electrónico?",
       "bot"
     );
     return;
@@ -2002,7 +2002,7 @@ async function procesarMensaje(texto, opciones = {}) {
     datosReserva.email = email;
     paso = "telefono";
     agregarMensaje(
-      "¿Cuál es tu número de teléfono móvil?",
+      "¿Cuál es su número de teléfono móvil?",
       "bot"
     );
     return;
@@ -2013,7 +2013,7 @@ async function procesarMensaje(texto, opciones = {}) {
   if (paso === "telefono") {
     if (!telefonoValido(mensaje)) {
       agregarMensaje(
-        "Ese número no parece válido. Di las nueve cifras del móvil, por " +
+        "Ese número no parece válido. Indique las nueve cifras del móvil, por " +
         "ejemplo: 612345678. No hace falta indicar +34.",
         "bot"
       );
@@ -2027,7 +2027,7 @@ async function procesarMensaje(texto, opciones = {}) {
     paso = "observaciones";
 
     agregarMensaje(
-      "¿Quieres añadir alguna observación? Si no, responde: no.",
+      "¿Desea añadir alguna observación? Si no, responda: no.",
       "bot"
     );
 
@@ -2044,7 +2044,7 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (mensaje.length > 1000) {
       agregarMensaje(
-        "La observación es demasiado larga. Resúmela en un máximo de 1000 caracteres.",
+        "La observación es demasiado larga. Resúmala en un máximo de 1000 caracteres.",
         "bot"
       );
       return;
@@ -2078,26 +2078,26 @@ async function procesarMensaje(texto, opciones = {}) {
 
     if (campoCorreccion === "hora") {
       paso = "hora";
-      agregarMensaje("¿A qué hora deseas cambiar la reserva?", "bot");
+      agregarMensaje("¿A qué hora desea cambiar la reserva?", "bot");
       return;
     }
 
     if (campoCorreccion === "fecha") {
       paso = "fecha";
-      agregarMensaje("¿Para qué día deseas cambiar la reserva?", "bot");
+      agregarMensaje("¿Para qué día desea cambiar la reserva?", "bot");
       return;
     }
 
     if (campoCorreccion === "personas") {
       paso = "personas";
-      agregarMensaje("¿Para cuántas personas deseas cambiar la reserva?", "bot");
+      agregarMensaje("¿Para cuántas personas desea cambiar la reserva?", "bot");
       return;
     }
 
     if (campoCorreccion === "zona") {
       paso = "zona";
       agregarMensaje(
-        `¿A qué zona deseas cambiarla? Opciones: ${nombresZonasDisponibles().join(", ")}.`,
+        `¿A qué zona desea cambiarla? Opciones: ${nombresZonasDisponibles().join(", ")}.`,
         "bot"
       );
       return;
@@ -2122,7 +2122,7 @@ async function procesarMensaje(texto, opciones = {}) {
       );
 
       agregarMensaje(
-        "Puedes empezar de nuevo escribiendo: quiero reservar.",
+        "Puede empezar de nuevo escribiendo: quiero reservar.",
         "bot"
       );
 
@@ -2131,7 +2131,7 @@ async function procesarMensaje(texto, opciones = {}) {
     }
 
     agregarMensaje(
-      "No he podido distinguir tu respuesta. Di «Sí, confirmo la reserva» " +
+      "No he podido distinguir su respuesta. Indique «Sí, confirmo la reserva» " +
       "o «No, no confirmo».",
       "bot"
     );
@@ -2143,7 +2143,7 @@ async function procesarMensaje(texto, opciones = {}) {
   // PROCESANDO
   if (paso === "procesando") {
     agregarMensaje(
-      "Estoy procesando tu reserva. Espera un momento.",
+      "Estoy procesando su reserva. Espere un momento.",
       "bot"
     );
 
@@ -2154,7 +2154,7 @@ async function procesarMensaje(texto, opciones = {}) {
   // FINALIZADO
   if (paso === "finalizado") {
     agregarMensaje(
-      "La reserva ya está confirmada. Puedes recargar la página para hacer otra prueba.",
+      "La reserva ya está confirmada. Puede recargar la página para hacer otra prueba.",
       "bot"
     );
 
@@ -2175,15 +2175,25 @@ function prepararRespuestaParaVoz(texto) {
 
 
 function mostrarFechaParaVoz(fechaISO) {
+  const diasSemana = [
+    "domingo", "lunes", "martes", "miércoles",
+    "jueves", "viernes", "sábado"
+  ];
   const meses = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
   ];
   const [anio, mes, dia] = String(fechaISO || "").split("-");
+  const fecha = new Date(Date.UTC(
+    Number(anio),
+    Number(mes) - 1,
+    Number(dia)
+  ));
+  const nombreDia = diasSemana[fecha.getUTCDay()];
   const nombreMes = meses[Number(mes) - 1];
 
-  return nombreMes
-    ? `${Number(dia)} de ${nombreMes} de ${anio}`
+  return nombreDia && nombreMes
+    ? `${nombreDia} ${Number(dia)} de ${nombreMes} de ${anio}`
     : mostrarFecha(fechaISO);
 }
 
@@ -2204,7 +2214,7 @@ function prepararRespuestasParaVoz(respuestas) {
     /Tenemos disponibilidad para/i.test(mensaje)
   );
   const hayResumen = mensajes.some((mensaje) =>
-    /^Por favor, revisa tu reserva:/i.test(mensaje)
+    /^Por favor, revise su reserva:/i.test(mensaje)
   );
   const zona = datosReserva.zona_preferida
     ? ` en la zona ${datosReserva.zona_preferida}`
@@ -2215,12 +2225,12 @@ function prepararRespuestasParaVoz(respuestas) {
       .replace(/^\+34/, "");
 
     return (
-      `Has solicitado una reserva para el día ` +
+      `Ha solicitado una reserva para el día ` +
       `${mostrarFechaParaVoz(datosReserva.fecha)} a las ${datosReserva.hora}, ` +
       `para ${personasParaVoz(datosReserva.personas)} personas${zona} del ` +
       `restaurante, a nombre de ${datosReserva.nombre}, con correo ` +
       `${datosReserva.email} y teléfono ${telefono}. ` +
-      "¿Confirmas la reserva?"
+      "¿Confirma la reserva?"
     );
   }
 
@@ -2233,7 +2243,7 @@ function prepararRespuestasParaVoz(respuestas) {
 
   return mensajes
     .filter((mensaje) => !/^(?:Un momento|Gracias .*Estoy)/i.test(mensaje))
-    .join("\n\n") || "Te escucho. Continúa, por favor.";
+    .join("\n\n") || "Le escucho. Continúe, por favor.";
 }
 
 
@@ -2243,7 +2253,7 @@ async function procesarTurnoVoz(texto) {
   if (!mensaje || mensaje.length > 1000) {
     return {
       ok: false,
-      respuesta: "No he entendido el mensaje. Repítelo de forma más breve."
+      respuesta: "No he entendido el mensaje. Repítalo de forma más breve."
     };
   }
 
@@ -2331,7 +2341,7 @@ window.addEventListener(
   async () => {
     if (!rutaRestaurante.esRutaRestaurante) {
       agregarMensaje(
-        "Abre el enlace de reservas que te ha facilitado el restaurante.",
+        "Abra el enlace de reservas que le ha facilitado el restaurante.",
         "bot"
       );
       return;
@@ -2339,7 +2349,7 @@ window.addEventListener(
 
     if (!rutaRestaurante.valida) {
       agregarMensaje(
-        "El enlace del restaurante no es válido. Comprueba la dirección e inténtalo de nuevo.",
+        "El enlace del restaurante no es válido. Compruebe la dirección e inténtelo de nuevo.",
         "bot"
       );
       input.disabled = true;
@@ -2365,7 +2375,7 @@ window.addEventListener(
     }));
 
     agregarMensaje(
-      "👋 ¡Bienvenido! Soy tu asistente virtual. ¿Quieres reservar, consultar, modificar o cancelar una reserva?",
+      "👋 ¡Bienvenido! Soy su asistente virtual. ¿Desea reservar, consultar, modificar o cancelar una reserva?",
       "bot"
     );
 
