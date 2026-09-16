@@ -380,6 +380,44 @@ function observacionesConZona(mensaje, zona) {
 }
 
 
+function obtenerMinimoPersonasMesa(mesa, margenCapacidad) {
+  const capacidad = Number(mesa?.fields?.capacidad || 0);
+  const minimoConfigurado = Number(mesa?.fields?.min_personas);
+
+  if (
+    Number.isInteger(minimoConfigurado) &&
+    minimoConfigurado >= 1 &&
+    minimoConfigurado <= capacidad
+  ) {
+    return minimoConfigurado;
+  }
+
+  return Math.max(1, capacidad - Number(margenCapacidad || 0));
+}
+
+
+function mesaAdmitePersonas(mesa, personas, margenCapacidad) {
+  const capacidad = Number(mesa?.fields?.capacidad || 0);
+  const personasNum = Number(personas);
+
+  if (
+    !Number.isFinite(capacidad) ||
+    capacidad <= 0 ||
+    !Number.isFinite(personasNum) ||
+    personasNum <= 0
+  ) {
+    return false;
+  }
+
+  const minimoPersonas = obtenerMinimoPersonasMesa(
+    mesa,
+    margenCapacidad
+  );
+
+  return personasNum >= minimoPersonas && personasNum <= capacidad;
+}
+
+
 // 4️⃣ BUSCAR MESA O COMBINACIÓN DISPONIBLE
 async function buscarAsignacionDisponible(
   restaurante_id,
@@ -492,26 +530,10 @@ const formulaReservas =
   // Buscar la mesa adecuada más pequeña
   const mesasAdecuadas = mesasOperativas
 
-    .filter((mesa) => {
-
-      const capacidad =
-        Number(mesa.fields.capacidad || 0);
-
-
-
-     
-const personasNum = Number(personas);
-const margenNum = Number(margenCapacidad || 0);
-
-return (
-  capacidad >= personasNum &&
-  (devolverTodas || capacidad <= personasNum + margenNum) &&
-  !mesasOcupadas.has(mesa.id)
-);
-
-
-
-    })
+    .filter((mesa) =>
+      mesaAdmitePersonas(mesa, personas, margenCapacidad) &&
+      !mesasOcupadas.has(mesa.id)
+    )
 
     .sort(
       (a, b) =>
@@ -644,11 +666,11 @@ async function existeAsignacionCompatible(
   });
   const personasNum = Number(personas);
   const margenNum = Number(margenCapacidad || 0);
-  const capacidadCompatible = (capacidad) =>
+  const capacidadCombinacionCompatible = (capacidad) =>
     capacidad >= personasNum && capacidad <= personasNum + margenNum;
 
   if (mesasOperativas.some((mesa) =>
-    capacidadCompatible(Number(mesa.fields.capacidad || 0))
+    mesaAdmitePersonas(mesa, personasNum, margenNum)
   )) {
     return true;
   }
@@ -693,7 +715,7 @@ async function existeAsignacionCompatible(
       (total, mesa) => total + Number(mesa.fields.capacidad || 0),
       0
     );
-    return capacidadCompatible(capacidad);
+    return capacidadCombinacionCompatible(capacidad);
   });
 }
 
@@ -4374,6 +4396,7 @@ module.exports._seguridad = {
   generarEnlaceGestion,
   generarIdReserva,
   nombreZona,
+  mesaAdmitePersonas,
   observacionesConZona,
   resolverZonaPreferida,
   validarHorarioRestaurante

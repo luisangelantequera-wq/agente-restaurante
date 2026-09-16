@@ -23,6 +23,18 @@ test("prepara las respuestas para hablar sin pronunciar emojis ni formato", () =
 });
 
 
+test("omite el prefijo español al pronunciar teléfonos", () => {
+  assert.equal(
+    prepararTextoParaVoz("Teléfono: +34666111222"),
+    "Teléfono: seis, seis, seis, uno, uno, uno, dos, dos, dos"
+  );
+  assert.equal(
+    prepararTextoParaVoz("Teléfono: 666111222"),
+    "Teléfono: seis, seis, seis, uno, uno, uno, dos, dos, dos"
+  );
+});
+
+
 test("admite la voz femenina Studio C con su identificador oficial", () => {
   assert.equal(vozGoogleValida("es-ES-Studio-C"), true);
   assert.equal(vozGoogleValida("ES-ES-studioC-Female"), false);

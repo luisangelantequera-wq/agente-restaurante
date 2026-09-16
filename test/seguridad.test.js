@@ -153,6 +153,33 @@ test("los localizadores usan aleatoriedad criptográfica amplia", () => {
 });
 
 
+test("cada mesa respeta su mínimo de personas configurado", () => {
+  const mesaTerraza = {
+    fields: {
+      capacidad: 6,
+      min_personas: 4
+    }
+  };
+
+  assert.equal(chat._seguridad.mesaAdmitePersonas(mesaTerraza, 3, 1), false);
+  assert.equal(chat._seguridad.mesaAdmitePersonas(mesaTerraza, 4, 1), true);
+  assert.equal(chat._seguridad.mesaAdmitePersonas(mesaTerraza, 6, 1), true);
+  assert.equal(chat._seguridad.mesaAdmitePersonas(mesaTerraza, 7, 1), false);
+});
+
+
+test("una mesa sin mínimo conserva el margen anterior como respaldo", () => {
+  const mesaSinMinimo = {
+    fields: {
+      capacidad: 4
+    }
+  };
+
+  assert.equal(chat._seguridad.mesaAdmitePersonas(mesaSinMinimo, 2, 1), false);
+  assert.equal(chat._seguridad.mesaAdmitePersonas(mesaSinMinimo, 3, 1), true);
+});
+
+
 test("el enlace de gestión utiliza el fragmento y no la consulta", () => {
   const token = "a".repeat(48);
   const enlace = chat._seguridad.generarEnlaceGestion(token);
