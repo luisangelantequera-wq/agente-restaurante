@@ -337,7 +337,7 @@ function mostrarConfirmacionDatosPrincipales() {
     `${mostrarFechaParaVoz(datosReserva.fecha)}, para ` +
     `${personasParaVoz(datosReserva.personas)} personas, a las ` +
     `${datosReserva.hora}${zona}. ¿Son correctos los datos? ` +
-    "Indique «Sí son correctos» o «No».",
+    "Indique «Sí son correctos» o «No son correctos».",
     "bot"
   );
 }
