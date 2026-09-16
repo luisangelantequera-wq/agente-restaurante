@@ -573,7 +573,8 @@ async function enviarContactoEspecial(email) {
     }
 
     agregarMensaje(
-      "Ya le he enviado por correo el teléfono y el horario de reservas del restaurante.",
+      "Ya le he enviado por correo el teléfono y el horario de reservas del " +
+      "restaurante. Muchas gracias por llamar y perdone las molestias.",
       "bot"
     );
   } catch (error) {
