@@ -211,6 +211,10 @@ test("detecta la intención de corregir antes de cancelar la reserva", () => {
 test("valida los datos solo con una respuesta inequívoca", () => {
   for (const respuesta of [
     "Sí",
+    "Sí, sí",
+    "Son correctos",
+    "Los datos son correctos",
+    "Correctos",
     "Sí, todo correcto",
     "Sí, confirmo los datos",
     "Todo correcto",
@@ -386,10 +390,28 @@ test("valida los datos principales antes de consultar disponibilidad", () => {
   );
   assert.match(
     script,
-    /respuesta === "no"[\s\S]*iniciarCapturaGuiada/
+    /respuesta === "no"[\s\S]*paso = "seleccion_correccion_datos"/
+  );
+  assert.match(script, /procesarCorreccionDatosPrincipales/);
+});
+
+
+test("conserva un correo indicado antes del nombre", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(
+    script,
+    /if \(paso === "nombre"\)[\s\S]*emailValido\(valorNombre\)[\s\S]*datosReserva\.email = valorNombre/
   );
   assert.match(
     script,
-    /Vamos a tomar los datos uno a uno\. Primero, ¿qué día deseas reservar\?/
+    /if \(datosReserva\.email\)[\s\S]*paso = "telefono"/
+  );
+  assert.match(
+    script,
+    /¿Quieres añadir alguna observación\? Si no, responde: no\./
   );
 });
