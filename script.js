@@ -1621,8 +1621,7 @@ async function procesarMensaje(texto, opciones = {}) {
     }
 
     agregarMensaje(
-      "No he podido identificar el cambio. Puede decir, por ejemplo: " +
-      "«a las tres», «el viernes», «para seis personas» o «en interior».",
+      "Debe indicarme una nueva hora, otro día, el número de personas o la zona.",
       "bot"
     );
     return;
