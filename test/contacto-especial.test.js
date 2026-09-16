@@ -32,6 +32,10 @@ test("el flujo valida el correo y solicita al servidor un mensaje de contacto", 
   assert.match(script, /accion: "enviar_contacto_restaurante"/);
   assert.match(api, /"enviar_contacto_restaurante"/);
   assert.match(api, /enviarCorreoContactoRestaurante/);
+  assert.match(
+    script,
+    /Muchas gracias por llamar y perdone las molestias\./
+  );
 });
 
 
