@@ -53,6 +53,30 @@ test("interpreta horas coloquiales según el contexto del restaurante", () => {
 
   assert.equal(extraerHora("A las 9 de la noche"), "21:00");
   assert.equal(extraerHora("A las 9 de la mañana"), "09:00");
+  assert.equal(extraerHora("A las quince horas"), "15:00");
+  assert.equal(extraerHora("A las 15 horas"), "15:00");
+  assert.equal(extraerHora("A las veinte horas"), "20:00");
+});
+
+
+test("conserva la hora y la zona cuando el cliente cambia solo el día", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(
+    script,
+    /¿Qué otro día le viene bien\?[\s\S]{0,220}datosReserva\.fecha = "";[\s\S]{0,160}paso = "fecha"/
+  );
+  assert.doesNotMatch(
+    script,
+    /¿Qué otro día le viene bien\?[\s\S]{0,260}datosReserva\.hora = ""/
+  );
+  assert.doesNotMatch(
+    script,
+    /¿Qué otro día le viene bien\? Puede indicarme/
+  );
 });
 
 

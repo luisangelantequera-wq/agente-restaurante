@@ -652,12 +652,12 @@ async function comprobarDisponibilidad() {
     if (data.cambio_requerido === "fecha") {
       solicitudEspera = null;
       agregarMensaje(
-        "¿Qué otro día le viene bien? Puede indicarme, por ejemplo, mañana, el martes o una fecha concreta.",
+        "¿Qué otro día le viene bien?",
         "bot"
       );
 
       datosReserva.fecha = "";
-      datosReserva.hora = "";
+      // Conservamos personas, hora y zona; el cliente solo cambia el día.
       paso = "fecha";
       return;
     }
