@@ -542,6 +542,42 @@ const formulaReservas =
     );
 
 
+  if (mesasAdecuadas.length === 0) {
+    console.log(
+      "[disponibilidad] ninguna mesa individual adecuada",
+      JSON.stringify({
+        restaurante_id,
+        fecha,
+        hora,
+        personas: Number(personas),
+        zona_preferida_id: zonaPreferidaId,
+        zonas_activas: [...zonasActivas],
+        mesas: mesas.map((mesa) => {
+          const zona = Array.isArray(mesa.fields.zona) &&
+            mesa.fields.zona.length === 1
+            ? mesa.fields.zona[0]
+            : null;
+
+          return {
+            id: mesa.id,
+            nombre: mesa.fields.nombre_mesa,
+            capacidad: Number(mesa.fields.capacidad || 0),
+            min_personas: mesa.fields.min_personas ?? null,
+            estado: String(mesa.fields.estado || ""),
+            zona_id: zona,
+            zona_activa: zonasActivas.has(zona),
+            coincide_zona: !zonaPreferidaId || zona === zonaPreferidaId,
+            admite_personas: mesaAdmitePersonas(
+              mesa,
+              personas,
+              margenCapacidad
+            )
+          };
+        })
+      })
+    );
+  }
+
   const asignacionesMesas = mesasAdecuadas.map((mesa) => ({
       ids: [mesa.id],
       nombre: mesa.fields.nombre_mesa,
