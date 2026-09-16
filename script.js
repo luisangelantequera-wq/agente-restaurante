@@ -1706,8 +1706,17 @@ async function procesarMensaje(texto, opciones = {}) {
       return;
     }
 
+    const analisisPersonasAdelantadas =
+      window.ContactiaEntrada.analizarPersonas(mensaje);
+    const personasAdelantadas =
+      analisisPersonasAdelantadas.estado === "seguro"
+        ? analisisPersonasAdelantadas.valor
+        : null;
     const datosAdelantados = capturaGuiadaEstricta
-      ? { fecha: analisisFecha.valor }
+      ? {
+          fecha: analisisFecha.valor,
+          personas: personasAdelantadas
+        }
       : {
           ...extraerDatosIniciales(mensaje),
           fecha: analisisFecha.valor || extraerFecha(mensaje)
@@ -1715,6 +1724,13 @@ async function procesarMensaje(texto, opciones = {}) {
     const fechaExtraida = datosAdelantados.fecha;
 
     if (!fechaExtraida) {
+      if (
+        Number.isInteger(datosAdelantados.personas) &&
+        datosAdelantados.personas > 0
+      ) {
+        datosReserva.personas = datosAdelantados.personas;
+      }
+
       agregarMensaje(
         "Perdón, ¿puede indicarme de nuevo la fecha?",
         "bot"
@@ -1730,7 +1746,10 @@ async function procesarMensaje(texto, opciones = {}) {
       anunciarHoraInterpretada(datosReserva.hora);
     }
 
-    if (!capturaGuiadaEstricta && datosAdelantados.personas) {
+    if (
+      Number.isInteger(datosAdelantados.personas) &&
+      datosAdelantados.personas > 0
+    ) {
       datosReserva.personas = datosAdelantados.personas;
     }
 
