@@ -1,0 +1,181 @@
+[
+  {
+    "id_escenario": "FLUJO-001",
+    "nombre": "Reserva completa con variantes de habla",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true, "antelacion_insuficiente": false },
+          { "ok": true, "disponible": true }
+        ],
+        "reservar": [
+          {
+            "ok": true,
+            "reservado": true,
+            "id_reserva": "SOL-PRUEBA-0001",
+            "token_gestion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "enlace_gestion": "https://contactia.test/gestion-prueba"
+          }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "Quiero hacer una recerva", "paso": "fecha", "respuesta_incluye": ["¿Qué día desea reservar?"] },
+      { "entrada": "mañana", "paso": "personas", "respuesta_incluye": ["¿Para cuántas personas desea reservar?"] },
+      { "entrada": "pa cuatro", "paso": "hora", "respuesta_incluye": ["¿A qué hora desea reservar?"] },
+      { "entrada": "a las quince horas", "paso": "zona", "respuesta_incluye": ["He entendido las 15:00 horas", "¿En qué zona prefiere la mesa?"] },
+      { "entrada": "la quiero fuera", "paso": "confirmacion_datos", "respuesta_incluye": ["zona TERRAZA", "Indique «Sí» o «No»"] },
+      { "entrada": "zi", "paso": "nombre", "respuesta_incluye": ["Sí, hay disponibilidad", "¿A nombre de quién hacemos la reserva?"] },
+      { "entrada": "$NOMBRE_PRUEBA", "paso": "email", "respuesta_incluye": ["¿Cuál es su correo electrónico?"] },
+      { "entrada": "$EMAIL_PRUEBA", "paso": "telefono", "respuesta_incluye": ["¿Cuál es su número de teléfono móvil?"] },
+      { "entrada": "$TELEFONO_PRUEBA", "paso": "observaciones", "respuesta_incluye": ["¿Desea añadir alguna observación?"] },
+      { "entrada": "no", "paso": "confirmacion", "respuesta_incluye": ["¿Confirma la reserva?"] },
+      { "entrada": "zi, confirmo", "paso": "finalizado", "respuesta_incluye": ["Reserva confirmada", "SOL-PRUEBA-0001"] }
+    ],
+    "acciones_esperadas": { "verificar": 2, "reservar": 1 },
+    "payload_esperado": {
+      "accion": "reservar",
+      "contiene": {
+        "personas": 4,
+        "hora": "15:00",
+        "nombre": "$NOMBRE_PRUEBA",
+        "email": "$EMAIL_PRUEBA",
+        "telefono": "$TELEFONO_NORMALIZADO",
+        "zona_preferida": "TERRAZA"
+      }
+    }
+  },
+  {
+    "id_escenario": "FLUJO-002",
+    "nombre": "Corrige únicamente la hora sin reiniciar",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true },
+          { "ok": true, "disponible": true },
+          { "ok": true, "disponible": true }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "reservar", "paso": "fecha" },
+      { "entrada": "mañana", "paso": "personas" },
+      { "entrada": "para dos", "paso": "hora" },
+      { "entrada": "a las dos de la tarde", "paso": "zona" },
+      { "entrada": "interior", "paso": "confirmacion_datos" },
+      { "entrada": "no", "paso": "seleccion_correccion_datos", "respuesta_incluye": ["¿Qué dato desea cambiar?"] },
+      { "entrada": "a las ocho de la tarde", "paso": "confirmacion_datos", "respuesta_incluye": ["20:00", "zona INTERIOR"] },
+      { "entrada": "sí", "paso": "nombre", "respuesta_incluye": ["Sí, hay disponibilidad"] }
+    ],
+    "acciones_esperadas": { "verificar": 3 },
+    "respuesta_final_no_incluye": ["¿Qué día desea reservar?", "¿Para cuántas personas desea reservar?"]
+  },
+  {
+    "id_escenario": "FLUJO-003",
+    "nombre": "Día de cierre conserva hora, personas y zona",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true },
+          {
+            "ok": true,
+            "disponible": false,
+            "cambio_requerido": "fecha",
+            "motivo": "El lunes es nuestro día de cierre."
+          },
+          { "ok": true, "disponible": true },
+          { "ok": true, "disponible": true }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "reservar", "paso": "fecha" },
+      { "entrada": "el lunes", "paso": "personas" },
+      { "entrada": "para cuatro", "paso": "hora" },
+      { "entrada": "a las catorce horas", "paso": "zona" },
+      { "entrada": "interior", "paso": "confirmacion_datos" },
+      { "entrada": "sí", "paso": "fecha", "respuesta_incluye": ["día de cierre", "¿Qué otro día le viene bien?"] },
+      {
+        "entrada": "el martes",
+        "paso": "confirmacion_datos",
+        "respuesta_incluye": ["cuatro personas", "14:00", "zona INTERIOR"],
+        "respuesta_no_incluye": ["¿A qué hora desea reservar?"]
+      },
+      { "entrada": "sí", "paso": "nombre", "respuesta_incluye": ["Sí, hay disponibilidad"] }
+    ],
+    "acciones_esperadas": { "verificar": 4 }
+  },
+  {
+    "id_escenario": "FLUJO-004",
+    "nombre": "Sin mesa acepta una hora alternativa",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true },
+          {
+            "ok": true,
+            "disponible": false,
+            "motivo": "No hay mesa disponible a esa hora.",
+            "alternativas": ["15:00"]
+          },
+          { "ok": true, "disponible": true },
+          { "ok": true, "disponible": true }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "reservar", "paso": "fecha" },
+      { "entrada": "mañana", "paso": "personas" },
+      { "entrada": "para dos", "paso": "hora" },
+      { "entrada": "a las dos de la tarde", "paso": "zona" },
+      { "entrada": "terraza", "paso": "confirmacion_datos" },
+      { "entrada": "sí", "paso": "hora", "respuesta_incluye": ["disponibilidad a las 15:00"] },
+      { "entrada": "a las quince horas", "paso": "confirmacion_datos", "respuesta_incluye": ["15:00", "zona TERRAZA"] },
+      { "entrada": "sí", "paso": "nombre", "respuesta_incluye": ["Sí, hay disponibilidad"] }
+    ],
+    "acciones_esperadas": { "verificar": 4 }
+  },
+  {
+    "id_escenario": "FLUJO-005",
+    "nombre": "Cancelación con una variante escrita",
+    "hash": "#gestion=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "servidor": {
+      "respuestas": {
+        "consultar": [
+          {
+            "ok": true,
+            "reserva": {
+              "localizador": "SOL-20260922-ABCDEF1234",
+              "fecha": "2026-09-22",
+              "hora": "15:00",
+              "personas": 4,
+              "nombre": "Cliente de prueba",
+              "observaciones": "Zona solicitada: TERRAZA.",
+              "estado": "confirmada"
+            }
+          },
+          {
+            "ok": true,
+            "reserva": {
+              "localizador": "SOL-20260922-ABCDEF1234",
+              "fecha": "2026-09-22",
+              "hora": "15:00",
+              "personas": 4,
+              "nombre": "Cliente de prueba",
+              "observaciones": "Zona solicitada: TERRAZA.",
+              "estado": "confirmada"
+            }
+          }
+        ],
+        "cancelar": [
+          { "ok": true, "cancelada": true }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "camcelar", "paso": "confirmacion_cancelacion", "respuesta_incluye": ["¿Confirma que desea cancelar esta reserva?"] },
+      { "entrada": "zi", "paso": "inicio", "respuesta_incluye": ["cancelada correctamente"] }
+    ],
+    "acciones_esperadas": { "consultar": 2, "cancelar": 1 }
+  }
+]

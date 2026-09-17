@@ -36,6 +36,20 @@ correos:
 npm run test:conversacion
 ```
 
+El mismo comando ejecuta también `test/escenarios-conversacion.json`. Estos
+escenarios cargan el `script.js` real dentro de un navegador simulado y recorren
+conversaciones completas. Las respuestas de disponibilidad, creación y gestión
+se sustituyen por un servidor local controlado, por lo que nunca se ocupan
+mesas ni se envían notificaciones.
+
+La batería inicial cubre:
+
+- reserva completa con variantes de habla;
+- corrección de la hora sin reiniciar los demás datos;
+- cambio de un día de cierre conservando personas, hora y zona;
+- selección de una alternativa cuando no hay mesa;
+- cancelación desde un enlace de gestión.
+
 Los casos de audio serán una segunda capa. Permitirán verificar también la
 transcripción de voz antes de entregar el texto al motor determinista.
 
