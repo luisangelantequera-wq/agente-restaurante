@@ -2,6 +2,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const assert = require("node:assert/strict");
 const {
+  prepararConversacionPersistente
+} = require("../lib/centro-conversaciones");
+const {
   crearSimuladorConversacion
 } = require("../test/soporte/simulador-conversacion");
 
@@ -54,11 +57,13 @@ async function ejecutarEscenario(escenario) {
     ...escenario.servidor
   });
   let ultimaRespuesta = "";
+  let ultimoPaso = "inicio";
 
   for (const turno of escenario.turnos) {
     const entrada = resolverValorPrueba(turno.entrada);
     const resultado = await simulador.enviar(entrada);
     ultimaRespuesta = resultado.respuesta;
+    ultimoPaso = resultado.paso;
 
     if (turno.paso) {
       assert.equal(
@@ -100,6 +105,26 @@ async function ejecutarEscenario(escenario) {
         payload[campo],
         resolverValorPrueba(valor),
         `${escenario.id_escenario}: campo ${campo}`
+      );
+    }
+  }
+
+  if (escenario.revision_esperada) {
+    const persistente = prepararConversacionPersistente(
+      simulador.exportarConversacion(),
+      {
+        estado: escenario.revision_esperada.estado ||
+          (ultimoPaso === "finalizado" ? "finalizada" : "cerrada")
+      }
+    );
+
+    for (const [campo, valor] of Object.entries(
+      escenario.revision_esperada.contiene || {}
+    )) {
+      assert.deepEqual(
+        persistente[campo],
+        valor,
+        `${escenario.id_escenario}: revisión ${campo}`
       );
     }
   }

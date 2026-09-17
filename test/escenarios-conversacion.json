@@ -45,6 +45,13 @@
         "zona_preferida": "TERRAZA",
         "mensaje": "tengo alergias"
       }
+    },
+    "revision_esperada": {
+      "contiene": {
+        "requiere_revision": false,
+        "tipo_revision": "sin_incidencias",
+        "numero_repreguntas": 0
+      }
     }
   },
   {
@@ -432,6 +439,55 @@
       "accion": "lista_espera_crear",
       "contiene": {
         "mensaje": "necesitamos una trona"
+      }
+    }
+  },
+  {
+    "id_escenario": "FLUJO-011",
+    "nombre": "Marca una repregunta de zona aunque la reserva termine",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true, "antelacion_insuficiente": false },
+          { "ok": true, "disponible": true }
+        ],
+        "reservar": [
+          {
+            "ok": true,
+            "reservado": true,
+            "id_reserva": "SOL-PRUEBA-0003",
+            "token_gestion": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "enlace_gestion": "https://contactia.test/gestion-incidencia"
+          }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "reservar", "paso": "fecha" },
+      { "entrada": "mañana", "paso": "personas" },
+      { "entrada": "para cuatro", "paso": "hora" },
+      { "entrada": "a las tres de la tarde", "paso": "zona" },
+      {
+        "entrada": "da igual",
+        "paso": "zona",
+        "respuesta_incluye": ["No he reconocido la zona", "Opciones"]
+      },
+      { "entrada": "dentro", "paso": "confirmacion_datos" },
+      { "entrada": "sí", "paso": "nombre" },
+      { "entrada": "$NOMBRE_PRUEBA", "paso": "email" },
+      { "entrada": "$EMAIL_PRUEBA", "paso": "telefono" },
+      { "entrada": "$TELEFONO_PRUEBA", "paso": "observaciones" },
+      { "entrada": "no", "paso": "confirmacion" },
+      { "entrada": "sí, confirmo la reserva", "paso": "finalizado", "respuesta_incluye": ["Reserva confirmada", "SOL-PRUEBA-0003"] }
+    ],
+    "acciones_esperadas": { "verificar": 2, "reservar": 1 },
+    "revision_esperada": {
+      "contiene": {
+        "requiere_revision": true,
+        "tipo_revision": "repregunta",
+        "numero_repreguntas": 1,
+        "pasos_revision": "RES-04",
+        "motivo_revision": "1 repregunta en RES-04."
       }
     }
   }

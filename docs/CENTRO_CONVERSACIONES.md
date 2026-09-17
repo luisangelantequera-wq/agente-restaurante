@@ -50,7 +50,9 @@ conversaciones:
 - `motivo_revision`: explicación breve sin datos personales.
 
 Una repregunta se marca aunque la conversación termine correctamente, porque
-su respuesta puede aportar una expresión nueva para la batería. Si no hubo
+su respuesta puede aportar una expresión nueva para la batería. También se
+reconocen las peticiones de repetición sin signo de interrogación, como
+«No he reconocido la zona. Opciones: …». Si no hubo
 repreguntas, solo se marca como incompleta una sesión cerrada sin un resultado
 reconocido. Las reservas, cancelaciones, modificaciones, listas de espera y
 envíos de contacto completados no se confunden con abandonos.

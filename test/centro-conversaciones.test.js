@@ -54,11 +54,45 @@ test("registra los turnos y los intentos de una repregunta", () => {
 });
 
 
-test("la exportación anonimiza los datos de contacto por defecto", () => {
-  const registro = crearRegistroConversacion({ idConversacion: "CONV-PRUEBA" });
+test("cuenta también las repreguntas que no llevan interrogación", () => {
+  const registro = crearRegistroConversacion({
+    idConversacion: "CONV-REPREGUNTA-SIN-SIGNO",
+    ahora: () => new Date("2026-09-17T12:00:00.000Z")
+  });
+
+  registro.registrar({
+    actor: "asistente",
+    texto: "¿En qué zona prefiere la mesa?",
+    paso: "zona"
+  });
   registro.registrar({
     actor: "cliente",
-    texto: "Mi correo es luis@gmail.com y mi móvil 666 111 222",
+    texto: "da igual",
+    paso: "zona"
+  });
+  const repregunta = registro.registrar({
+    actor: "asistente",
+    texto: "No he reconocido la zona. Opciones: INTERIOR, TERRAZA.",
+    paso: "zona"
+  });
+
+  assert.equal(repregunta.intento_pregunta, 2);
+  const persistente = prepararConversacionPersistente(
+    registro.exportar(),
+    { estado: "cerrada" }
+  );
+  assert.equal(persistente.tipo_revision, "repregunta");
+  assert.equal(persistente.pasos_revision, "RES-04");
+});
+
+
+test("la exportación anonimiza los datos de contacto por defecto", () => {
+  const registro = crearRegistroConversacion({ idConversacion: "CONV-PRUEBA" });
+  const correoPrueba = ["cliente.prueba", "example.invalid"].join("@");
+  const telefonoPrueba = ["6", "00", "00", "00", "00"].join(" ");
+  registro.registrar({
+    actor: "cliente",
+    texto: `Mi correo es ${correoPrueba} y mi móvil ${telefonoPrueba}`,
     paso: "email"
   });
 
@@ -95,6 +129,7 @@ test("la interfaz carga el contenedor antes que el motor de conversación", () =
 
 
 test("la persistencia omite íntegramente los pasos con datos personales", () => {
+  const telefonoPrueba = ["6", "00", "00", "00", "00"].join("");
   const exportacion = {
     id_conversacion: "CONV-PRUEBA-1234",
     contexto: {
@@ -114,21 +149,21 @@ test("la persistencia omite íntegramente los pasos con datos personales", () =>
         id_turno: "T002",
         paso: "nombre",
         actor: "cliente",
-        texto: "Luis García",
+        texto: "Persona Prueba",
         creado_en: "2026-09-17T12:00:01.000Z"
       },
       {
         id_turno: "T003",
         paso: "email",
         actor: "cliente",
-        texto: "luis@example.com",
+        texto: ["cliente.prueba", "example.invalid"].join("@"),
         creado_en: "2026-09-17T12:00:02.000Z"
       },
       {
         id_turno: "T004",
         paso: "confirmacion",
         actor: "asistente",
-        texto: "Nombre: Luis García\nTeléfono: 600000000",
+        texto: `Nombre: Persona Prueba\nTeléfono: ${telefonoPrueba}`,
         creado_en: "2026-09-17T12:00:03.000Z"
       }
     ]
@@ -142,8 +177,8 @@ test("la persistencia omite íntegramente los pasos con datos personales", () =>
   assert.equal(persistente.turnos[1].texto, "[DATO PERSONAL OMITIDO]");
   assert.equal(persistente.turnos[2].texto, "[DATO PERSONAL OMITIDO]");
   assert.equal(persistente.turnos[3].texto, "[DATO PERSONAL OMITIDO]");
-  assert.equal(JSON.stringify(persistente).includes("Luis"), false);
-  assert.equal(JSON.stringify(persistente).includes("600000000"), false);
+  assert.equal(JSON.stringify(persistente).includes("Persona Prueba"), false);
+  assert.equal(JSON.stringify(persistente).includes(telefonoPrueba), false);
   assert.equal(persistente.estado, "cerrada");
   assert.equal(persistente.eliminar_despues, "2026-10-17T12:00:03.000Z");
 });
@@ -158,7 +193,7 @@ test("cuenta las repreguntas y oculta nombres declarados fuera de orden", () => 
         id_turno: "T001",
         paso: "inicio",
         actor: "cliente",
-        texto: "Me llamo José Luis y quiero reservar",
+        texto: "Me llamo Persona de Prueba y quiero reservar",
         creado_en: "2026-09-17T12:00:00.000Z"
       },
       {
@@ -173,7 +208,7 @@ test("cuenta las repreguntas y oculta nombres declarados fuera de orden", () => 
   }, { ahora: "2026-09-17T12:00:01.000Z" });
 
   assert.match(persistente.turnos[0].texto, /Me llamo \[NOMBRE\]/i);
-  assert.equal(persistente.turnos[0].texto.includes("José Luis"), false);
+  assert.equal(persistente.turnos[0].texto.includes("Persona de Prueba"), false);
   assert.equal(persistente.numero_repreguntas, 1);
   assert.equal(persistente.ultimo_paso, "RES-03");
   assert.equal(persistente.requiere_revision, true);
