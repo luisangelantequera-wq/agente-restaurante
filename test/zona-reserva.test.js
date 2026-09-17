@@ -195,6 +195,10 @@ test("reconoce las zonas configuradas y sus expresiones habituales", () => {
     "INTERIOR"
   );
   assert.equal(
+    extraerZonaPreferida("demtro", zonasPublicas),
+    "INTERIOR"
+  );
+  assert.equal(
     extraerZonaPreferida("¿Puede ser en la vip?", zonasPublicas),
     "SALA VIP"
   );

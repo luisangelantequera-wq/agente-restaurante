@@ -100,6 +100,26 @@
     "activa": true
   },
   {
+    "id_caso": "HAB-011",
+    "paso_codigo": "GEN-01",
+    "interprete": "intencion_reserva",
+    "entrada_cliente": "riservar",
+    "esperado": true,
+    "variante_habla": "pronunciacion",
+    "origen": "centro_conversaciones",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-012",
+    "paso_codigo": "RES-04",
+    "interprete": "zona",
+    "entrada_cliente": "demtro",
+    "esperado": "INTERIOR",
+    "variante_habla": "transcripcion_fonetica",
+    "origen": "centro_conversaciones",
+    "activa": true
+  },
+  {
     "id_caso": "SEG-001",
     "paso_codigo": "RES-02",
     "interprete": "personas",

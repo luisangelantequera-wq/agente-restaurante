@@ -8,6 +8,7 @@ const {
   analizarPersonas,
   crearRespuestaSaludo,
   detectarCampoCorreccion,
+  esIntencionReserva,
   extraerDigitosTelefonoHablado,
   extraerHora,
   extraerPersonas,
@@ -39,6 +40,11 @@ test("responde de forma natural cuando el cliente solo saluda", () => {
 
   assert.equal(crearRespuestaSaludo("Hola, quiero reservar"), null);
   assert.equal(crearRespuestaSaludo("Quiero reservar"), null);
+});
+
+
+test("reconoce riservar como variante observada de reservar", () => {
+  assert.equal(esIntencionReserva("riservar"), true);
 });
 
 
