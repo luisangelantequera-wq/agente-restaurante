@@ -112,6 +112,32 @@ function crearServidorSimulado(configuracion = {}) {
       return { ok: true, cancelada: true };
     }
 
+    if (solicitud.accion === "modificar") {
+      return {
+        ok: true,
+        modificada: true,
+        reserva: {
+          ...reservaGestion,
+          fecha: solicitud.fecha || reservaGestion.fecha,
+          hora: solicitud.hora || reservaGestion.hora,
+          personas: solicitud.personas || reservaGestion.personas
+        }
+      };
+    }
+
+    if (solicitud.accion === "lista_espera_crear") {
+      return {
+        ok: true,
+        disponible_ahora: false,
+        lista_espera_creada: true,
+        id_espera: "ESP-PRUEBA-0001"
+      };
+    }
+
+    if (solicitud.accion === "enviar_contacto_restaurante") {
+      return { ok: true, correo_enviado: true };
+    }
+
     return { ok: false, error: `Acción simulada no configurada: ${solicitud.accion}` };
   }
 

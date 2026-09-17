@@ -39,8 +39,9 @@ npm run test:conversacion
 El mismo comando ejecuta también `test/escenarios-conversacion.json`. Estos
 escenarios cargan el `script.js` real dentro de un navegador simulado y recorren
 conversaciones completas. Las respuestas de disponibilidad, creación y gestión
-se sustituyen por un servidor local controlado, por lo que nunca se ocupan
-mesas ni se envían notificaciones.
+se sustituyen por un servidor simulado de pruebas que solo existe mientras se
+ejecuta la batería. Por tanto, nunca se ocupan mesas ni se envían
+notificaciones.
 
 La batería inicial cubre:
 
@@ -48,7 +49,10 @@ La batería inicial cubre:
 - corrección de la hora sin reiniciar los demás datos;
 - cambio de un día de cierre conservando personas, hora y zona;
 - selección de una alternativa cuando no hay mesa;
-- cancelación desde un enlace de gestión.
+- cancelación desde un enlace de gestión;
+- modificación de una reserva conservando los datos no cambiados;
+- alta en lista de espera sin crear una reserva;
+- envío simulado del contacto y horario para reservas especiales.
 
 Los casos de audio serán una segunda capa. Permitirán verificar también la
 transcripción de voz antes de entregar el texto al motor determinista.

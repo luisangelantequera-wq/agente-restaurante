@@ -177,5 +177,160 @@
       { "entrada": "zi", "paso": "inicio", "respuesta_incluye": ["cancelada correctamente"] }
     ],
     "acciones_esperadas": { "consultar": 2, "cancelar": 1 }
+  },
+  {
+    "id_escenario": "FLUJO-006",
+    "nombre": "Modifica solo la hora desde el enlace de gestión",
+    "hash": "#gestion=cccccccccccccccccccccccccccccccccccccccccccccccc",
+    "servidor": {
+      "respuestas": {
+        "consultar": [
+          {
+            "ok": true,
+            "reserva": {
+              "localizador": "SOL-20260922-ABCDEF1234",
+              "fecha": "2026-09-22",
+              "hora": "14:00",
+              "personas": 4,
+              "nombre": "Cliente de prueba",
+              "observaciones": "Zona solicitada: INTERIOR.",
+              "estado": "confirmada"
+            }
+          },
+          {
+            "ok": true,
+            "reserva": {
+              "localizador": "SOL-20260922-ABCDEF1234",
+              "fecha": "2026-09-22",
+              "hora": "14:00",
+              "personas": 4,
+              "nombre": "Cliente de prueba",
+              "observaciones": "Zona solicitada: INTERIOR.",
+              "estado": "confirmada"
+            }
+          }
+        ],
+        "modificar": [
+          {
+            "ok": true,
+            "modificada": true,
+            "reserva": {
+              "localizador": "SOL-20260922-ABCDEF1234",
+              "fecha": "2026-09-22",
+              "hora": "16:00",
+              "personas": 4,
+              "nombre": "Cliente de prueba",
+              "observaciones": "Zona solicitada: INTERIOR.",
+              "estado": "confirmada"
+            }
+          }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "modificar", "paso": "seleccion_modificacion", "respuesta_incluye": ["¿Qué desea cambiar"] },
+      { "entrada": "a las cuatro de la tarde", "paso": "confirmacion_modificacion", "respuesta_incluye": ["16:00", "Personas: 4", "¿Confirma el cambio?"] },
+      { "entrada": "zi", "paso": "inicio", "respuesta_incluye": ["Reserva modificada correctamente", "Hora: 16:00"] }
+    ],
+    "acciones_esperadas": { "consultar": 2, "modificar": 1 },
+    "payload_esperado": {
+      "accion": "modificar",
+      "contiene": {
+        "localizador": "SOL-20260922-ABCDEF1234",
+        "fecha": "2026-09-22",
+        "hora": "16:00",
+        "personas": 4
+      }
+    }
+  },
+  {
+    "id_escenario": "FLUJO-007",
+    "nombre": "Entra en lista de espera sin crear una reserva",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true, "antelacion_insuficiente": false },
+          {
+            "ok": true,
+            "disponible": false,
+            "motivo": "No hay mesa disponible a esa hora.",
+            "alternativas": []
+          }
+        ],
+        "lista_espera_crear": [
+          {
+            "ok": true,
+            "disponible_ahora": false,
+            "lista_espera_creada": true,
+            "id_espera": "ESP-PRUEBA-0001"
+          }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "reservar", "paso": "fecha" },
+      { "entrada": "mañana", "paso": "personas" },
+      { "entrada": "pa cuatro", "paso": "hora" },
+      { "entrada": "a las tres de la tarde", "paso": "zona" },
+      { "entrada": "terraza", "paso": "confirmacion_datos" },
+      { "entrada": "zi", "paso": "hora", "respuesta_incluye": ["No hay mesa disponible", "lista de espera"] },
+      { "entrada": "apúntame", "paso": "espera_nombre", "respuesta_incluye": ["¿A qué nombre le apunto?"] },
+      { "entrada": "$NOMBRE_PRUEBA", "paso": "espera_email", "respuesta_incluye": ["¿Cuál es su correo electrónico?"] },
+      { "entrada": "$EMAIL_PRUEBA", "paso": "espera_telefono", "respuesta_incluye": ["¿Cuál es su número de teléfono móvil?"] },
+      { "entrada": "$TELEFONO_PRUEBA", "paso": "espera_observaciones", "respuesta_incluye": ["¿Desea añadir alguna observación"] },
+      { "entrada": "no", "paso": "confirmacion_espera", "respuesta_incluye": ["¿Confirma que desea entrar en la lista de espera?"] },
+      { "entrada": "zi", "paso": "inicio", "respuesta_incluye": ["Le he apuntado a la lista de espera", "ESP-PRUEBA-0001", "no es una reserva confirmada"] }
+    ],
+    "acciones_esperadas": { "verificar": 2, "lista_espera_crear": 1, "reservar": 0 },
+    "payload_esperado": {
+      "accion": "lista_espera_crear",
+      "contiene": {
+        "personas": 4,
+        "hora": "15:00",
+        "nombre": "$NOMBRE_PRUEBA",
+        "email": "$EMAIL_PRUEBA",
+        "telefono": "$TELEFONO_NORMALIZADO",
+        "zona_preferida": "TERRAZA"
+      }
+    }
+  },
+  {
+    "id_escenario": "FLUJO-008",
+    "nombre": "Envía por correo el contacto para una reserva especial",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true, "antelacion_insuficiente": false },
+          {
+            "ok": true,
+            "disponible": false,
+            "motivo": "No existe una mesa o combinación automática adecuada para ese número de personas.",
+            "requiere_contacto_restaurante": true,
+            "telefono_restaurante": "+34912345678"
+          }
+        ],
+        "enviar_contacto_restaurante": [
+          { "ok": true, "correo_enviado": true }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "reservar", "paso": "fecha" },
+      { "entrada": "mañana", "paso": "personas" },
+      { "entrada": "para ocho", "paso": "hora" },
+      { "entrada": "a las tres de la tarde", "paso": "zona" },
+      { "entrada": "terraza", "paso": "confirmacion_datos" },
+      { "entrada": "sí", "paso": "contacto_especial_oferta", "respuesta_incluye": ["organización especial", "¿Desea que le envíe por correo"] },
+      { "entrada": "zi", "paso": "contacto_especial_email", "respuesta_incluye": ["¿A qué correo desea"] },
+      { "entrada": "correo incorrecto", "paso": "contacto_especial_email", "respuesta_incluye": ["Ese correo no parece válido"] },
+      { "entrada": "$EMAIL_PRUEBA", "paso": "inicio", "respuesta_incluye": ["Ya le he enviado por correo", "Muchas gracias por llamar", "perdone las molestias"] }
+    ],
+    "acciones_esperadas": { "verificar": 2, "enviar_contacto_restaurante": 1, "reservar": 0 },
+    "payload_esperado": {
+      "accion": "enviar_contacto_restaurante",
+      "contiene": {
+        "email": "$EMAIL_PRUEBA"
+      }
+    }
   }
 ]

@@ -10,7 +10,7 @@ test("los escenarios completos tienen identificadores y turnos", () => {
   const escenarios = cargarEscenarios();
   const identificadores = new Set();
 
-  assert.ok(escenarios.length >= 5);
+  assert.ok(escenarios.length >= 8);
 
   for (const escenario of escenarios) {
     assert.match(escenario.id_escenario, /^FLUJO-\d{3}$/);
