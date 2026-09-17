@@ -105,6 +105,22 @@ async function actualizarRegistros(tabla, actualizaciones) {
 }
 
 
+async function eliminarRegistros(tabla, registros) {
+  for (let indice = 0; indice < registros.length; indice += 10) {
+    const parametros = new URLSearchParams();
+
+    for (const registro of registros.slice(indice, indice + 10)) {
+      parametros.append("records[]", registro.id);
+    }
+
+    const url =
+      `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/` +
+      `${encodeURIComponent(tabla)}?${parametros.toString()}`;
+    await consultarAirtable(url, { method: "DELETE" });
+  }
+}
+
+
 function obtenerDuracionRestaurante(campos, duracionesPorRestaurante) {
   const restauranteId = Array.isArray(campos?.restaurante)
     ? campos.restaurante[0]
@@ -123,9 +139,13 @@ async function ejecutarAnonimizacion(ahora = new Date()) {
       numeroEnteroPositivo(restaurante.fields.duracion_reserva_minutos)
     ])
   );
-  const [reservas, listaEspera] = await Promise.all([
+  const [reservas, listaEspera, conversacionesCaducadas] = await Promise.all([
     listarRegistros("RESERVAS", "NOT({anonimizada})"),
-    listarRegistros("LISTA_ESPERA", "NOT({anonimizada})")
+    listarRegistros("LISTA_ESPERA", "NOT({anonimizada})"),
+    listarRegistros(
+      "CONVERSACIONES",
+      "IS_BEFORE({eliminar_despues},NOW())"
+    )
   ]);
   const actualizacionesReservas = [];
   const actualizacionesListaEspera = [];
@@ -201,12 +221,14 @@ async function ejecutarAnonimizacion(ahora = new Date()) {
 
   await actualizarRegistros("RESERVAS", actualizacionesReservas);
   await actualizarRegistros("LISTA_ESPERA", actualizacionesListaEspera);
+  await eliminarRegistros("CONVERSACIONES", conversacionesCaducadas);
 
   return {
     reservas_anonimizadas: reservasAnonimizadas,
     reservas_preparadas: reservasPreparadas,
     esperas_anonimizadas: esperasAnonimizadas,
     esperas_preparadas: esperasPreparadas,
+    conversaciones_eliminadas: conversacionesCaducadas.length,
     omitidas_sin_fecha: omitidasSinFecha
   };
 }

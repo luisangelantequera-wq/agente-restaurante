@@ -5,7 +5,8 @@ const path = require("node:path");
 const {
   anonimizarTexto,
   codigoParaPaso,
-  crearRegistroConversacion
+  crearRegistroConversacion,
+  prepararConversacionPersistente
 } = require("../lib/centro-conversaciones");
 
 
@@ -90,4 +91,103 @@ test("la interfaz carga el contenedor antes que el motor de conversación", () =
   assert.match(script, /registroConversacion\.registrar/);
   assert.match(script, /mensaje\.dataset\.turnoId/);
   assert.match(script, /ContactiaConversacionActual/);
+});
+
+
+test("la persistencia omite íntegramente los pasos con datos personales", () => {
+  const exportacion = {
+    id_conversacion: "CONV-PRUEBA-1234",
+    contexto: {
+      canal: "voz",
+      restaurante_id: 1,
+      slug_publico: "restaurante-sol"
+    },
+    turnos: [
+      {
+        id_turno: "T001",
+        paso: "inicio",
+        actor: "cliente",
+        texto: "Quiero hacer una recerva",
+        creado_en: "2026-09-17T12:00:00.000Z"
+      },
+      {
+        id_turno: "T002",
+        paso: "nombre",
+        actor: "cliente",
+        texto: "Luis García",
+        creado_en: "2026-09-17T12:00:01.000Z"
+      },
+      {
+        id_turno: "T003",
+        paso: "email",
+        actor: "cliente",
+        texto: "luis@example.com",
+        creado_en: "2026-09-17T12:00:02.000Z"
+      },
+      {
+        id_turno: "T004",
+        paso: "confirmacion",
+        actor: "asistente",
+        texto: "Nombre: Luis García\nTeléfono: 600000000",
+        creado_en: "2026-09-17T12:00:03.000Z"
+      }
+    ]
+  };
+  const persistente = prepararConversacionPersistente(exportacion, {
+    ahora: "2026-09-17T12:00:03.000Z",
+    estado: "cerrada"
+  });
+
+  assert.equal(persistente.turnos[0].texto, "Quiero hacer una recerva");
+  assert.equal(persistente.turnos[1].texto, "[DATO PERSONAL OMITIDO]");
+  assert.equal(persistente.turnos[2].texto, "[DATO PERSONAL OMITIDO]");
+  assert.equal(persistente.turnos[3].texto, "[DATO PERSONAL OMITIDO]");
+  assert.equal(JSON.stringify(persistente).includes("Luis"), false);
+  assert.equal(JSON.stringify(persistente).includes("600000000"), false);
+  assert.equal(persistente.estado, "cerrada");
+  assert.equal(persistente.eliminar_despues, "2026-10-17T12:00:03.000Z");
+});
+
+
+test("cuenta las repreguntas y oculta nombres declarados fuera de orden", () => {
+  const persistente = prepararConversacionPersistente({
+    id_conversacion: "CONV-PRUEBA-5678",
+    contexto: { canal: "web", slug_publico: "restaurante-sol" },
+    turnos: [
+      {
+        id_turno: "T001",
+        paso: "inicio",
+        actor: "cliente",
+        texto: "Me llamo José Luis y quiero reservar",
+        creado_en: "2026-09-17T12:00:00.000Z"
+      },
+      {
+        id_turno: "T002",
+        paso: "hora",
+        actor: "asistente",
+        texto: "¿A qué hora desea reservar?",
+        intento_pregunta: 2,
+        creado_en: "2026-09-17T12:00:01.000Z"
+      }
+    ]
+  }, { ahora: "2026-09-17T12:00:01.000Z" });
+
+  assert.match(persistente.turnos[0].texto, /Me llamo \[NOMBRE\]/i);
+  assert.equal(persistente.turnos[0].texto.includes("José Luis"), false);
+  assert.equal(persistente.numero_repreguntas, 1);
+  assert.equal(persistente.ultimo_paso, "RES-03");
+});
+
+
+test("la interfaz guarda de forma diferida y cierra la sesión al abandonar", () => {
+  const script = fs.readFileSync(
+    path.join(__dirname, "..", "script.js"),
+    "utf8"
+  );
+
+  assert.match(script, /fetch\("\/api\/conversaciones"/);
+  assert.match(script, /prepararConversacionPersistente/);
+  assert.match(script, /setTimeout[\s\S]*1200/);
+  assert.match(script, /addEventListener\("pagehide"/);
+  assert.match(script, /guardarConversacionRemota\("cerrada"/);
 });

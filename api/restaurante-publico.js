@@ -14,6 +14,15 @@ function responder(res, status, datos) {
 }
 
 
+function registroConversacionesHabilitado(
+  slugPublico,
+  entorno = process.env
+) {
+  return entorno.VERCEL_ENV === "preview" &&
+    slugPublico === "restaurante-sol";
+}
+
+
 function obtenerSlugSolicitud(req) {
   if (typeof req.query?.slug === "string") {
     return req.query.slug;
@@ -184,7 +193,10 @@ module.exports = async (req, res) => {
 
     return responder(res, 200, {
       ok: true,
-      restaurante
+      restaurante,
+      ...(registroConversacionesHabilitado(slugPublico)
+        ? { registro_conversaciones_habilitado: true }
+        : {})
     });
   } catch (error) {
     const idError = crypto.randomBytes(6).toString("hex");
@@ -197,3 +209,7 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+
+module.exports.registroConversacionesHabilitado =
+  registroConversacionesHabilitado;

@@ -10,6 +10,9 @@ const {
   obtenerPrivacidadHasta,
   registroDebeAnonimizarse
 } = require("../lib/privacidad");
+const {
+  ejecutarAnonimizacion
+} = require("../api/privacidad");
 
 
 test("convierte correctamente una reserva de verano en Madrid a UTC", () => {
@@ -124,5 +127,65 @@ test("la lista de espera pierde también su vínculo identificativo", () => {
   assert.equal(campos.observaciones, null);
   assert.deepEqual(campos.reserva, []);
   assert.equal(campos.anonimizada, true);
+});
+
+
+test("la tarea de privacidad elimina conversaciones al cumplir su retención", async () => {
+  const fetchAnterior = global.fetch;
+  const apiKeyAnterior = process.env.AIRTABLE_API_KEY;
+  const baseAnterior = process.env.AIRTABLE_BASE_ID;
+  const eliminaciones = [];
+
+  process.env.AIRTABLE_API_KEY = "clave-prueba";
+  process.env.AIRTABLE_BASE_ID = "appBasePrueba";
+  global.fetch = async (url, opciones = {}) => {
+    const direccion = new URL(String(url));
+    const tabla = decodeURIComponent(direccion.pathname.split("/").at(-1));
+
+    if (opciones.method === "DELETE") {
+      eliminaciones.push({ tabla, ids: direccion.searchParams.getAll("records[]") });
+      return { ok: true, status: 200, text: async () => "{}" };
+    }
+
+    if (tabla === "CONVERSACIONES") {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          records: [{ id: "recConversacionCaducada", fields: {} }]
+        })
+      };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ records: [] })
+    };
+  };
+
+  try {
+    const resultado = await ejecutarAnonimizacion(
+      new Date("2026-10-18T12:00:00.000Z")
+    );
+
+    assert.equal(resultado.conversaciones_eliminadas, 1);
+    assert.deepEqual(eliminaciones, [{
+      tabla: "CONVERSACIONES",
+      ids: ["recConversacionCaducada"]
+    }]);
+  } finally {
+    global.fetch = fetchAnterior;
+    if (apiKeyAnterior === undefined) {
+      delete process.env.AIRTABLE_API_KEY;
+    } else {
+      process.env.AIRTABLE_API_KEY = apiKeyAnterior;
+    }
+    if (baseAnterior === undefined) {
+      delete process.env.AIRTABLE_BASE_ID;
+    } else {
+      process.env.AIRTABLE_BASE_ID = baseAnterior;
+    }
+  }
 });
 

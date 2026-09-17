@@ -5,9 +5,34 @@ const path = require("node:path");
 const vm = require("node:vm");
 const restaurantePublico = require("../api/restaurante-publico");
 const {
+  registroConversacionesHabilitado
+} = restaurantePublico;
+const {
   normalizarRestaurantePublico,
   slugPublicoValido
 } = require("../lib/restaurante-publico");
+
+
+test("solo anuncia el registro de conversaciones en el Preview de Sol", () => {
+  assert.equal(
+    registroConversacionesHabilitado("restaurante-sol", {
+      VERCEL_ENV: "preview"
+    }),
+    true
+  );
+  assert.equal(
+    registroConversacionesHabilitado("restaurante-sol", {
+      VERCEL_ENV: "production"
+    }),
+    false
+  );
+  assert.equal(
+    registroConversacionesHabilitado("restaurante-luna", {
+      VERCEL_ENV: "preview"
+    }),
+    false
+  );
+});
 
 
 test("carga juntos los módulos públicos igual que un navegador", () => {

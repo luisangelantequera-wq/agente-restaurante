@@ -1,7 +1,8 @@
 # Centro de conversaciones
 
-Esta primera fase proporciona trazabilidad y pruebas sin guardar todavía audio
-ni conversaciones reales fuera del navegador.
+El Centro de conversaciones proporciona trazabilidad y pruebas automáticas.
+En el Preview de Restaurante Sol también guarda una transcripción de diagnóstico
+anonimizada. No graba ni almacena audio.
 
 ## Identificación
 
@@ -11,16 +12,32 @@ ni conversaciones reales fuera del navegador.
   `RES-03` (hora) o `RES-11` (confirmación final).
 - Las repreguntas conservan el código y aumentan `intento_pregunta`.
 
-El registro permanece en memoria. Para inspeccionarlo durante las pruebas del
-navegador se puede ejecutar:
+El registro completo permanece en memoria durante la sesión. Para inspeccionarlo
+durante las pruebas del navegador se puede ejecutar:
 
 ```js
 window.ContactiaConversacionActual.exportar()
 ```
 
 La exportación anonimiza por defecto correos, teléfonos, localizadores y
-enlaces. Esta fase no envía conversaciones a Airtable ni a ningún otro
-servicio.
+enlaces.
+
+## Almacenamiento de Preview
+
+Solo en despliegues Preview y únicamente para `restaurante-sol`, el navegador
+envía a `/api/conversaciones` una copia filtrada y no bloqueante. El servidor
+vuelve a aplicar el filtro antes de actualizar una fila de `CONVERSACIONES`.
+
+- No se acepta ningún campo de audio o grabación.
+- Nombre, correo, teléfono, observaciones, localizadores y resúmenes con datos
+  del cliente se sustituyen por `[DATO PERSONAL OMITIDO]`.
+- Se conservan los códigos de paso, las preguntas, las respuestas no sensibles
+  y el número de repreguntas para poder diagnosticar variantes de habla.
+- Una conversación se actualiza por `id_conversacion`; no se crea una fila por
+  cada turno.
+- `eliminar_despues` se fija a 30 días y la tarea diaria de privacidad elimina
+  los registros vencidos.
+- Producción no expone ni acepta este endpoint.
 
 ## Tabla de casos
 
@@ -57,9 +74,8 @@ La batería inicial cubre:
 Los casos de audio serán una segunda capa. Permitirán verificar también la
 transcripción de voz antes de entregar el texto al motor determinista.
 
-## Siguiente fase
+## Fase posterior
 
-Antes del piloto telefónico se añadirá el almacenamiento seguro de metadatos,
-transcripciones anonimizadas y referencias de audio con conservación limitada.
-La grabación no se activará hasta disponer del aviso de privacidad, control de
-acceso y borrado automático.
+Antes del piloto telefónico se definirá por separado el almacenamiento seguro
+de referencias de audio. La grabación no se activará hasta disponer del aviso
+de privacidad, control de acceso y borrado automático específicos para audio.

@@ -52,6 +52,8 @@ let reservaGestionOriginal = null;
 let solicitudEspera = null;
 let datosListaEspera = null;
 let capturaGuiadaEstricta = false;
+let registroConversacionesRemotoHabilitado = false;
+let temporizadorGuardadoConversacion = null;
 const observadoresMensajes = new Set();
 const registroConversacion = window.ContactiaCentroConversaciones
   .crearRegistroConversacion({
@@ -66,6 +68,52 @@ window.ContactiaConversacionActual = Object.freeze({
   exportar: (opciones) => registroConversacion.exportar(opciones),
   id: registroConversacion.idConversacion
 });
+
+
+async function guardarConversacionRemota(
+  estado = "en_curso",
+  opciones = {}
+) {
+  if (!registroConversacionesRemotoHabilitado) {
+    return;
+  }
+
+  const estadoEfectivo = estado === "en_curso" && paso === "finalizado"
+    ? "finalizada"
+    : estado;
+  const conversacion = window.ContactiaCentroConversaciones
+    .prepararConversacionPersistente(
+      registroConversacion.exportar({ anonimizar: false }),
+      { estado: estadoEfectivo }
+    );
+
+  try {
+    const respuesta = await fetch("/api/conversaciones", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(conversacion),
+      keepalive: opciones.keepalive === true
+    });
+
+    if (!respuesta.ok) {
+      console.warn("No se pudo guardar la conversación anonimizada.");
+    }
+  } catch (error) {
+    console.warn("No se pudo guardar la conversación anonimizada.");
+  }
+}
+
+
+function programarGuardadoConversacion() {
+  if (!registroConversacionesRemotoHabilitado) {
+    return;
+  }
+
+  clearTimeout(temporizadorGuardadoConversacion);
+  temporizadorGuardadoConversacion = setTimeout(() => {
+    guardarConversacionRemota();
+  }, 1200);
+}
 
 
 function obtenerTokenGestionInicial() {
@@ -151,6 +199,8 @@ function agregarMensaje(texto, tipo) {
   for (const observador of observadoresMensajes) {
     observador(texto, tipo);
   }
+
+  programarGuardadoConversacion();
 }
 
 
@@ -259,6 +309,8 @@ async function cargarRestauranteActivo() {
       return false;
     }
 
+    registroConversacionesRemotoHabilitado =
+      datos.registro_conversaciones_habilitado === true;
     aplicarRestauranteActivo(restaurante);
     return true;
   } catch (error) {
@@ -2510,4 +2562,14 @@ window.addEventListener(
     }
   }
 );
+
+
+window.addEventListener("pagehide", () => {
+  if (!registroConversacionesRemotoHabilitado) {
+    return;
+  }
+
+  clearTimeout(temporizadorGuardadoConversacion);
+  guardarConversacionRemota("cerrada", { keepalive: true });
+});
 
