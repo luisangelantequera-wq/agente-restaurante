@@ -39,6 +39,22 @@ vuelve a aplicar el filtro antes de actualizar una fila de `CONVERSACIONES`.
   los registros vencidos.
 - Producción no expone ni acepta este endpoint.
 
+### Revisión automática
+
+Cada fila incluye cuatro campos para localizar incidencias sin leer todas las
+conversaciones:
+
+- `requiere_revision`: permite filtrar únicamente las conversaciones dudosas;
+- `tipo_revision`: `sin_incidencias`, `repregunta` o `incompleta`;
+- `pasos_revision`: códigos como `RES-03` para saber dónde ocurrió;
+- `motivo_revision`: explicación breve sin datos personales.
+
+Una repregunta se marca aunque la conversación termine correctamente, porque
+su respuesta puede aportar una expresión nueva para la batería. Si no hubo
+repreguntas, solo se marca como incompleta una sesión cerrada sin un resultado
+reconocido. Las reservas, cancelaciones, modificaciones, listas de espera y
+envíos de contacto completados no se confunden con abandonos.
+
 ## Tabla de casos
 
 `test/casos-conversacion.json` es la tabla maestra versionada. Cada fila indica

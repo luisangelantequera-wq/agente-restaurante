@@ -95,6 +95,10 @@ async function guardarEnAirtable(conversacion) {
           ultimo_paso: conversacion.ultimo_paso,
           numero_turnos: conversacion.numero_turnos,
           numero_repreguntas: conversacion.numero_repreguntas,
+          requiere_revision: conversacion.requiere_revision,
+          tipo_revision: conversacion.tipo_revision,
+          pasos_revision: conversacion.pasos_revision,
+          motivo_revision: conversacion.motivo_revision,
           transcripcion_anonimizada: JSON.stringify(conversacion.turnos),
           eliminar_despues: conversacion.eliminar_despues
         }

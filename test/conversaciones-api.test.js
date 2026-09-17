@@ -134,6 +134,10 @@ test("Preview guarda solo la transcripción filtrada y actualiza por identificad
     assert.equal(campos.id_conversacion, "CONV-12345678");
     assert.equal(campos.canal, "voz");
     assert.equal(campos.numero_turnos, 3);
+    assert.equal(campos.requiere_revision, false);
+    assert.equal(campos.tipo_revision, "sin_incidencias");
+    assert.equal(campos.pasos_revision, "");
+    assert.equal(campos.motivo_revision, "");
     assert.match(campos.transcripcion_anonimizada, /recerva/);
     assert.match(campos.transcripcion_anonimizada, /DATO PERSONAL OMITIDO/);
     assert.equal(campos.transcripcion_anonimizada.includes("Luis García"), false);

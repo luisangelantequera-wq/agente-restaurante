@@ -176,6 +176,45 @@ test("cuenta las repreguntas y oculta nombres declarados fuera de orden", () => 
   assert.equal(persistente.turnos[0].texto.includes("José Luis"), false);
   assert.equal(persistente.numero_repreguntas, 1);
   assert.equal(persistente.ultimo_paso, "RES-03");
+  assert.equal(persistente.requiere_revision, true);
+  assert.equal(persistente.tipo_revision, "repregunta");
+  assert.equal(persistente.pasos_revision, "RES-03");
+  assert.match(persistente.motivo_revision, /1 repregunta/);
+});
+
+
+test("marca un abandono sin confundir los resultados completados", () => {
+  const base = {
+    id_conversacion: "CONV-PRUEBA-9012",
+    contexto: { canal: "web", slug_publico: "restaurante-sol" },
+    turnos: [{
+      id_turno: "T001",
+      paso: "hora",
+      actor: "asistente",
+      texto: "¿A qué hora desea reservar?",
+      intento_pregunta: 1,
+      creado_en: "2026-09-17T12:00:00.000Z"
+    }]
+  };
+  const incompleta = prepararConversacionPersistente(base, {
+    estado: "cerrada"
+  });
+  const completada = prepararConversacionPersistente({
+    ...base,
+    turnos: [...base.turnos, {
+      id_turno: "T002",
+      paso: "inicio",
+      actor: "asistente",
+      texto: "Ya le he enviado por correo el teléfono y el horario.",
+      creado_en: "2026-09-17T12:00:01.000Z"
+    }]
+  }, { estado: "cerrada" });
+
+  assert.equal(incompleta.requiere_revision, true);
+  assert.equal(incompleta.tipo_revision, "incompleta");
+  assert.equal(incompleta.pasos_revision, "RES-03");
+  assert.equal(completada.requiere_revision, false);
+  assert.equal(completada.tipo_revision, "sin_incidencias");
 });
 
 
