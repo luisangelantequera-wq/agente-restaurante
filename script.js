@@ -53,6 +53,19 @@ let solicitudEspera = null;
 let datosListaEspera = null;
 let capturaGuiadaEstricta = false;
 const observadoresMensajes = new Set();
+const registroConversacion = window.ContactiaCentroConversaciones
+  .crearRegistroConversacion({
+    canal: new URLSearchParams(window.location.search).get("voz") === "1"
+      ? "voz"
+      : "web",
+    slug_publico: restauranteActivo.slug_publico
+  });
+
+
+window.ContactiaConversacionActual = Object.freeze({
+  exportar: (opciones) => registroConversacion.exportar(opciones),
+  id: registroConversacion.idConversacion
+});
 
 
 function obtenerTokenGestionInicial() {
@@ -90,7 +103,16 @@ function avisarGestionSegura() {
 function agregarMensaje(texto, tipo) {
   const mensaje = document.createElement("div");
 
+  const turno = registroConversacion.registrar({
+    actor: tipo === "user" ? "cliente" : "asistente",
+    texto,
+    paso
+  });
+
   mensaje.classList.add("message", tipo);
+  mensaje.dataset.conversacionId = turno.id_conversacion;
+  mensaje.dataset.turnoId = turno.id_turno;
+  mensaje.dataset.pasoCodigo = turno.codigo_paso;
   const contenido = tipo === "user"
     ? `Tú: ${texto}`
     : `${restauranteActivo.nombre}: ${texto}`;
@@ -157,6 +179,10 @@ function aplicarRestauranteActivo(restaurante) {
   restauranteActivo = restaurante;
   datosReserva.restaurante_id = restaurante.id;
   datosReserva.slug_publico = restaurante.slug_publico;
+  registroConversacion.actualizarContexto({
+    restaurante_id: restaurante.id,
+    slug_publico: restaurante.slug_publico
+  });
   restaurantName.textContent = `🍽️ ${restaurante.nombre}`;
   document.title = `${restaurante.nombre} - Asistente de Reservas`;
 }
@@ -1795,9 +1821,7 @@ async function procesarMensaje(texto, opciones = {}) {
       textoMinusculas === "si" ||
       textoMinusculas === "s" ||
       /^si\b/.test(textoMinusculas) ||
-      textoMinusculas.includes("reservar") ||
-      textoMinusculas.includes("reserva") ||
-      textoMinusculas.includes("mesa")
+      window.ContactiaEntrada.esIntencionReserva(mensaje)
     ) {
       const analisisInicial = analizarDatosPrincipales(mensaje);
 

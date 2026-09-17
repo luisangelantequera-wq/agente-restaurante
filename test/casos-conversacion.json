@@ -1,0 +1,122 @@
+[
+  {
+    "id_caso": "HAB-001",
+    "paso_codigo": "GEN-01",
+    "interprete": "intencion_reserva",
+    "entrada_cliente": "Quiero hacer una recerva",
+    "esperado": true,
+    "variante_habla": "pronunciacion",
+    "origen": "propuesta_inicial",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-002",
+    "paso_codigo": "GEN-01",
+    "interprete": "intencion_reserva",
+    "entrada_cliente": "Quiero reserbar una mesa",
+    "esperado": true,
+    "variante_habla": "transcripcion_fonetica",
+    "origen": "propuesta_inicial",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-003",
+    "paso_codigo": "RES-05",
+    "interprete": "validacion_datos",
+    "entrada_cliente": "zi",
+    "esperado": "si",
+    "variante_habla": "pronunciacion",
+    "origen": "propuesta_inicial",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-004",
+    "paso_codigo": "RES-11",
+    "interprete": "respuesta_binaria",
+    "entrada_cliente": "zi, confirmo",
+    "esperado": "si",
+    "variante_habla": "pronunciacion",
+    "origen": "propuesta_inicial",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-005",
+    "paso_codigo": "RES-02",
+    "interprete": "personas",
+    "entrada_cliente": "pa cuatro",
+    "esperado": 4,
+    "variante_habla": "coloquial",
+    "origen": "propuesta_inicial",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-006",
+    "paso_codigo": "RES-02",
+    "interprete": "personas",
+    "entrada_cliente": "pa 4 personas",
+    "esperado": 4,
+    "variante_habla": "coloquial",
+    "origen": "propuesta_inicial",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-007",
+    "paso_codigo": "RES-04",
+    "interprete": "zona",
+    "entrada_cliente": "la quiero fuera",
+    "esperado": "TERRAZA",
+    "variante_habla": "coloquial",
+    "origen": "conversacion_prueba",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-008",
+    "paso_codigo": "RES-04",
+    "interprete": "zona",
+    "entrada_cliente": "mejor dentro",
+    "esperado": "INTERIOR",
+    "variante_habla": "coloquial",
+    "origen": "propuesta_inicial",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-009",
+    "paso_codigo": "RES-03",
+    "interprete": "hora",
+    "entrada_cliente": "a las quince horas",
+    "esperado": "15:00",
+    "variante_habla": "hora_natural",
+    "origen": "conversacion_prueba",
+    "activa": true
+  },
+  {
+    "id_caso": "HAB-010",
+    "paso_codigo": "RES-03",
+    "interprete": "hora",
+    "entrada_cliente": "dos de la tarde",
+    "esperado": "14:00",
+    "variante_habla": "hora_natural",
+    "origen": "conversacion_prueba",
+    "activa": true
+  },
+  {
+    "id_caso": "SEG-001",
+    "paso_codigo": "RES-02",
+    "interprete": "personas",
+    "entrada_cliente": "mañana",
+    "esperado": null,
+    "variante_habla": "control_negativo",
+    "origen": "regresion",
+    "activa": true
+  },
+  {
+    "id_caso": "SEG-002",
+    "paso_codigo": "RES-11",
+    "interprete": "respuesta_binaria",
+    "entrada_cliente": "sí y no",
+    "esperado": null,
+    "variante_habla": "respuesta_ambigua",
+    "origen": "regresion",
+    "activa": true
+  }
+]
