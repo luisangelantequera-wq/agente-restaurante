@@ -115,7 +115,7 @@ test("la voz resume las respuestas con consulta sin ocultarlas en pantalla", () 
   );
 
   assert.match(script, /function prepararRespuestasParaVoz\(respuestas\)/);
-  assert.match(script, /Has solicitado una reserva para el día/);
+  assert.match(script, /Ha solicitado una reserva para el/);
   assert.match(script, /mostrarFechaParaVoz/);
   assert.match(script, /personasParaVoz/);
   assert.match(script, /con correo/);

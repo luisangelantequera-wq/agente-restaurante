@@ -406,11 +406,11 @@ test("el resumen permite corregir y vuelve a comprobar disponibilidad", () => {
     "utf8"
   );
 
-  assert.match(script, /Si quieres corregir un dato, dímelo ahora/);
+  assert.match(script, /Si desea corregir un dato, indíquemelo ahora/);
   assert.match(script, /hayCorreccionesReserva\(correcciones\)/);
   assert.match(script, /aplicarCorreccionesReserva/);
   assert.match(script, /detectarCampoCorreccion\(mensaje\)/);
-  assert.match(script, /¿A qué hora deseas cambiar la reserva\?/);
+  assert.match(script, /¿A qué hora desea cambiar la reserva\?/);
   assert.match(script, /await comprobarDisponibilidad\(\)/);
 });
 
@@ -453,6 +453,6 @@ test("conserva un correo indicado antes del nombre", () => {
   );
   assert.match(
     script,
-    /¿Quieres añadir alguna observación\? Si no, responde: no\./
+    /¿Desea añadir alguna observación\? Si no, responda: no\./
   );
 });

@@ -4,7 +4,7 @@ const test = require("node:test");
 const {
   obtenerAntelacionMinimaReserva,
   validarAntelacionReserva
-} = require("./antelacion-reserva");
+} = require("../lib/antelacion-reserva");
 
 
 test("usa 30 minutos cuando el restaurante no configura la antelación", () => {

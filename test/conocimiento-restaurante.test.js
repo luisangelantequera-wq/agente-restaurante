@@ -175,7 +175,7 @@ test("la interfaz responde la pregunta y retoma el paso pendiente", () => {
   assert.match(script, /No dispongo todavía de una respuesta aprobada/);
   assert.match(
     script,
-    /Perdona, no te he entendido\. ¿Puedes repetir la pregunta\?/
+    /Perdone, no le he entendido\. ¿Puede repetir la pregunta\?/
   );
   assert.match(script, /procesarMensaje\(mensaje, \{ origen: "voz" \}\)/);
 });
