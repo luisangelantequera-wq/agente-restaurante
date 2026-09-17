@@ -455,4 +455,12 @@ test("conserva un correo indicado antes del nombre", () => {
     script,
     /¿Desea añadir alguna observación\? Si no, responda: no\./
   );
+  assert.match(
+    script,
+    /if \(quiereAnadirObservacion\)[\s\S]*paso = "observaciones_detalle"[\s\S]*¿Qué observación desea añadir\?/
+  );
+  assert.match(
+    script,
+    /if \(paso === "observaciones_detalle"\)[\s\S]*datosReserva\.observaciones = sinObservaciones \? "" : mensaje/
+  );
 });

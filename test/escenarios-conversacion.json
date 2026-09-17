@@ -29,7 +29,8 @@
       { "entrada": "$NOMBRE_PRUEBA", "paso": "email", "respuesta_incluye": ["¿Cuál es su correo electrónico?"] },
       { "entrada": "$EMAIL_PRUEBA", "paso": "telefono", "respuesta_incluye": ["¿Cuál es su número de teléfono móvil?"] },
       { "entrada": "$TELEFONO_PRUEBA", "paso": "observaciones", "respuesta_incluye": ["¿Desea añadir alguna observación?"] },
-      { "entrada": "no", "paso": "confirmacion", "respuesta_incluye": ["¿Confirma la reserva?"] },
+      { "entrada": "sí", "paso": "observaciones_detalle", "respuesta_incluye": ["¿Qué observación desea añadir?"] },
+      { "entrada": "tengo alergias", "paso": "confirmacion", "respuesta_incluye": ["¿Confirma la reserva?"] },
       { "entrada": "zi, confirmo", "paso": "finalizado", "respuesta_incluye": ["Reserva confirmada", "SOL-PRUEBA-0001"] }
     ],
     "acciones_esperadas": { "verificar": 2, "reservar": 1 },
@@ -41,7 +42,8 @@
         "nombre": "$NOMBRE_PRUEBA",
         "email": "$EMAIL_PRUEBA",
         "telefono": "$TELEFONO_NORMALIZADO",
-        "zona_preferida": "TERRAZA"
+        "zona_preferida": "TERRAZA",
+        "mensaje": "tengo alergias"
       }
     }
   },

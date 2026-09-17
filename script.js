@@ -1284,11 +1284,14 @@ function repetirPreguntaPendiente() {
     telefono: "¿Cuál es su número de teléfono móvil?",
     observaciones:
       "¿Desea añadir alguna observación? Si no, responda: no.",
+    observaciones_detalle: "¿Qué observación desea añadir?",
     espera_nombre: "¿A nombre de quién le añadimos a la lista de espera?",
     espera_email: "¿Cuál es su correo electrónico?",
     espera_telefono: "¿Cuál es su número de teléfono móvil?",
     espera_observaciones:
       "¿Desea añadir alguna observación para el restaurante? Si no, responda: no.",
+    espera_observaciones_detalle:
+      "¿Qué observación desea añadir para el restaurante?",
     modificar_fecha: "¿Qué nueva fecha desea?",
     modificar_hora: "¿A qué nueva hora desea reservar?",
     modificar_personas: "¿Para cuántas personas será finalmente?",
@@ -1547,12 +1550,51 @@ async function procesarMensaje(texto, opciones = {}) {
     const sinObservaciones =
       /^(?:no|n|ninguna|ninguno|nada|sin observaciones|no\s+gracias)[.!]?$/
         .test(respuesta.trim());
+    const quiereAnadirObservacion =
+      /^(?:si|s|claro|vale|de acuerdo|correcto|afirmativo|por favor)[.!]?$/
+        .test(respuesta.trim());
 
     if (mensaje.length > 1000) {
       agregarMensaje(
         "La observación es demasiado larga. Resúmala en un máximo de 1000 caracteres.",
         "bot"
       );
+      return;
+    }
+
+    if (quiereAnadirObservacion) {
+      paso = "espera_observaciones_detalle";
+      agregarMensaje(
+        "¿Qué observación desea añadir para el restaurante?",
+        "bot"
+      );
+      return;
+    }
+
+    datosListaEspera.observaciones = sinObservaciones ? "" : mensaje;
+    mostrarConfirmacionListaEspera();
+    return;
+  }
+
+  if (paso === "espera_observaciones_detalle") {
+    const respuesta = normalizarTexto(mensaje).trim();
+    const sinObservaciones =
+      /^(?:no|n|ninguna|ninguno|nada|sin observaciones|no\s+gracias)[.!]?$/
+        .test(respuesta);
+    const faltaDetalle =
+      /^(?:si|s|claro|vale|de acuerdo|correcto|afirmativo|por favor)[.!]?$/
+        .test(respuesta);
+
+    if (mensaje.length > 1000) {
+      agregarMensaje(
+        "La observación es demasiado larga. Resúmala en un máximo de 1000 caracteres.",
+        "bot"
+      );
+      return;
+    }
+
+    if (faltaDetalle) {
+      agregarMensaje("Indíqueme cuál es la observación.", "bot");
       return;
     }
 
@@ -2210,12 +2252,48 @@ async function procesarMensaje(texto, opciones = {}) {
     const sinObservaciones =
       /^(?:no|n|ninguna|ninguno|nada|sin observaciones|no\s+gracias)[.!]?$/
         .test(respuesta.trim());
+    const quiereAnadirObservacion =
+      /^(?:si|s|claro|vale|de acuerdo|correcto|afirmativo|por favor)[.!]?$/
+        .test(respuesta.trim());
 
     if (mensaje.length > 1000) {
       agregarMensaje(
         "La observación es demasiado larga. Resúmala en un máximo de 1000 caracteres.",
         "bot"
       );
+      return;
+    }
+
+    if (quiereAnadirObservacion) {
+      paso = "observaciones_detalle";
+      agregarMensaje("¿Qué observación desea añadir?", "bot");
+      return;
+    }
+
+    datosReserva.observaciones = sinObservaciones ? "" : mensaje;
+    mostrarConfirmacionNuevaReserva();
+    return;
+  }
+
+  if (paso === "observaciones_detalle") {
+    const respuesta = normalizarTexto(mensaje).trim();
+    const sinObservaciones =
+      /^(?:no|n|ninguna|ninguno|nada|sin observaciones|no\s+gracias)[.!]?$/
+        .test(respuesta);
+    const faltaDetalle =
+      /^(?:si|s|claro|vale|de acuerdo|correcto|afirmativo|por favor)[.!]?$/
+        .test(respuesta);
+
+    if (mensaje.length > 1000) {
+      agregarMensaje(
+        "La observación es demasiado larga. Resúmala en un máximo de 1000 caracteres.",
+        "bot"
+      );
+      return;
+    }
+
+    if (faltaDetalle) {
+      agregarMensaje("Indíqueme cuál es la observación.", "bot");
       return;
     }
 
