@@ -1143,7 +1143,7 @@ function mostrarResumenReserva(reserva) {
     : "";
 
   return `Localizador: ${reserva.localizador}\n` +
-    `Fecha: ${mostrarFecha(reserva.fecha)}\n` +
+    `Fecha: ${mostrarFechaParaVoz(reserva.fecha)}\n` +
     `Hora: ${reserva.hora}\n` +
     `Personas: ${reserva.personas}\n` +
     `Nombre: ${reserva.nombre}\n` +

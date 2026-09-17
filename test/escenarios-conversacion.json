@@ -334,5 +334,105 @@
         "email": "$EMAIL_PRUEBA"
       }
     }
+  },
+  {
+    "id_escenario": "FLUJO-009",
+    "nombre": "Consulta una reserva desde su enlace de gestión",
+    "hash": "#gestion=dddddddddddddddddddddddddddddddddddddddddddddddd",
+    "servidor": {
+      "respuestas": {
+        "consultar": [
+          {
+            "ok": true,
+            "reserva": {
+              "localizador": "SOL-20260922-ABCDEF1234",
+              "fecha": "2026-09-22",
+              "hora": "15:00",
+              "personas": 4,
+              "nombre": "Cliente de prueba",
+              "observaciones": "Zona solicitada: TERRAZA.",
+              "estado": "confirmada"
+            }
+          },
+          {
+            "ok": true,
+            "reserva": {
+              "localizador": "SOL-20260922-ABCDEF1234",
+              "fecha": "2026-09-22",
+              "hora": "15:00",
+              "personas": 4,
+              "nombre": "Cliente de prueba",
+              "observaciones": "Zona solicitada: TERRAZA.",
+              "estado": "confirmada"
+            }
+          }
+        ]
+      }
+    },
+    "turnos": [
+      {
+        "entrada": "consultar",
+        "paso": "localizador_consulta",
+        "respuesta_incluye": ["Indíqueme el localizador de su reserva"]
+      },
+      {
+        "entrada": "SOL-20260922-ABCDEF1234",
+        "paso": "inicio",
+        "respuesta_incluye": [
+          "He encontrado esta reserva",
+          "SOL-20260922-ABCDEF1234",
+          "Fecha: martes 22 de septiembre de 2026",
+          "Puede hacer una nueva reserva, modificar esta o cancelarla"
+        ]
+      }
+    ],
+    "acciones_esperadas": { "consultar": 2, "modificar": 0, "cancelar": 0 }
+  },
+  {
+    "id_escenario": "FLUJO-010",
+    "nombre": "Añade una observación a la lista de espera",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true, "antelacion_insuficiente": false },
+          {
+            "ok": true,
+            "disponible": false,
+            "motivo": "No hay mesa disponible a esa hora.",
+            "alternativas": []
+          }
+        ],
+        "lista_espera_crear": [
+          {
+            "ok": true,
+            "disponible_ahora": false,
+            "lista_espera_creada": true,
+            "id_espera": "ESP-PRUEBA-0002"
+          }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "reservar", "paso": "fecha" },
+      { "entrada": "mañana", "paso": "personas" },
+      { "entrada": "pa cuatro", "paso": "hora" },
+      { "entrada": "a las tres de la tarde", "paso": "zona" },
+      { "entrada": "terraza", "paso": "confirmacion_datos" },
+      { "entrada": "zi", "paso": "hora", "respuesta_incluye": ["No hay mesa disponible", "lista de espera"] },
+      { "entrada": "apúntame", "paso": "espera_nombre" },
+      { "entrada": "$NOMBRE_PRUEBA", "paso": "espera_email" },
+      { "entrada": "$EMAIL_PRUEBA", "paso": "espera_telefono" },
+      { "entrada": "$TELEFONO_PRUEBA", "paso": "espera_observaciones" },
+      { "entrada": "sí", "paso": "espera_observaciones_detalle", "respuesta_incluye": ["¿Qué observación desea añadir"] },
+      { "entrada": "necesitamos una trona", "paso": "confirmacion_espera", "respuesta_incluye": ["Observaciones: necesitamos una trona", "¿Confirma que desea entrar en la lista de espera?"] },
+      { "entrada": "zi", "paso": "inicio", "respuesta_incluye": ["Le he apuntado a la lista de espera", "ESP-PRUEBA-0002"] }
+    ],
+    "acciones_esperadas": { "verificar": 2, "lista_espera_crear": 1, "reservar": 0 },
+    "payload_esperado": {
+      "accion": "lista_espera_crear",
+      "contiene": {
+        "mensaje": "necesitamos una trona"
+      }
+    }
   }
 ]
