@@ -238,8 +238,14 @@ async function crearSimuladorConversacion(configuracion = {}) {
     exportarConversacion(opciones) {
       return ventana.ContactiaConversacionActual.exportar(opciones);
     },
-    async enviar(texto) {
-      return ventana.ContactiaVozBridge.procesarTurno(texto);
+    async enviar(texto, opciones) {
+      return ventana.ContactiaVozBridge.procesarTurno(texto, opciones);
+    },
+    registrarRespuestaHablada(texto, idioma) {
+      return ventana.ContactiaVozBridge.registrarRespuestaHablada(
+        texto,
+        idioma
+      );
     },
     solicitudes: servidor.solicitudes
   };

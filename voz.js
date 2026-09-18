@@ -14,7 +14,8 @@
   const botonEnviar = document.getElementById("send-btn");
   const SALUDO_INICIAL =
     "Bienvenido a Restaurante Sol. Soy su asistente virtual. " +
-    "¿Desea reservar, consultar, modificar o cancelar una reserva?";
+    "¿Desea reservar, consultar, modificar o cancelar una reserva? " +
+    "For English, say English.";
   let conexion = null;
   let canal = null;
   let microfono = null;
@@ -29,11 +30,13 @@
   let saludoInicialPendiente = null;
   let temporizadorSaludoInicial = null;
   let eagernessVadActual = "medium";
+  let idiomaSesion = "es";
+  let respuestaHabladaPendiente = "";
   const llamadasProcesadas = new Set();
 
 
   function esVozGoogle() {
-    return selectorVoz.value.startsWith("es-ES-");
+    return idiomaSesion === "es" && selectorVoz.value.startsWith("es-ES-");
   }
 
 
@@ -268,10 +271,13 @@
     enviarEvento({
       type: "response.create",
       response: {
+        metadata: { contactia_phase: "tool_response", idioma: idiomaSesion },
         output_modalities: ["audio"],
         tool_choice: "none",
         instructions:
-          "Comunica ahora únicamente la respuesta de la herramienta, en español natural y sin añadir información."
+          idiomaSesion === "en"
+            ? "Communicate only the tool response in natural English. Translate it faithfully without adding information or changing any date, time, number of people, zone, name, telephone number, email address or booking reference."
+            : "Comunica ahora únicamente la respuesta de la herramienta, en español natural y sin añadir información."
       }
     });
     cambiarEstado("Respondiendo con OpenAI…");
@@ -285,7 +291,7 @@
         output_modalities: ["text"],
         tool_choice: "required",
         instructions:
-          "Interpreta fielmente el último mensaje hablado y llama una sola vez a procesar_turno_contactia. No respondas directamente al cliente."
+          "Interpreta fielmente el último mensaje hablado, conserva la transcripción original, determina si la sesión debe continuar en español o inglés y llama una sola vez a procesar_turno_contactia. No respondas directamente al cliente."
       }
     });
   }
@@ -311,12 +317,22 @@
     try {
       const argumentos = JSON.parse(llamada.arguments || "{}");
       const mensaje = String(argumentos.mensaje || "").trim();
+      const mensajeOriginal = String(
+        argumentos.mensaje_original || mensaje
+      ).trim();
+      const idioma = argumentos.idioma === "en" ? "en" : "es";
+
+      idiomaSesion = idioma;
+      respuestaHabladaPendiente = "";
 
       if (!window.ContactiaVozBridge?.procesarTurno) {
         throw new Error("El motor de reservas no está disponible.");
       }
 
-      resultado = await window.ContactiaVozBridge.procesarTurno(mensaje);
+      resultado = await window.ContactiaVozBridge.procesarTurno(mensaje, {
+        idioma,
+        mensajeOriginal
+      });
     } catch (error) {
       console.error("Error al procesar el turno de voz:", error);
       resultado = {
@@ -403,6 +419,32 @@
       inicioTurno = performance.now();
       cambiarEstado("Entendiendo…");
       solicitarInterpretacion();
+      return;
+    }
+
+    if (
+      evento.type === "response.output_audio_transcript.delta" &&
+      idiomaSesion === "en"
+    ) {
+      respuestaHabladaPendiente += String(evento.delta || "");
+      return;
+    }
+
+    if (
+      evento.type === "response.output_audio_transcript.done" &&
+      idiomaSesion === "en"
+    ) {
+      const transcripcion = String(
+        evento.transcript || respuestaHabladaPendiente
+      ).trim();
+      respuestaHabladaPendiente = "";
+
+      if (transcripcion) {
+        window.ContactiaVozBridge?.registrarRespuestaHablada?.(
+          transcripcion,
+          idiomaSesion
+        );
+      }
       return;
     }
 
@@ -504,6 +546,8 @@
     audioRemoto = null;
     audioGoogle = null;
     inicioTurno = null;
+    idiomaSesion = "es";
+    respuestaHabladaPendiente = "";
     eagernessVadActual = "medium";
     conectando = false;
     boton.disabled = false;

@@ -1489,14 +1489,14 @@ function escaparHtml(valor) {
 }
 
 
-function formatearFechaLarga(fecha) {
+function formatearFechaLarga(fecha, locale = "es-ES") {
   const [anio, mes, dia] = String(fecha || "").split("-").map(Number);
 
   if (!anio || !mes || !dia) {
     return String(fecha || "");
   }
 
-  return new Intl.DateTimeFormat("es-ES", {
+  return new Intl.DateTimeFormat(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -1692,15 +1692,69 @@ async function enviarCorreoConfirmacionReserva({
   personas,
   zona,
   localizador,
-  enlaceGestion
+  enlaceGestion,
+  idioma = "es"
 }) {
   nombreRestaurante = normalizarTexto(nombreRestaurante) ||
     NOMBRE_RESTAURANTE_GENERICO;
-  const fechaLarga = formatearFechaLarga(fecha);
+  const ingles = idioma === "en";
+  const fechaLarga = formatearFechaLarga(
+    fecha,
+    ingles ? "en-GB" : "es-ES"
+  );
+  const zonaConfirmada = normalizarTexto(zona);
+
+  if (ingles) {
+    const asunto =
+      `Booking confirmed at ${nombreRestaurante} on ${fechaLarga} ` +
+      `at ${hora}.`;
+    const lineaZonaTexto = zonaConfirmada
+      ? `Area: ${zonaConfirmada}\n`
+      : "";
+    const lineaZonaHtml = zonaConfirmada
+      ? `<li><strong>Area:</strong> ${escaparHtml(zonaConfirmada)}</li>`
+      : "";
+    const texto =
+      `Hello ${nombre},\n\n` +
+      `Your booking is confirmed.\n\n` +
+      `${nombreRestaurante}\n` +
+      `Booking reference: ${localizador}\n` +
+      `Date: ${fechaLarga}\n` +
+      `Time: ${hora}\n` +
+      `Guests: ${personas}\n` +
+      lineaZonaTexto +
+      `\n` +
+      `You can view, change or cancel your booking here:\n${enlaceGestion}\n`;
+    const html = `
+      <p>Hello ${escaparHtml(nombre)},</p>
+      <p>Your booking is confirmed.</p>
+      <h2>${escaparHtml(nombreRestaurante)}</h2>
+      <ul>
+        <li><strong>Booking reference:</strong> ${escaparHtml(localizador)}</li>
+        <li><strong>Date:</strong> ${escaparHtml(fechaLarga)}</li>
+        <li><strong>Time:</strong> ${escaparHtml(hora)}</li>
+        <li><strong>Guests:</strong> ${escaparHtml(personas)}</li>
+        ${lineaZonaHtml}
+      </ul>
+      <p>
+        <a href="${escaparHtml(enlaceGestion)}">
+          View, change or cancel the booking
+        </a>
+      </p>
+    `;
+
+    return enviarCorreoResend({
+      destinatario,
+      asunto,
+      texto,
+      html,
+      contexto: "booking confirmation"
+    });
+  }
+
   const asunto =
     `Reserva confirmada en ${nombreRestaurante} el ${fechaLarga} ` +
     `a las ${hora}.`;
-  const zonaConfirmada = normalizarTexto(zona);
   const lineaZonaTexto = zonaConfirmada
     ? `Zona: ${zonaConfirmada}\n`
     : "";
@@ -1750,12 +1804,64 @@ async function enviarCorreoContactoRestaurante({
   destinatario,
   nombreRestaurante,
   telefono,
-  horario
+  horario,
+  idioma = "es"
 }) {
   const nombre = normalizarTexto(nombreRestaurante) ||
     NOMBRE_RESTAURANTE_GENERICO;
   const telefonoTexto = normalizarTexto(telefono) || "No disponible";
   const lineasHorario = Array.isArray(horario) ? horario : [];
+  const ingles = idioma === "en";
+
+  if (ingles) {
+    const dias = {
+      lunes: "Monday",
+      martes: "Tuesday",
+      miércoles: "Wednesday",
+      jueves: "Thursday",
+      viernes: "Friday",
+      sábado: "Saturday",
+      domingo: "Sunday"
+    };
+    const horarioIngles = lineasHorario.map((linea) => {
+      const coincidencia = String(linea).match(/^([^:]+):(.*)$/);
+
+      if (!coincidencia) {
+        return linea;
+      }
+
+      const dia = dias[coincidencia[1].trim().toLowerCase()] ||
+        coincidencia[1].trim();
+      const tramos = coincidencia[2].trim().replace(/^cerrado$/i, "closed");
+      return `${dia}: ${tramos}`;
+    });
+    const asunto = `Telephone number and booking hours for ${nombre}`;
+    const texto =
+      `Contact details for ${nombre}\n\n` +
+      `Telephone: ${telefonoTexto}\n\n` +
+      `Booking hours:\n${horarioIngles.join("\n")}\n\n` +
+      "For a special booking, please contact the restaurant directly.";
+    const html = `
+      <h2>${escaparHtml(nombre)}</h2>
+      <p><strong>Telephone:</strong> ${escaparHtml(telefonoTexto)}</p>
+      <p><strong>Booking hours:</strong></p>
+      <ul>
+        ${horarioIngles.map((linea) =>
+          `<li>${escaparHtml(linea)}</li>`
+        ).join("")}
+      </ul>
+      <p>For a special booking, please contact the restaurant directly.</p>
+    `;
+
+    return enviarCorreoResend({
+      destinatario,
+      asunto,
+      texto,
+      html,
+      contexto: "restaurant contact details"
+    });
+  }
+
   const asunto = `Teléfono y horario de reservas de ${nombre}`;
   const texto =
     `Información de contacto de ${nombre}\n\n` +
@@ -2177,7 +2283,8 @@ module.exports = async (req, res) => {
       fecha_desde,
       registro_espera_id,
       estado_espera,
-      zona_preferida
+      zona_preferida,
+      idioma
     } = body;
     const mensajeIncluido = Object.prototype.hasOwnProperty.call(
       body,
@@ -3073,7 +3180,8 @@ module.exports = async (req, res) => {
         destinatario,
         nombreRestaurante: obtenerNombreRestaurante(restauranteContacto),
         telefono: obtenerTelefonoRestaurante(restauranteContacto),
-        horario: describirHorarioReservas(restauranteContacto)
+        horario: describirHorarioReservas(restauranteContacto),
+        idioma: idioma === "en" ? "en" : "es"
       });
 
       return responder(res, 200, {
@@ -4449,7 +4557,8 @@ await buscarAsignacionDisponible(
           personas: numeroPersonas,
           zona: nombreZona(zonaReserva),
           localizador: idReserva,
-          enlaceGestion
+          enlaceGestion,
+          idioma: idioma === "en" ? "en" : "es"
         }),
         enviarAvisoRestaurante({
           destinatario: restaurante.fields.email,

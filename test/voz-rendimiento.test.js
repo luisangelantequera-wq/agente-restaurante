@@ -15,6 +15,22 @@ test("la voz conserva la intención literal y no conjuga por el cliente", () => 
 });
 
 
+test("la voz conserva el original y limita la traducción al idioma", () => {
+  const sesion = crearConfiguracionSesion({});
+  const herramienta = sesion.tools.find(
+    (item) => item.name === "procesar_turno_contactia"
+  );
+
+  assert.ok(herramienta);
+  assert.ok(herramienta.parameters.properties.mensaje_original);
+  assert.deepEqual(
+    herramienta.parameters.properties.idioma.enum,
+    ["es", "en"]
+  );
+  assert.match(sesion.instructions, /sin añadir, eliminar ni inferir datos/);
+});
+
+
 test("las funciones de voz se ejecutan cerca de las pruebas en España", () => {
   const vercel = require("../vercel.json");
 

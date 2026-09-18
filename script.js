@@ -52,9 +52,11 @@ let reservaGestionOriginal = null;
 let solicitudEspera = null;
 let datosListaEspera = null;
 let capturaGuiadaEstricta = false;
+let idiomaConversacion = "es";
 let registroConversacionesRemotoHabilitado = false;
 let temporizadorGuardadoConversacion = null;
 const observadoresMensajes = new Set();
+let contextoTurnoVoz = null;
 const registroConversacion = window.ContactiaCentroConversaciones
   .crearRegistroConversacion({
     canal: new URLSearchParams(window.location.search).get("voz") === "1"
@@ -149,11 +151,24 @@ function avisarGestionSegura() {
 
 // 3️⃣ MOSTRAR MENSAJES
 function agregarMensaje(texto, tipo) {
+  const textoRegistrado = tipo === "user" && contextoTurnoVoz?.mensajeOriginal
+    ? contextoTurnoVoz.mensajeOriginal
+    : texto;
+  const ocultarRespuestaIntermedia =
+    tipo === "bot" && contextoTurnoVoz?.idioma === "en";
+
+  if (ocultarRespuestaIntermedia) {
+    for (const observador of observadoresMensajes) {
+      observador(texto, tipo);
+    }
+    return;
+  }
+
   const mensaje = document.createElement("div");
 
   const turno = registroConversacion.registrar({
     actor: tipo === "user" ? "cliente" : "asistente",
-    texto,
+    texto: textoRegistrado,
     paso
   });
 
@@ -162,8 +177,8 @@ function agregarMensaje(texto, tipo) {
   mensaje.dataset.turnoId = turno.id_turno;
   mensaje.dataset.pasoCodigo = turno.codigo_paso;
   const contenido = tipo === "user"
-    ? `Tú: ${texto}`
-    : `${restauranteActivo.nombre}: ${texto}`;
+    ? `Tú: ${textoRegistrado}`
+    : `${restauranteActivo.nombre}: ${textoRegistrado}`;
 
   if (tipo === "bot") {
     const patronEnlace = /(?:https?:\/\/|tel:)[^\s]+/g;
@@ -197,7 +212,7 @@ function agregarMensaje(texto, tipo) {
   chatBox.scrollTop = chatBox.scrollHeight;
 
   for (const observador of observadoresMensajes) {
-    observador(texto, tipo);
+    observador(textoRegistrado, tipo);
   }
 
   programarGuardadoConversacion();
@@ -641,7 +656,8 @@ async function enviarContactoEspecial(email) {
       body: JSON.stringify({
         accion: "enviar_contacto_restaurante",
         restaurante_id: datosReserva.restaurante_id,
-        email
+        email,
+        idioma: idiomaConversacion
       })
     });
     const data = await respuesta.json();
@@ -1014,7 +1030,8 @@ async function crearReserva() {
         email: datosReserva.email,
         telefono: datosReserva.telefono,
         zona_preferida: datosReserva.zona_preferida,
-        mensaje: datosReserva.observaciones
+        mensaje: datosReserva.observaciones,
+        idioma: idiomaConversacion
       })
     });
 
@@ -2500,8 +2517,14 @@ function prepararRespuestasParaVoz(respuestas) {
 }
 
 
-async function procesarTurnoVoz(texto) {
+async function procesarTurnoVoz(texto, opciones = {}) {
   const mensaje = String(texto || "").trim();
+  const idioma = opciones.idioma === "en" ? "en" : "es";
+  const mensajeOriginal = String(
+    opciones.mensajeOriginal || mensaje
+  ).trim();
+
+  idiomaConversacion = idioma;
 
   if (!mensaje || mensaje.length > 1000) {
     return {
@@ -2518,23 +2541,38 @@ async function procesarTurnoVoz(texto) {
   };
 
   observadoresMensajes.add(observar);
+  contextoTurnoVoz = { idioma, mensajeOriginal };
 
   try {
     await procesarMensaje(mensaje, { origen: "voz" });
   } finally {
+    contextoTurnoVoz = null;
     observadoresMensajes.delete(observar);
   }
 
   return {
     ok: true,
     respuesta: prepararRespuestasParaVoz(respuestas),
-    paso
+    paso,
+    idioma
   };
 }
 
 
+function registrarRespuestaHablada(texto, idioma = "es") {
+  const respuesta = String(texto || "").trim();
+
+  if (!respuesta || idioma !== "en") {
+    return;
+  }
+
+  agregarMensaje(respuesta, "bot");
+}
+
+
 window.ContactiaVozBridge = {
-  procesarTurno: procesarTurnoVoz
+  procesarTurno: procesarTurnoVoz,
+  registrarRespuestaHablada
 };
 
 
