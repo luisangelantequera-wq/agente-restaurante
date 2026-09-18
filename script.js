@@ -669,6 +669,9 @@ async function enviarContactoEspecial(email) {
       throw new Error(data.error || "No se pudo enviar el correo.");
     }
 
+    registroConversacion.actualizarContexto({
+      resultado: "contacto_enviado"
+    });
     agregarMensaje(
       "Ya le he enviado por correo el teléfono y el horario de reservas del " +
       "restaurante. Muchas gracias por llamar y perdone las molestias.",
@@ -989,6 +992,9 @@ async function crearListaEspera() {
       throw new Error(data.motivo || "No se pudo crear la solicitud.");
     }
 
+    registroConversacion.actualizarContexto({
+      resultado: "lista_espera"
+    });
     agregarMensaje(
       data.ya_existia
         ? `Ya estaba en la lista de espera con el código ${data.id_espera}. ` +
@@ -1084,6 +1090,9 @@ async function crearReserva() {
     if (data.reservado === true) {
       tokenGestionActivo = data.token_gestion || "";
       localizadorGestion = data.id_reserva;
+      registroConversacion.actualizarContexto({
+        resultado: "reserva_confirmada"
+      });
       agregarMensaje(
         `✅ Reserva confirmada.\n\nSu localizador es: ${data.id_reserva}\n\nFecha: ${mostrarFecha(datosReserva.fecha)}\nHora: ${datosReserva.hora}\nPersonas: ${datosReserva.personas}` +
         (datosReserva.zona_preferida
@@ -1180,6 +1189,9 @@ async function consultarReserva(localizador, paraCancelar = false) {
   }
 
   agregarMensaje(`He encontrado esta reserva:\n\n${mostrarResumenReserva(data.reserva)}`, "bot");
+  registroConversacion.actualizarContexto({
+    resultado: "consulta_realizada"
+  });
   localizadorGestion = data.reserva.localizador;
 
   if (paraCancelar) {
@@ -1248,6 +1260,9 @@ async function modificarReserva() {
   if (data.modificada) {
     reservaGestion = data.reserva;
     reservaGestionOriginal = { ...data.reserva };
+    registroConversacion.actualizarContexto({
+      resultado: "reserva_modificada"
+    });
     agregarMensaje(
       `✅ Reserva modificada correctamente.\n\n${mostrarResumenReserva(data.reserva)}`,
       "bot"
@@ -1782,8 +1797,14 @@ async function procesarMensaje(texto, opciones = {}) {
       const data = await solicitarGestionReserva("cancelar", localizadorGestion);
 
       if (data?.cancelada) {
+        registroConversacion.actualizarContexto({
+          resultado: "reserva_cancelada"
+        });
         agregarMensaje(`✅ Reserva ${localizadorGestion} cancelada correctamente.`, "bot");
       } else if (data?.ya_cancelada) {
+        registroConversacion.actualizarContexto({
+          resultado: "reserva_cancelada"
+        });
         agregarMensaje("Esa reserva ya estaba cancelada.", "bot");
       } else if (data) {
         agregarMensaje(data.motivo || "No se ha podido cancelar la reserva.", "bot");

@@ -90,6 +90,7 @@ async function guardarEnAirtable(conversacion) {
           slug_publico: conversacion.contexto.slug_publico,
           canal: conversacion.contexto.canal,
           Idioma: conversacion.idioma,
+          Resultado: conversacion.resultado,
           iniciado_en: conversacion.iniciado_en,
           actualizado_en: conversacion.actualizado_en,
           estado: conversacion.estado,

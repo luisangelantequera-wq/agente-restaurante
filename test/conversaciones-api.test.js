@@ -30,6 +30,7 @@ function conversacionPrueba() {
     contexto: {
       canal: "voz",
       idioma: "fr",
+      resultado: "contacto_enviado",
       restaurante_id: 1,
       slug_publico: "restaurante-sol"
     },
@@ -135,6 +136,7 @@ test("Preview guarda solo la transcripción filtrada y actualiza por identificad
     assert.equal(campos.id_conversacion, "CONV-12345678");
     assert.equal(campos.canal, "voz");
     assert.equal(campos.Idioma, "Francés");
+    assert.equal(campos.Resultado, "Contacto enviado");
     assert.equal(campos.numero_turnos, 3);
     assert.equal(campos.requiere_revision, false);
     assert.equal(campos.tipo_revision, "sin_incidencias");

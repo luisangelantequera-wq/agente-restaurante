@@ -4,7 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   IDIOMAS_CONVERSACION,
+  RESULTADOS_CONVERSACION,
   anonimizarTexto,
+  clasificarResultadoConversacion,
   codigoParaPaso,
   crearRegistroConversacion,
   normalizarIdiomaConversacion,
@@ -20,6 +22,52 @@ test("asigna códigos estables a las preguntas principales", () => {
   assert.equal(codigoParaPaso("zona"), "RES-04");
   assert.equal(codigoParaPaso("confirmacion"), "RES-11");
   assert.equal(codigoParaPaso("paso_nuevo"), "GEN-99");
+});
+
+
+test("clasifica los resultados sin confundir la lista de espera con una reserva", () => {
+  const turno = (texto) => ({ actor: "asistente", texto });
+  const casos = [
+    ["✅ Reserva confirmada. Su localizador es SOL-1", "reserva_confirmada"],
+    ["✅ Reserva SOL-1 cancelada correctamente.", "reserva_cancelada"],
+    ["✅ Reserva modificada correctamente.", "reserva_modificada"],
+    ["Le he apuntado a la lista de espera. Esto no es una reserva confirmada.", "lista_espera"],
+    ["Ya le he enviado por correo el teléfono y el horario.", "contacto_enviado"],
+    ["He encontrado esta reserva: SOL-1", "consulta_realizada"]
+  ];
+
+  for (const [texto, esperado] of casos) {
+    assert.equal(
+      clasificarResultadoConversacion([turno(texto)]),
+      esperado
+    );
+  }
+
+  assert.equal(clasificarResultadoConversacion([], "cerrada"), "sin_completar");
+  assert.equal(RESULTADOS_CONVERSACION.lista_espera, "Lista de espera");
+});
+
+
+test("conserva el resultado explícito aunque la locución esté en francés", () => {
+  const registro = crearRegistroConversacion({
+    idConversacion: "CONV-RESULTADO-FR",
+    canal: "voz",
+    idioma: "fr"
+  });
+  registro.actualizarContexto({ resultado: "reserva_confirmada" });
+  registro.registrar({
+    actor: "asistente",
+    texto: "Votre réservation est confirmée.",
+    paso: "finalizado"
+  });
+
+  const persistente = prepararConversacionPersistente(registro.exportar(), {
+    estado: "finalizada"
+  });
+
+  assert.equal(persistente.codigo_resultado, "reserva_confirmada");
+  assert.equal(persistente.resultado, "Reserva confirmada");
+  assert.equal(persistente.contexto.resultado, "reserva_confirmada");
 });
 
 

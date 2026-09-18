@@ -50,7 +50,8 @@
       "contiene": {
         "requiere_revision": false,
         "tipo_revision": "sin_incidencias",
-        "numero_repreguntas": 0
+        "numero_repreguntas": 0,
+        "codigo_resultado": "reserva_confirmada"
       }
     }
   },
@@ -185,7 +186,10 @@
       { "entrada": "camcelar", "paso": "confirmacion_cancelacion", "respuesta_incluye": ["¿Confirma que desea cancelar esta reserva?"] },
       { "entrada": "zi", "paso": "inicio", "respuesta_incluye": ["cancelada correctamente"] }
     ],
-    "acciones_esperadas": { "consultar": 2, "cancelar": 1 }
+    "acciones_esperadas": { "consultar": 2, "cancelar": 1 },
+    "revision_esperada": {
+      "contiene": { "codigo_resultado": "reserva_cancelada" }
+    }
   },
   {
     "id_escenario": "FLUJO-006",
@@ -250,6 +254,9 @@
         "hora": "16:00",
         "personas": 4
       }
+    },
+    "revision_esperada": {
+      "contiene": { "codigo_resultado": "reserva_modificada" }
     }
   },
   {
@@ -301,6 +308,9 @@
         "telefono": "$TELEFONO_NORMALIZADO",
         "zona_preferida": "TERRAZA"
       }
+    },
+    "revision_esperada": {
+      "contiene": { "codigo_resultado": "lista_espera" }
     }
   },
   {
@@ -340,6 +350,9 @@
       "contiene": {
         "email": "$EMAIL_PRUEBA"
       }
+    },
+    "revision_esperada": {
+      "contiene": { "codigo_resultado": "contacto_enviado" }
     }
   },
   {
@@ -393,7 +406,10 @@
         ]
       }
     ],
-    "acciones_esperadas": { "consultar": 2, "modificar": 0, "cancelar": 0 }
+    "acciones_esperadas": { "consultar": 2, "modificar": 0, "cancelar": 0 },
+    "revision_esperada": {
+      "contiene": { "codigo_resultado": "consulta_realizada" }
+    }
   },
   {
     "id_escenario": "FLUJO-010",
@@ -440,6 +456,9 @@
       "contiene": {
         "mensaje": "necesitamos una trona"
       }
+    },
+    "revision_esperada": {
+      "contiene": { "codigo_resultado": "lista_espera" }
     }
   },
   {
@@ -486,6 +505,7 @@
         "requiere_revision": true,
         "tipo_revision": "repregunta",
         "numero_repreguntas": 1,
+        "codigo_resultado": "reserva_confirmada",
         "pasos_revision": "RES-04",
         "motivo_revision": "1 repregunta en RES-04."
       }
@@ -540,6 +560,7 @@
         "requiere_revision": true,
         "tipo_revision": "repregunta",
         "numero_repreguntas": 2,
+        "codigo_resultado": "reserva_confirmada",
         "pasos_revision": "RES-02, RES-03",
         "motivo_revision": "2 repreguntas en RES-02, RES-03."
       }
@@ -575,6 +596,7 @@
         "requiere_revision": true,
         "tipo_revision": "repregunta",
         "numero_repreguntas": 1,
+        "codigo_resultado": "sin_completar",
         "pasos_revision": "GEN-01",
         "motivo_revision": "1 repregunta en GEN-01."
       }

@@ -49,6 +49,12 @@ conversaciones:
 - `pasos_revision`: códigos como `RES-03` para saber dónde ocurrió;
 - `motivo_revision`: explicación breve sin datos personales.
 
+El campo `Resultado` permite separar las conversaciones que siguen en curso de
+las reservas confirmadas, cancelaciones, modificaciones, consultas, listas de
+espera, envíos de contacto y sesiones cerradas sin completar. El flujo marca
+el resultado cuando el servidor confirma la operación, por lo que funciona
+también cuando la conversación se realiza en inglés o francés.
+
 Una repregunta se marca aunque la conversación termine correctamente, porque
 su respuesta puede aportar una expresión nueva para la batería. También se
 reconocen las peticiones de repetición sin signo de interrogación, como
