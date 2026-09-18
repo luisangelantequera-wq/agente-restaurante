@@ -25,7 +25,7 @@ test("la voz conserva el original y limita la traducción al idioma", () => {
   assert.ok(herramienta.parameters.properties.mensaje_original);
   assert.deepEqual(
     herramienta.parameters.properties.idioma.enum,
-    ["es", "en"]
+    ["es", "en", "fr"]
   );
   assert.match(sesion.instructions, /sin añadir, eliminar ni inferir datos/);
 });

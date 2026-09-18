@@ -155,7 +155,9 @@ function agregarMensaje(texto, tipo) {
     ? contextoTurnoVoz.mensajeOriginal
     : texto;
   const ocultarRespuestaIntermedia =
-    tipo === "bot" && contextoTurnoVoz?.idioma === "en";
+    tipo === "bot" &&
+    contextoTurnoVoz &&
+    contextoTurnoVoz.idioma !== "es";
 
   if (ocultarRespuestaIntermedia) {
     for (const observador of observadoresMensajes) {
@@ -2519,7 +2521,9 @@ function prepararRespuestasParaVoz(respuestas) {
 
 async function procesarTurnoVoz(texto, opciones = {}) {
   const mensaje = String(texto || "").trim();
-  const idioma = opciones.idioma === "en" ? "en" : "es";
+  const idioma = ["en", "fr"].includes(opciones.idioma)
+    ? opciones.idioma
+    : "es";
   const mensajeOriginal = String(
     opciones.mensajeOriginal || mensaje
   ).trim();
@@ -2562,7 +2566,7 @@ async function procesarTurnoVoz(texto, opciones = {}) {
 function registrarRespuestaHablada(texto, idioma = "es") {
   const respuesta = String(texto || "").trim();
 
-  if (!respuesta || idioma !== "en") {
+  if (!respuesta || !["en", "fr"].includes(idioma)) {
     return;
   }
 

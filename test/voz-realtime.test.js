@@ -101,15 +101,16 @@ test("la sesión usa el mejor modelo, VAD semántico y herramienta obligatoria",
   assert.equal(sesion.tools[0].name, "procesar_turno_contactia");
   assert.deepEqual(
     sesion.tools[0].parameters.properties.idioma.enum,
-    ["es", "en"]
+    ["es", "en", "fr"]
   );
   assert.deepEqual(
     sesion.tools[0].parameters.required,
     ["mensaje", "mensaje_original", "idioma"]
   );
-  assert.match(sesion.instructions, /español de España o en inglés/);
+  assert.match(sesion.instructions, /español de España, inglés o francés/);
   assert.match(sesion.instructions, /tradúcela al español sin añadir/);
   assert.match(sesion.instructions, /tradúcelo fielmente a inglés natural/);
+  assert.match(sesion.instructions, /tradúcelo fielmente a francés natural/);
 });
 
 

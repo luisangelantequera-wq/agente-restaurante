@@ -15,7 +15,7 @@
   const SALUDO_INICIAL =
     "Bienvenido a Restaurante Sol. Soy su asistente virtual. " +
     "¿Desea reservar, consultar, modificar o cancelar una reserva? " +
-    "For English, say English.";
+    "For English, say English. Pour le français, dites français.";
   let conexion = null;
   let canal = null;
   let microfono = null;
@@ -33,6 +33,11 @@
   let idiomaSesion = "es";
   let respuestaHabladaPendiente = "";
   const llamadasProcesadas = new Set();
+
+
+  function normalizarIdiomaVoz(valor) {
+    return ["en", "fr"].includes(valor) ? valor : "es";
+  }
 
 
   function esVozGoogle() {
@@ -274,9 +279,10 @@
         metadata: { contactia_phase: "tool_response", idioma: idiomaSesion },
         output_modalities: ["audio"],
         tool_choice: "none",
-        instructions:
-          idiomaSesion === "en"
-            ? "Communicate only the tool response in natural English. Translate it faithfully without adding information or changing any date, time, number of people, zone, name, telephone number, email address or booking reference."
+        instructions: idiomaSesion === "en"
+          ? "Communicate only the tool response in natural English. Translate it faithfully without adding information or changing any date, time, number of people, zone, name, telephone number, email address or booking reference."
+          : idiomaSesion === "fr"
+            ? "Communique uniquement la réponse de l'outil en français naturel. Traduis-la fidèlement sans ajouter d'informations ni modifier les dates, heures, nombres de personnes, zones, noms, numéros de téléphone, adresses e-mail ou références de réservation."
             : "Comunica ahora únicamente la respuesta de la herramienta, en español natural y sin añadir información."
       }
     });
@@ -291,7 +297,7 @@
         output_modalities: ["text"],
         tool_choice: "required",
         instructions:
-          "Interpreta fielmente el último mensaje hablado, conserva la transcripción original, determina si la sesión debe continuar en español o inglés y llama una sola vez a procesar_turno_contactia. No respondas directamente al cliente."
+          "Interpreta fielmente el último mensaje hablado, conserva la transcripción original, determina si la sesión debe continuar en español, inglés o francés y llama una sola vez a procesar_turno_contactia. No respondas directamente al cliente."
       }
     });
   }
@@ -320,7 +326,7 @@
       const mensajeOriginal = String(
         argumentos.mensaje_original || mensaje
       ).trim();
-      const idioma = argumentos.idioma === "en" ? "en" : "es";
+      const idioma = normalizarIdiomaVoz(argumentos.idioma);
 
       idiomaSesion = idioma;
       respuestaHabladaPendiente = "";
@@ -424,7 +430,7 @@
 
     if (
       evento.type === "response.output_audio_transcript.delta" &&
-      idiomaSesion === "en"
+      idiomaSesion !== "es"
     ) {
       respuestaHabladaPendiente += String(evento.delta || "");
       return;
@@ -432,7 +438,7 @@
 
     if (
       evento.type === "response.output_audio_transcript.done" &&
-      idiomaSesion === "en"
+      idiomaSesion !== "es"
     ) {
       const transcripcion = String(
         evento.transcript || respuestaHabladaPendiente

@@ -1698,11 +1698,61 @@ async function enviarCorreoConfirmacionReserva({
   nombreRestaurante = normalizarTexto(nombreRestaurante) ||
     NOMBRE_RESTAURANTE_GENERICO;
   const ingles = idioma === "en";
+  const frances = idioma === "fr";
   const fechaLarga = formatearFechaLarga(
     fecha,
-    ingles ? "en-GB" : "es-ES"
+    ingles ? "en-GB" : frances ? "fr-FR" : "es-ES"
   );
   const zonaConfirmada = normalizarTexto(zona);
+
+  if (frances) {
+    const asunto =
+      `Réservation confirmée chez ${nombreRestaurante} le ${fechaLarga} ` +
+      `à ${hora}.`;
+    const lineaZonaTexto = zonaConfirmada
+      ? `Zone : ${zonaConfirmada}\n`
+      : "";
+    const lineaZonaHtml = zonaConfirmada
+      ? `<li><strong>Zone :</strong> ${escaparHtml(zonaConfirmada)}</li>`
+      : "";
+    const texto =
+      `Bonjour ${nombre},\n\n` +
+      `Votre réservation est confirmée.\n\n` +
+      `${nombreRestaurante}\n` +
+      `Référence de réservation : ${localizador}\n` +
+      `Date : ${fechaLarga}\n` +
+      `Heure : ${hora}\n` +
+      `Nombre de personnes : ${personas}\n` +
+      lineaZonaTexto +
+      `\n` +
+      `Vous pouvez consulter, modifier ou annuler votre réservation ici :\n` +
+      `${enlaceGestion}\n`;
+    const html = `
+      <p>Bonjour ${escaparHtml(nombre)},</p>
+      <p>Votre réservation est confirmée.</p>
+      <h2>${escaparHtml(nombreRestaurante)}</h2>
+      <ul>
+        <li><strong>Référence de réservation :</strong> ${escaparHtml(localizador)}</li>
+        <li><strong>Date :</strong> ${escaparHtml(fechaLarga)}</li>
+        <li><strong>Heure :</strong> ${escaparHtml(hora)}</li>
+        <li><strong>Nombre de personnes :</strong> ${escaparHtml(personas)}</li>
+        ${lineaZonaHtml}
+      </ul>
+      <p>
+        <a href="${escaparHtml(enlaceGestion)}">
+          Consulter, modifier ou annuler la réservation
+        </a>
+      </p>
+    `;
+
+    return enviarCorreoResend({
+      destinatario,
+      asunto,
+      texto,
+      html,
+      contexto: "confirmation de réservation"
+    });
+  }
 
   if (ingles) {
     const asunto =
@@ -1812,6 +1862,56 @@ async function enviarCorreoContactoRestaurante({
   const telefonoTexto = normalizarTexto(telefono) || "No disponible";
   const lineasHorario = Array.isArray(horario) ? horario : [];
   const ingles = idioma === "en";
+  const frances = idioma === "fr";
+
+  if (frances) {
+    const dias = {
+      lunes: "Lundi",
+      martes: "Mardi",
+      miércoles: "Mercredi",
+      jueves: "Jeudi",
+      viernes: "Vendredi",
+      sábado: "Samedi",
+      domingo: "Dimanche"
+    };
+    const horarioFrances = lineasHorario.map((linea) => {
+      const coincidencia = String(linea).match(/^([^:]+):(.*)$/);
+
+      if (!coincidencia) {
+        return linea;
+      }
+
+      const dia = dias[coincidencia[1].trim().toLowerCase()] ||
+        coincidencia[1].trim();
+      const tramos = coincidencia[2].trim().replace(/^cerrado$/i, "fermé");
+      return `${dia} : ${tramos}`;
+    });
+    const asunto = `Téléphone et horaires de réservation de ${nombre}`;
+    const texto =
+      `Coordonnées de ${nombre}\n\n` +
+      `Téléphone : ${telefonoTexto}\n\n` +
+      `Horaires de réservation :\n${horarioFrances.join("\n")}\n\n` +
+      "Pour une réservation spéciale, contactez directement le restaurant.";
+    const html = `
+      <h2>${escaparHtml(nombre)}</h2>
+      <p><strong>Téléphone :</strong> ${escaparHtml(telefonoTexto)}</p>
+      <p><strong>Horaires de réservation :</strong></p>
+      <ul>
+        ${horarioFrances.map((linea) =>
+          `<li>${escaparHtml(linea)}</li>`
+        ).join("")}
+      </ul>
+      <p>Pour une réservation spéciale, contactez directement le restaurant.</p>
+    `;
+
+    return enviarCorreoResend({
+      destinatario,
+      asunto,
+      texto,
+      html,
+      contexto: "coordonnées du restaurant"
+    });
+  }
 
   if (ingles) {
     const dias = {
@@ -3181,7 +3281,7 @@ module.exports = async (req, res) => {
         nombreRestaurante: obtenerNombreRestaurante(restauranteContacto),
         telefono: obtenerTelefonoRestaurante(restauranteContacto),
         horario: describirHorarioReservas(restauranteContacto),
-        idioma: idioma === "en" ? "en" : "es"
+        idioma: ["en", "fr"].includes(idioma) ? idioma : "es"
       });
 
       return responder(res, 200, {
@@ -4558,7 +4658,7 @@ await buscarAsignacionDisponible(
           zona: nombreZona(zonaReserva),
           localizador: idReserva,
           enlaceGestion,
-          idioma: idioma === "en" ? "en" : "es"
+          idioma: ["en", "fr"].includes(idioma) ? idioma : "es"
         }),
         enviarAvisoRestaurante({
           destinatario: restaurante.fields.email,
