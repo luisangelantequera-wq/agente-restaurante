@@ -3,9 +3,11 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+  IDIOMAS_CONVERSACION,
   anonimizarTexto,
   codigoParaPaso,
   crearRegistroConversacion,
+  normalizarIdiomaConversacion,
   prepararConversacionPersistente
 } = require("../lib/centro-conversaciones");
 
@@ -18,6 +20,42 @@ test("asigna códigos estables a las preguntas principales", () => {
   assert.equal(codigoParaPaso("zona"), "RES-04");
   assert.equal(codigoParaPaso("confirmacion"), "RES-11");
   assert.equal(codigoParaPaso("paso_nuevo"), "GEN-99");
+});
+
+
+test("registra el idioma de la conversación con un nombre apto para Airtable", () => {
+  const registro = crearRegistroConversacion({
+    idConversacion: "CONV-IDIOMA-1234",
+    canal: "voz"
+  });
+
+  assert.equal(registro.exportar().contexto.idioma, "es");
+
+  registro.actualizarContexto({ idioma: "fr" });
+  assert.equal(registro.exportar().contexto.idioma, "fr");
+
+  registro.actualizarContexto({ idioma: "desconocido" });
+  assert.equal(registro.exportar().contexto.idioma, "fr");
+
+  const persistente = prepararConversacionPersistente({
+    ...registro.exportar(),
+    turnos: [{
+      id_turno: "T001",
+      paso: "inicio",
+      actor: "cliente",
+      texto: "Je voudrais réserver",
+      creado_en: "2026-09-18T12:00:00.000Z"
+    }]
+  });
+
+  assert.equal(persistente.contexto.idioma, "fr");
+  assert.equal(persistente.idioma, "Francés");
+  assert.deepEqual(IDIOMAS_CONVERSACION, {
+    es: "Español",
+    en: "Inglés",
+    fr: "Francés"
+  });
+  assert.equal(normalizarIdiomaConversacion("en-US"), "en");
 });
 
 

@@ -25,6 +25,7 @@ test("el turno inglés conserva la frase original y oculta la traducción intern
   const conversacion = simulador.exportarConversacion({ anonimizar: false });
   const textos = conversacion.turnos.map((turno) => turno.texto);
 
+  assert.equal(conversacion.contexto.idioma, "en");
   assert.ok(textos.includes("I would like to book a table"));
   assert.ok(textos.includes("What day would you like to book?"));
   assert.ok(!textos.includes("quiero reservar"));
@@ -50,6 +51,7 @@ test("el turno francés conserva la frase original y registra la respuesta habla
   const conversacion = simulador.exportarConversacion({ anonimizar: false });
   const textos = conversacion.turnos.map((turno) => turno.texto);
 
+  assert.equal(conversacion.contexto.idioma, "fr");
   assert.ok(textos.includes("Je voudrais réserver une table"));
   assert.ok(textos.includes("Pour quel jour souhaitez-vous réserver ?"));
   assert.ok(!textos.includes("quiero reservar"));

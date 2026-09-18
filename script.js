@@ -62,6 +62,7 @@ const registroConversacion = window.ContactiaCentroConversaciones
     canal: new URLSearchParams(window.location.search).get("voz") === "1"
       ? "voz"
       : "web",
+    idioma: idiomaConversacion,
     slug_publico: restauranteActivo.slug_publico
   });
 
@@ -2521,14 +2522,15 @@ function prepararRespuestasParaVoz(respuestas) {
 
 async function procesarTurnoVoz(texto, opciones = {}) {
   const mensaje = String(texto || "").trim();
-  const idioma = ["en", "fr"].includes(opciones.idioma)
+  const idioma = ["es", "en", "fr"].includes(opciones.idioma)
     ? opciones.idioma
-    : "es";
+    : idiomaConversacion;
   const mensajeOriginal = String(
     opciones.mensajeOriginal || mensaje
   ).trim();
 
   idiomaConversacion = idioma;
+  registroConversacion.actualizarContexto({ idioma });
 
   if (!mensaje || mensaje.length > 1000) {
     return {

@@ -89,6 +89,7 @@ async function guardarEnAirtable(conversacion) {
           restaurante_id: conversacion.contexto.restaurante_id,
           slug_publico: conversacion.contexto.slug_publico,
           canal: conversacion.contexto.canal,
+          Idioma: conversacion.idioma,
           iniciado_en: conversacion.iniciado_en,
           actualizado_en: conversacion.actualizado_en,
           estado: conversacion.estado,

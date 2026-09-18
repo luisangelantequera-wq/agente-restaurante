@@ -29,6 +29,7 @@ function conversacionPrueba() {
     id_conversacion: "CONV-12345678",
     contexto: {
       canal: "voz",
+      idioma: "fr",
       restaurante_id: 1,
       slug_publico: "restaurante-sol"
     },
@@ -133,6 +134,7 @@ test("Preview guarda solo la transcripción filtrada y actualiza por identificad
     const campos = solicitudAirtable.body.records[0].fields;
     assert.equal(campos.id_conversacion, "CONV-12345678");
     assert.equal(campos.canal, "voz");
+    assert.equal(campos.Idioma, "Francés");
     assert.equal(campos.numero_turnos, 3);
     assert.equal(campos.requiere_revision, false);
     assert.equal(campos.tipo_revision, "sin_incidencias");
