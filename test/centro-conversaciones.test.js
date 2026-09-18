@@ -43,6 +43,11 @@ test("registra los turnos y los intentos de una repregunta", () => {
     texto: "No le he entendido. ¿Puede repetir la hora?",
     paso: "hora"
   });
+  const confirmacion = registro.registrar({
+    actor: "asistente",
+    texto: "He entendido las 15:00 horas.",
+    paso: "hora"
+  });
 
   assert.equal(pregunta.id_turno, "T001");
   assert.equal(respuesta.id_turno, "T002");
@@ -51,6 +56,7 @@ test("registra los turnos y los intentos de una repregunta", () => {
   assert.equal(pregunta.intento_pregunta, 1);
   assert.equal(respuesta.intento_pregunta, 1);
   assert.equal(repregunta.intento_pregunta, 2);
+  assert.equal(confirmacion.intento_pregunta, null);
 });
 
 
@@ -83,6 +89,38 @@ test("cuenta también las repreguntas que no llevan interrogación", () => {
   );
   assert.equal(persistente.tipo_revision, "repregunta");
   assert.equal(persistente.pasos_revision, "RES-04");
+});
+
+
+test("marca la ayuda inicial como repregunta tras una intención no reconocida", () => {
+  const registro = crearRegistroConversacion({
+    idConversacion: "CONV-INTENCION-NO-RECONOCIDA",
+    ahora: () => new Date("2026-09-18T12:00:00.000Z")
+  });
+
+  registro.registrar({
+    actor: "asistente",
+    texto: "¿Desea reservar, consultar, modificar o cancelar una reserva?",
+    paso: "inicio"
+  });
+  registro.registrar({
+    actor: "cliente",
+    texto: "quiero comer",
+    paso: "inicio"
+  });
+  const repregunta = registro.registrar({
+    actor: "asistente",
+    texto: "Puede indicar: reservar, consultar, modificar o cancelar.",
+    paso: "inicio"
+  });
+
+  assert.equal(repregunta.intento_pregunta, 2);
+  const persistente = prepararConversacionPersistente(
+    registro.exportar(),
+    { estado: "cerrada" }
+  );
+  assert.equal(persistente.tipo_revision, "repregunta");
+  assert.equal(persistente.pasos_revision, "GEN-01");
 });
 
 

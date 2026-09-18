@@ -490,5 +490,94 @@
         "motivo_revision": "1 repregunta en RES-04."
       }
     }
+  },
+  {
+    "id_escenario": "FLUJO-012",
+    "nombre": "Marca respuestas ambiguas de personas y hora",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true, "antelacion_insuficiente": false },
+          { "ok": true, "disponible": true }
+        ],
+        "reservar": [
+          {
+            "ok": true,
+            "reservado": true,
+            "id_reserva": "SOL-PRUEBA-0004",
+            "token_gestion": "ffffffffffffffffffffffffffffffffffffffffffffffff",
+            "enlace_gestion": "https://contactia.test/gestion-ambigua"
+          }
+        ]
+      }
+    },
+    "turnos": [
+      { "entrada": "reservar", "paso": "fecha" },
+      { "entrada": "mañana", "paso": "personas" },
+      {
+        "entrada": "dos o tres personas",
+        "paso": "personas",
+        "respuesta_incluye": ["He oído más de un número posible"]
+      },
+      { "entrada": "para cuatro", "paso": "hora" },
+      {
+        "entrada": "a las dos o a las tres",
+        "paso": "hora",
+        "respuesta_incluye": ["He oído más de una hora posible"]
+      },
+      { "entrada": "a las tres de la tarde", "paso": "zona" },
+      { "entrada": "interior", "paso": "confirmacion_datos" },
+      { "entrada": "sí", "paso": "nombre" },
+      { "entrada": "$NOMBRE_PRUEBA", "paso": "email" },
+      { "entrada": "$EMAIL_PRUEBA", "paso": "telefono" },
+      { "entrada": "$TELEFONO_PRUEBA", "paso": "observaciones" },
+      { "entrada": "no", "paso": "confirmacion" },
+      { "entrada": "sí, confirmo la reserva", "paso": "finalizado", "respuesta_incluye": ["Reserva confirmada", "SOL-PRUEBA-0004"] }
+    ],
+    "acciones_esperadas": { "verificar": 2, "reservar": 1 },
+    "revision_esperada": {
+      "contiene": {
+        "requiere_revision": true,
+        "tipo_revision": "repregunta",
+        "numero_repreguntas": 2,
+        "pasos_revision": "RES-02, RES-03",
+        "motivo_revision": "2 repreguntas en RES-02, RES-03."
+      }
+    }
+  },
+  {
+    "id_escenario": "FLUJO-013",
+    "nombre": "Marca una intención inicial no reconocida",
+    "servidor": {
+      "respuestas": {
+        "verificar": [
+          { "ok": true, "disponible": true, "antelacion_insuficiente": false }
+        ]
+      }
+    },
+    "turnos": [
+      {
+        "entrada": "quiero comer",
+        "paso": "inicio",
+        "respuesta_incluye": ["Puede indicar: reservar, consultar, modificar o cancelar"]
+      },
+      {
+        "entrada": "reservar mañana a las 15:00 para cuatro personas",
+        "paso": "zona",
+        "respuesta_incluye": ["¿En qué zona prefiere la mesa?"]
+      },
+      { "entrada": "dentro", "paso": "confirmacion_datos" }
+    ],
+    "acciones_esperadas": { "verificar": 1, "reservar": 0 },
+    "revision_esperada": {
+      "estado": "cerrada",
+      "contiene": {
+        "requiere_revision": true,
+        "tipo_revision": "repregunta",
+        "numero_repreguntas": 1,
+        "pasos_revision": "GEN-01",
+        "motivo_revision": "1 repregunta en GEN-01."
+      }
+    }
   }
 ]
