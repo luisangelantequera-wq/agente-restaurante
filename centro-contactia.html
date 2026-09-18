@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>Centro de conversaciones · Contactia</title>
+  <link rel="stylesheet" href="/centro-contactia.css">
+</head>
+<body>
+  <header class="cabecera">
+    <div>
+      <p class="marca">CONTACTIA</p>
+      <h1>Centro de conversaciones</h1>
+      <p class="subtitulo">Revisión interna del funcionamiento del asistente</p>
+    </div>
+    <button id="cerrarSesion" class="boton-secundario oculto" type="button">
+      Cerrar sesión
+    </button>
+  </header>
+
+  <main>
+    <section id="acceso" class="panel acceso" aria-labelledby="tituloAcceso">
+      <div class="acceso-icono" aria-hidden="true">C</div>
+      <h2 id="tituloAcceso">Acceso exclusivo de Contactia</h2>
+      <p>Introduzca la clave administrativa para consultar las conversaciones anonimizadas.</p>
+      <form id="formularioAcceso">
+        <label for="clave">Clave administrativa</label>
+        <input id="clave" name="clave" type="password" autocomplete="current-password" required>
+        <button class="boton-principal" type="submit">Acceder</button>
+      </form>
+      <p id="errorAcceso" class="mensaje-error" role="alert"></p>
+    </section>
+
+    <section id="centro" class="oculto" aria-live="polite">
+      <div class="panel filtros">
+        <div class="campo-filtro">
+          <label for="filtroRevision">Revisión</label>
+          <select id="filtroRevision">
+            <option value="con_incidencia">Con incidencias</option>
+            <option value="todas">Todas</option>
+            <option value="sin_incidencias">Sin incidencias</option>
+          </select>
+        </div>
+        <div class="campo-filtro">
+          <label for="filtroIdioma">Idioma</label>
+          <select id="filtroIdioma">
+            <option value="todos">Todos</option>
+            <option value="Español">Español</option>
+            <option value="Inglés">Inglés</option>
+            <option value="Francés">Francés</option>
+          </select>
+        </div>
+        <div class="campo-filtro">
+          <label for="filtroResultado">Resultado</label>
+          <select id="filtroResultado">
+            <option value="todos">Todos</option>
+            <option value="En curso">En curso</option>
+            <option value="Reserva confirmada">Reserva confirmada</option>
+            <option value="Reserva cancelada">Reserva cancelada</option>
+            <option value="Reserva modificada">Reserva modificada</option>
+            <option value="Lista de espera">Lista de espera</option>
+            <option value="Contacto enviado">Contacto enviado</option>
+            <option value="Consulta realizada">Consulta realizada</option>
+            <option value="Sin completar">Sin completar</option>
+          </select>
+        </div>
+        <button id="actualizar" class="boton-principal boton-actualizar" type="button">
+          Actualizar
+        </button>
+      </div>
+
+      <div id="resumen" class="resumen" aria-label="Resumen de conversaciones">
+        <article>
+          <span id="totalMostradas">0</span>
+          <p>Mostradas</p>
+        </article>
+        <article class="incidencias">
+          <span id="totalIncidencias">0</span>
+          <p>Con incidencia</p>
+        </article>
+        <article>
+          <span id="totalCorrectas">0</span>
+          <p>Sin incidencias</p>
+        </article>
+      </div>
+
+      <p id="estadoCarga" class="estado-carga" role="status"></p>
+      <div id="listaConversaciones" class="lista-conversaciones"></div>
+    </section>
+  </main>
+
+  <dialog id="detalle">
+    <div class="detalle-cabecera">
+      <div>
+        <p class="marca">CONVERSACIÓN ANONIMIZADA</p>
+        <h2 id="detalleTitulo">Detalle</h2>
+      </div>
+      <button id="cerrarDetalle" class="cerrar-detalle" type="button" aria-label="Cerrar detalle">×</button>
+    </div>
+    <div id="detalleMetadatos" class="detalle-metadatos"></div>
+    <div id="transcripcion" class="transcripcion"></div>
+  </dialog>
+
+  <script src="/centro-contactia.js" defer></script>
+</body>
+</html>
