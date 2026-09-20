@@ -6,6 +6,9 @@ const {
   obtenerPrivacidadHasta,
   registroDebeAnonimizarse
 } = require("../lib/privacidad");
+const {
+  eliminarAudiosConversaciones
+} = require("../lib/audio-conversacion");
 
 
 function responder(res, status, datos) {
@@ -131,7 +134,16 @@ function obtenerDuracionRestaurante(campos, duracionesPorRestaurante) {
 }
 
 
-async function ejecutarAnonimizacion(ahora = new Date()) {
+function conversacionTieneAudio(campos = {}) {
+  const transcripcion = String(campos.transcripcion_anonimizada || "");
+
+  return transcripcion.includes('"audio_disponible":true');
+}
+
+
+async function ejecutarAnonimizacion(ahora = new Date(), dependencias = {}) {
+  const eliminarAudios = dependencias.eliminarAudiosConversaciones ||
+    eliminarAudiosConversaciones;
   const restaurantes = await listarRegistros("RESTAURANTES");
   const duracionesPorRestaurante = new Map(
     restaurantes.map((restaurante) => [
@@ -219,6 +231,12 @@ async function ejecutarAnonimizacion(ahora = new Date()) {
     }
   }
 
+  const idsConversacionesCaducadas = conversacionesCaducadas
+    .filter((registro) => conversacionTieneAudio(registro.fields))
+    .map((registro) => String(registro.fields?.id_conversacion || ""))
+    .filter(Boolean);
+  const audiosEliminados = await eliminarAudios(idsConversacionesCaducadas);
+
   await actualizarRegistros("RESERVAS", actualizacionesReservas);
   await actualizarRegistros("LISTA_ESPERA", actualizacionesListaEspera);
   await eliminarRegistros("CONVERSACIONES", conversacionesCaducadas);
@@ -228,6 +246,7 @@ async function ejecutarAnonimizacion(ahora = new Date()) {
     reservas_preparadas: reservasPreparadas,
     esperas_anonimizadas: esperasAnonimizadas,
     esperas_preparadas: esperasPreparadas,
+    audios_eliminados: audiosEliminados,
     conversaciones_eliminadas: conversacionesCaducadas.length,
     omitidas_sin_fecha: omitidasSinFecha
   };

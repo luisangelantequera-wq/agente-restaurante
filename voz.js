@@ -14,8 +14,11 @@
   const botonEnviar = document.getElementById("send-btn");
   const SALUDO_INICIAL =
     "Bienvenido a Restaurante Sol. Soy su asistente virtual. " +
+    "Para mejorar el servicio, esta conversación puede grabarse parcialmente. " +
+    "La grabación se detendrá antes de solicitar sus datos personales. " +
     "¿Desea reservar, consultar, modificar o cancelar una reserva? " +
     "For English, say English. Pour le français, dites français.";
+  const MAX_AUDIO_TURNO_BYTES = 2 * 1024 * 1024;
   let conexion = null;
   let canal = null;
   let microfono = null;
@@ -32,6 +35,13 @@
   let eagernessVadActual = "medium";
   let idiomaSesion = "es";
   let respuestaHabladaPendiente = "";
+  let tokenAudio = "";
+  let pasoActual = "inicio";
+  let grabadorTurno = null;
+  let fragmentosGrabacion = [];
+  let promesaGrabacionPendiente = null;
+  let resolverGrabacionPendiente = null;
+  let descartarGrabacionActual = false;
   const llamadasProcesadas = new Set();
 
 
@@ -53,6 +63,169 @@
 
   function cambiarEstado(texto) {
     estado.textContent = texto;
+  }
+
+
+  function tipoGrabacionCompatible() {
+    if (typeof MediaRecorder === "undefined") {
+      return "";
+    }
+
+    const tipos = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4"
+    ];
+
+    return tipos.find((tipo) =>
+      !MediaRecorder.isTypeSupported || MediaRecorder.isTypeSupported(tipo)
+    ) || "";
+  }
+
+
+  function pasoPermiteGrabacion(paso) {
+    return Boolean(
+      window.ContactiaCentroConversaciones?.pasoPermiteAudio?.(paso)
+    );
+  }
+
+
+  function finalizarGrabacionPendiente(blob = null) {
+    const resolver = resolverGrabacionPendiente;
+
+    resolverGrabacionPendiente = null;
+    grabadorTurno = null;
+    fragmentosGrabacion = [];
+    descartarGrabacionActual = false;
+
+    if (resolver) {
+      resolver(blob);
+    }
+  }
+
+
+  function iniciarGrabacionTurno() {
+    if (
+      grabadorTurno ||
+      !tokenAudio ||
+      !microfono ||
+      !pasoPermiteGrabacion(pasoActual)
+    ) {
+      return;
+    }
+
+    const tipo = tipoGrabacionCompatible();
+    const pista = microfono.getAudioTracks()[0];
+
+    if (!tipo || !pista || pista.readyState === "ended") {
+      return;
+    }
+
+    try {
+      fragmentosGrabacion = [];
+      descartarGrabacionActual = false;
+      grabadorTurno = new MediaRecorder(microfono, {
+        audioBitsPerSecond: 32000,
+        mimeType: tipo
+      });
+      promesaGrabacionPendiente = new Promise((resolve) => {
+        resolverGrabacionPendiente = resolve;
+      });
+
+      grabadorTurno.addEventListener("dataavailable", (evento) => {
+        if (evento.data?.size > 0) {
+          fragmentosGrabacion.push(evento.data);
+        }
+      });
+      grabadorTurno.addEventListener("error", () => {
+        descartarGrabacionActual = true;
+
+        if (grabadorTurno?.state !== "inactive") {
+          grabadorTurno.stop();
+        } else {
+          finalizarGrabacionPendiente();
+        }
+      });
+      grabadorTurno.addEventListener("stop", () => {
+        const tipoFinal = grabadorTurno?.mimeType || tipo;
+        const blob = descartarGrabacionActual
+          ? null
+          : new Blob(fragmentosGrabacion, { type: tipoFinal });
+
+        finalizarGrabacionPendiente(
+          blob && blob.size > 0 && blob.size <= MAX_AUDIO_TURNO_BYTES
+            ? blob
+            : null
+        );
+      }, { once: true });
+      grabadorTurno.start(1000);
+    } catch (error) {
+      console.warn("La grabación parcial no está disponible en este navegador.");
+      finalizarGrabacionPendiente();
+    }
+  }
+
+
+  function detenerGrabacionTurno(descartar = false) {
+    if (!grabadorTurno) {
+      return promesaGrabacionPendiente || Promise.resolve(null);
+    }
+
+    descartarGrabacionActual ||= descartar;
+
+    if (grabadorTurno.state !== "inactive") {
+      grabadorTurno.stop();
+    }
+
+    return promesaGrabacionPendiente || Promise.resolve(null);
+  }
+
+
+  async function subirAudioTurno(blob, resultado, mensajeOriginal) {
+    const idConversacion = String(resultado?.id_conversacion || "");
+    const idTurno = String(resultado?.turno_cliente_id || "");
+    const pasoAnterior = String(resultado?.paso_anterior || "");
+    const contieneDatos = window.ContactiaCentroConversaciones
+      ?.contieneDatoPersonalParaAudio?.(mensajeOriginal);
+
+    if (
+      !blob ||
+      !tokenAudio ||
+      !/^CONV-[A-Za-z0-9-]{8,84}$/.test(idConversacion) ||
+      !/^T\d{3}$/.test(idTurno) ||
+      !pasoPermiteGrabacion(pasoAnterior) ||
+      contieneDatos
+    ) {
+      return;
+    }
+
+    const parametrosAudio = new URLSearchParams({
+      id_conversacion: idConversacion,
+      id_turno: idTurno
+    });
+
+    try {
+      const respuesta = await fetch(`/api/audio-conversacion?${parametrosAudio}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tokenAudio}`,
+          "Content-Type": blob.type.split(";")[0]
+        },
+        body: blob
+      });
+
+      if (!respuesta.ok) {
+        if (respuesta.status === 401) {
+          tokenAudio = "";
+        }
+        return;
+      }
+
+      window.ContactiaConversacionActual?.marcarAudioDisponible?.(idTurno);
+    } catch {
+      console.warn("No se pudo guardar un fragmento de audio de diagnóstico.");
+    }
   }
 
 
@@ -315,6 +488,9 @@
     llamadasProcesadas.add(llamada.call_id);
     cambiarEstado("Comprobando la reserva…");
     let resultado;
+    let mensajeOriginal = "";
+    const audioDelTurno = promesaGrabacionPendiente;
+    promesaGrabacionPendiente = null;
     const inicioMotor = performance.now();
     const entenderMs = inicioTurno
       ? inicioMotor - inicioTurno
@@ -323,7 +499,7 @@
     try {
       const argumentos = JSON.parse(llamada.arguments || "{}");
       const mensaje = String(argumentos.mensaje || "").trim();
-      const mensajeOriginal = String(
+      mensajeOriginal = String(
         argumentos.mensaje_original || mensaje
       ).trim();
       const idioma = normalizarIdiomaVoz(argumentos.idioma);
@@ -348,14 +524,28 @@
       };
     }
 
+    pasoActual = String(resultado?.paso || pasoActual);
+    if (audioDelTurno) {
+      audioDelTurno
+        .then((blob) => subirAudioTurno(blob, resultado, mensajeOriginal))
+        .catch(() => undefined);
+    }
+
     ajustarEsperaSegunPaso(resultado?.paso);
+
+    const resultadoParaVoz = {
+      ok: resultado?.ok === true,
+      respuesta: String(resultado?.respuesta || ""),
+      paso: resultado?.paso,
+      idioma: resultado?.idioma
+    };
 
     enviarEvento({
       type: "conversation.item.create",
       item: {
         type: "function_call_output",
         call_id: llamada.call_id,
-        output: JSON.stringify(resultado)
+        output: JSON.stringify(resultadoParaVoz)
       }
     });
     if (esVozGoogle()) {
@@ -368,6 +558,7 @@
           entenderMs,
           motorMs: performance.now() - inicioMotor
         });
+        iniciarGrabacionTurno();
         return;
       } catch (error) {
         console.error("Error al generar la voz de Google:", error);
@@ -416,12 +607,20 @@
       return;
     }
 
+    if (evento.type === "output_audio_buffer.stopped") {
+      iniciarGrabacionTurno();
+      cambiarEstado("Le escucho. Puede continuar.");
+      return;
+    }
+
     if (evento.type === "input_audio_buffer.speech_started") {
+      iniciarGrabacionTurno();
       cambiarEstado("Le escucho…");
       return;
     }
 
     if (evento.type === "input_audio_buffer.speech_stopped") {
+      detenerGrabacionTurno();
       inicioTurno = performance.now();
       cambiarEstado("Entendiendo…");
       solicitarInterpretacion();
@@ -492,7 +691,6 @@
         return;
       }
 
-      cambiarEstado("Le escucho. Puede continuar.");
       return;
     }
 
@@ -508,6 +706,7 @@
 
   function cerrarVoz(mensaje = "Micrófono apagado") {
     finalizarSaludoInicial();
+    detenerGrabacionTurno(true);
 
     if (temporizadorLimite) {
       window.clearTimeout(temporizadorLimite);
@@ -554,6 +753,9 @@
     inicioTurno = null;
     idiomaSesion = "es";
     respuestaHabladaPendiente = "";
+    tokenAudio = "";
+    pasoActual = "inicio";
+    promesaGrabacionPendiente = null;
     eagernessVadActual = "medium";
     conectando = false;
     boton.disabled = false;
@@ -646,8 +848,12 @@
 
       const oferta = await conexion.createOffer();
       await conexion.setLocalDescription(oferta);
+      const parametrosSesion = new URLSearchParams({
+        slug: "restaurante-sol",
+        id_conversacion: window.ContactiaConversacionActual?.id || ""
+      });
       const respuesta = await fetch(
-        "/api/voz-sesion?slug=restaurante-sol",
+        `/api/voz-sesion?${parametrosSesion}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -668,6 +874,7 @@
         throw new Error(detalle);
       }
 
+      tokenAudio = respuesta.headers.get("X-Contactia-Audio-Token") || "";
       const sdpRespuesta = await respuesta.text();
       await conexion.setRemoteDescription({
         type: "answer",
@@ -695,6 +902,7 @@
       }
 
       pista.enabled = true;
+      iniciarGrabacionTurno();
       cambiarEstado("Le escucho. Puede hablar.");
       temporizadorLimite = window.setTimeout(() => {
         cerrarVoz("La prueba de voz de 5 minutos ha terminado.");

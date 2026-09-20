@@ -41,6 +41,7 @@ function conversacionPrueba() {
         paso: "inicio",
         actor: "cliente",
         texto: "Quiero hacer una recerva",
+        audio_disponible: true,
         creado_en: "2026-09-17T12:00:00.000Z"
       },
       {
@@ -143,6 +144,7 @@ test("Preview guarda solo la transcripción filtrada y actualiza por identificad
     assert.equal(campos.pasos_revision, "");
     assert.equal(campos.motivo_revision, "");
     assert.match(campos.transcripcion_anonimizada, /recerva/);
+    assert.match(campos.transcripcion_anonimizada, /"audio_disponible":true/);
     assert.match(campos.transcripcion_anonimizada, /DATO PERSONAL OMITIDO/);
     assert.equal(campos.transcripcion_anonimizada.includes("Luis García"), false);
     assert.equal(campos.transcripcion_anonimizada.includes("luis@example.com"), false);

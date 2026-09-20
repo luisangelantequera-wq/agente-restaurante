@@ -8,7 +8,6 @@
     "test": "node --test",
     "test:conversacion": "node scripts/ejecutar-bateria-conversacional.js && node scripts/ejecutar-escenarios-conversacion.js"
   },
-  "dependencies": {},
   "engines": {
     "node": "22.x"
   },

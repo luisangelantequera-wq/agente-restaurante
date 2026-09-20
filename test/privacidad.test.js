@@ -135,6 +135,7 @@ test("la tarea de privacidad elimina conversaciones al cumplir su retención", a
   const apiKeyAnterior = process.env.AIRTABLE_API_KEY;
   const baseAnterior = process.env.AIRTABLE_BASE_ID;
   const eliminaciones = [];
+  const conversacionesConAudioEliminado = [];
 
   process.env.AIRTABLE_API_KEY = "clave-prueba";
   process.env.AIRTABLE_BASE_ID = "appBasePrueba";
@@ -152,7 +153,14 @@ test("la tarea de privacidad elimina conversaciones al cumplir su retención", a
         ok: true,
         status: 200,
         text: async () => JSON.stringify({
-          records: [{ id: "recConversacionCaducada", fields: {} }]
+          records: [{
+            id: "recConversacionCaducada",
+            fields: {
+              id_conversacion: "CONV-CADUCADA-1234",
+              transcripcion_anonimizada:
+                '[{"id_turno":"T001","audio_disponible":true}]'
+            }
+          }]
         })
       };
     }
@@ -166,10 +174,21 @@ test("la tarea de privacidad elimina conversaciones al cumplir su retención", a
 
   try {
     const resultado = await ejecutarAnonimizacion(
-      new Date("2026-10-18T12:00:00.000Z")
+      new Date("2026-10-18T12:00:00.000Z"),
+      {
+        async eliminarAudiosConversaciones(ids) {
+          conversacionesConAudioEliminado.push(...ids);
+          return ids.length * 2;
+        }
+      }
     );
 
     assert.equal(resultado.conversaciones_eliminadas, 1);
+    assert.equal(resultado.audios_eliminados, 2);
+    assert.deepEqual(
+      conversacionesConAudioEliminado,
+      ["CONV-CADUCADA-1234"]
+    );
     assert.deepEqual(eliminaciones, [{
       tabla: "CONVERSACIONES",
       ids: ["recConversacionCaducada"]

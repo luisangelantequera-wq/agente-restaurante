@@ -54,7 +54,11 @@ function guardarEntorno() {
     VERCEL_ENV: process.env.VERCEL_ENV,
     VOICE_PREVIEW_ENABLED: process.env.VOICE_PREVIEW_ENABLED,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    OPENAI_REALTIME_MODEL: process.env.OPENAI_REALTIME_MODEL
+    OPENAI_REALTIME_MODEL: process.env.OPENAI_REALTIME_MODEL,
+    CONTACTIA_CENTRO_SECRET: process.env.CONTACTIA_CENTRO_SECRET,
+    GOOGLE_APPS_SCRIPT_BACKUP_URL: process.env.GOOGLE_APPS_SCRIPT_BACKUP_URL,
+    BACKUP_UPLOAD_SECRET: process.env.BACKUP_UPLOAD_SECRET,
+    BACKUP_ENCRYPTION_KEY: process.env.BACKUP_ENCRYPTION_KEY
   };
 }
 
@@ -167,6 +171,12 @@ test("la clave normal permanece en servidor y OpenAI devuelve solo el SDP", asyn
   process.env.VERCEL_ENV = "preview";
   process.env.VOICE_PREVIEW_ENABLED = "true";
   process.env.OPENAI_API_KEY = "sk-secreto-de-prueba";
+  process.env.CONTACTIA_CENTRO_SECRET =
+    "clave-contactia-de-prueba-con-32-caracteres";
+  process.env.GOOGLE_APPS_SCRIPT_BACKUP_URL =
+    "https://script.google.com/macros/s/prueba/exec";
+  process.env.BACKUP_UPLOAD_SECRET = "secreto-drive-prueba";
+  process.env.BACKUP_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
   global.fetch = async (url, opciones) => {
     solicitudOpenAI = { url, opciones };
     return {
@@ -178,6 +188,7 @@ test("la clave normal permanece en servidor y OpenAI devuelve solo el SDP", asyn
 
   try {
     const respuesta = await ejecutar({
+      url: "/api/voz-sesion?slug=restaurante-sol&id_conversacion=CONV-AUDIO-12345678",
       contentType: "application/json",
       body: { sdp: "v=0\r\na=oferta-navegador\r\n" }
     });
@@ -185,6 +196,10 @@ test("la clave normal permanece en servidor y OpenAI devuelve solo el SDP", asyn
 
     assert.equal(respuesta.statusCode, 200);
     assert.equal(respuesta.headers["content-type"], "application/sdp");
+    assert.match(
+      respuesta.headers["x-contactia-audio-token"],
+      /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+    );
     assert.match(respuesta.cuerpo, /respuesta-openai/);
     assert.doesNotMatch(respuesta.cuerpo, /sk-secreto-de-prueba/);
     assert.equal(
@@ -239,6 +254,12 @@ test("la interfaz activa el micrófono solo bajo el parámetro de prueba", () =>
   assert.match(voz, /eagerness: nuevaEagerness/);
   assert.match(voz, /type: "session\.update"/);
   assert.match(voz, /Google no está disponible\. Uso la voz de OpenAI/);
+  assert.match(voz, /MediaRecorder/);
+  assert.match(voz, /\/api\/audio-conversacion/);
+  assert.match(voz, /pasoPermiteAudio/);
+  assert.match(voz, /contieneDatoPersonalParaAudio/);
+  assert.match(voz, /La grabación se detendrá antes de solicitar sus datos personales/);
+  assert.match(html, /se elimina a los 30 días/);
   assert.doesNotMatch(voz, /OPENAI_API_KEY/);
   assert.doesNotMatch(voz, /GOOGLE_TTS_CREDENTIALS_JSON/);
   assert.match(permisos, /microphone=\(self\)/);

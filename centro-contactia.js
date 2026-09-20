@@ -24,6 +24,7 @@
   const cerrarDetalle = document.querySelector("#cerrarDetalle");
 
   let conversaciones = [];
+  let audioActivo = null;
 
   async function solicitar(cuerpo) {
     const respuesta = await fetch(endpoint, {
@@ -84,6 +85,49 @@
     return parrafo;
   }
 
+  function crearControlAudio(conversacion, turno) {
+    const contenedor = document.createElement("div");
+    const boton = document.createElement("button");
+
+    contenedor.className = "control-audio";
+    boton.type = "button";
+    boton.className = "escuchar-turno";
+    boton.textContent = "▶ Escuchar";
+    boton.setAttribute(
+      "aria-label",
+      `Escuchar audio del cliente en ${turno.codigo_paso}`
+    );
+
+    boton.addEventListener("click", () => {
+      const parametros = new URLSearchParams({
+        id_conversacion: conversacion.id_conversacion,
+        id_turno: turno.id_turno
+      });
+      const audio = document.createElement("audio");
+
+      audio.controls = true;
+      audio.preload = "none";
+      audio.controlsList = "nodownload";
+      audio.src = `/api/audio-conversacion?${parametros}`;
+      audio.addEventListener("play", () => {
+        if (audioActivo && audioActivo !== audio) {
+          audioActivo.pause();
+        }
+        audioActivo = audio;
+      });
+      audio.addEventListener("error", () => {
+        boton.textContent = "Audio no disponible";
+        boton.disabled = true;
+        contenedor.replaceChildren(boton);
+      }, { once: true });
+      contenedor.replaceChildren(audio);
+      audio.play().catch(() => undefined);
+    }, { once: true });
+
+    contenedor.append(boton);
+    return contenedor;
+  }
+
   function abrirDetalle(conversacion) {
     detalleTitulo.textContent = conversacion.id_conversacion || "Conversación";
     detalleMetadatos.replaceChildren(
@@ -127,6 +171,9 @@
       paso.textContent = turno.codigo_paso;
       texto.textContent = turno.texto;
       cabecera.append(actor, paso);
+      if (turno.audio_disponible) {
+        cabecera.append(crearControlAudio(conversacion, turno));
+      }
       bloque.append(cabecera, texto);
       transcripcion.append(bloque);
     }
@@ -243,9 +290,13 @@
   filtroRevision.addEventListener("change", cargarConversaciones);
   filtroIdioma.addEventListener("change", cargarConversaciones);
   filtroResultado.addEventListener("change", cargarConversaciones);
-  cerrarDetalle.addEventListener("click", () => detalle.close());
+  cerrarDetalle.addEventListener("click", () => {
+    audioActivo?.pause();
+    detalle.close();
+  });
   detalle.addEventListener("click", (evento) => {
     if (evento.target === detalle) {
+      audioActivo?.pause();
       detalle.close();
     }
   });

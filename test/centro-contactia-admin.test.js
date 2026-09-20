@@ -187,6 +187,7 @@ test("listar exige sesión y devuelve únicamente datos anonimizados", async () 
                     codigo_paso: "RES-04",
                     actor: "cliente",
                     texto: "demtro",
+                    audio_disponible: true,
                     creado_en: "2026-09-18T12:00:00.000Z"
                   }
                 ]),
@@ -229,6 +230,10 @@ test("listar exige sesión y devuelve únicamente datos anonimizados", async () 
       "2026-09-18T12:00:00.000Z"
     );
     assert.equal(respuesta.body.conversaciones[0].transcripcion[0].texto, "demtro");
+    assert.equal(
+      respuesta.body.conversaciones[0].transcripcion[0].audio_disponible,
+      true
+    );
     assert.equal(
       JSON.stringify(respuesta.body).includes("persona@example.invalid"),
       false
@@ -277,6 +282,8 @@ test("la página interna es independiente y no se enlaza desde el restaurante", 
   assert.match(centroHtml, /Acceso exclusivo de Contactia/);
   assert.match(centroHtml, /noindex, nofollow, noarchive/);
   assert.match(centroJs, /textContent/);
+  assert.match(centroJs, /\/api\/audio-conversacion/);
+  assert.match(centroJs, /Escuchar/);
   assert.doesNotMatch(centroJs, /localStorage|sessionStorage/);
   assert.doesNotMatch(paginasPublicas, /centro-contactia/);
 });

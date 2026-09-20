@@ -8,8 +8,10 @@ const {
   anonimizarTexto,
   clasificarResultadoConversacion,
   codigoParaPaso,
+  contieneDatoPersonalParaAudio,
   crearRegistroConversacion,
   normalizarIdiomaConversacion,
+  pasoPermiteAudio,
   prepararConversacionPersistente
 } = require("../lib/centro-conversaciones");
 
@@ -22,6 +24,51 @@ test("asigna códigos estables a las preguntas principales", () => {
   assert.equal(codigoParaPaso("zona"), "RES-04");
   assert.equal(codigoParaPaso("confirmacion"), "RES-11");
   assert.equal(codigoParaPaso("paso_nuevo"), "GEN-99");
+});
+
+
+test("el audio se limita al tramo anterior a los datos personales", () => {
+  assert.equal(pasoPermiteAudio("fecha"), true);
+  assert.equal(pasoPermiteAudio("confirmacion_datos"), true);
+  assert.equal(pasoPermiteAudio("nombre"), false);
+  assert.equal(pasoPermiteAudio("email"), false);
+  assert.equal(pasoPermiteAudio("observaciones"), false);
+});
+
+
+test("descarta audio si el cliente adelanta un dato personal", () => {
+  assert.equal(contieneDatoPersonalParaAudio("Mañana a las dos"), false);
+  assert.equal(contieneDatoPersonalParaAudio("Me llamo Luis y quiero reservar"), true);
+  assert.equal(contieneDatoPersonalParaAudio("Soy Luis, una mesa para cuatro"), true);
+  assert.equal(contieneDatoPersonalParaAudio("luis arroba gmail punto com"), true);
+  assert.equal(contieneDatoPersonalParaAudio("Escriba a cliente@example.invalid"), true);
+  assert.equal(contieneDatoPersonalParaAudio("Mi teléfono es 600000000"), true);
+});
+
+
+test("solo marca audio en turnos seguros del cliente", () => {
+  const registro = crearRegistroConversacion({
+    idConversacion: "CONV-AUDIO-SEGURO-1234"
+  });
+  const fecha = registro.registrar({
+    actor: "cliente",
+    texto: "Mañana",
+    paso: "fecha"
+  });
+  const nombre = registro.registrar({
+    actor: "cliente",
+    texto: "Persona Prueba",
+    paso: "nombre"
+  });
+
+  assert.equal(registro.marcarAudioDisponible(fecha.id_turno), true);
+  assert.equal(registro.marcarAudioDisponible(nombre.id_turno), false);
+
+  const persistente = prepararConversacionPersistente(
+    registro.exportar({ anonimizar: false })
+  );
+  assert.equal(persistente.turnos[0].audio_disponible, true);
+  assert.equal(persistente.turnos[1].audio_disponible, false);
 });
 
 

@@ -69,7 +69,19 @@ const registroConversacion = window.ContactiaCentroConversaciones
 
 window.ContactiaConversacionActual = Object.freeze({
   exportar: (opciones) => registroConversacion.exportar(opciones),
-  id: registroConversacion.idConversacion
+  guardar: () => guardarConversacionRemota(),
+  id: registroConversacion.idConversacion,
+  marcarAudioDisponible(idTurno) {
+    const marcado = registroConversacion.marcarAudioDisponible(idTurno);
+
+    if (marcado) {
+      guardarConversacionRemota();
+    }
+
+    return marcado;
+  },
+  pasoPermiteAudio: () =>
+    window.ContactiaCentroConversaciones.pasoPermiteAudio(paso)
 });
 
 
@@ -175,6 +187,10 @@ function agregarMensaje(texto, tipo) {
     paso
   });
 
+  if (tipo === "user" && contextoTurnoVoz) {
+    contextoTurnoVoz.turnoClienteId = turno.id_turno;
+  }
+
   mensaje.classList.add("message", tipo);
   mensaje.dataset.conversacionId = turno.id_conversacion;
   mensaje.dataset.turnoId = turno.id_turno;
@@ -219,6 +235,7 @@ function agregarMensaje(texto, tipo) {
   }
 
   programarGuardadoConversacion();
+  return turno;
 }
 
 
@@ -2549,6 +2566,7 @@ async function procesarTurnoVoz(texto, opciones = {}) {
   const mensajeOriginal = String(
     opciones.mensajeOriginal || mensaje
   ).trim();
+  const pasoAnterior = paso;
 
   idiomaConversacion = idioma;
   registroConversacion.actualizarContexto({ idioma });
@@ -2568,7 +2586,8 @@ async function procesarTurnoVoz(texto, opciones = {}) {
   };
 
   observadoresMensajes.add(observar);
-  contextoTurnoVoz = { idioma, mensajeOriginal };
+  const contextoVoz = { idioma, mensajeOriginal, turnoClienteId: "" };
+  contextoTurnoVoz = contextoVoz;
 
   try {
     await procesarMensaje(mensaje, { origen: "voz" });
@@ -2581,7 +2600,10 @@ async function procesarTurnoVoz(texto, opciones = {}) {
     ok: true,
     respuesta: prepararRespuestasParaVoz(respuestas),
     paso,
-    idioma
+    idioma,
+    id_conversacion: registroConversacion.idConversacion,
+    turno_cliente_id: contextoVoz.turnoClienteId,
+    paso_anterior: pasoAnterior
   };
 }
 

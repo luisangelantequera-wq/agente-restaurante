@@ -128,7 +128,9 @@ function leerTranscripcion(valor) {
       codigo_paso: String(turno?.codigo_paso || "GEN-99").slice(0, 16),
       actor: turno?.actor === "cliente" ? "cliente" : "asistente",
       texto: String(turno?.texto || "").slice(0, 600),
-      creado_en: String(turno?.creado_en || "").slice(0, 32)
+      creado_en: String(turno?.creado_en || "").slice(0, 32),
+      audio_disponible:
+        turno?.actor === "cliente" && turno?.audio_disponible === true
     }));
   } catch {
     return [];

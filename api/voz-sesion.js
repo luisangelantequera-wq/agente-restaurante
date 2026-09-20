@@ -4,6 +4,11 @@ const {
   crearConfiguracionSesion,
   entornoVozHabilitado
 } = require("../lib/voz-realtime");
+const {
+  almacenAudioConfigurado,
+  crearTokenSubidaAudio,
+  idConversacionValido
+} = require("../lib/audio-conversacion");
 
 const MAX_SDP_BYTES = 128 * 1024;
 
@@ -27,6 +32,22 @@ function obtenerSlug(req) {
       req.url || "/api/voz-sesion",
       "https://contactia.net"
     ).searchParams.get("slug") || "";
+  } catch {
+    return "";
+  }
+}
+
+
+function obtenerIdConversacion(req) {
+  if (typeof req.query?.id_conversacion === "string") {
+    return req.query.id_conversacion;
+  }
+
+  try {
+    return new URL(
+      req.url || "/api/voz-sesion",
+      "https://contactia.net"
+    ).searchParams.get("id_conversacion") || "";
   } catch {
     return "";
   }
@@ -159,6 +180,15 @@ module.exports = async (req, res) => {
     res.setHeader("Content-Type", "application/sdp");
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
+    const idConversacion = obtenerIdConversacion(req);
+
+    if (almacenAudioConfigurado() && idConversacionValido(idConversacion)) {
+      const tokenAudio = crearTokenSubidaAudio(req, idConversacion);
+
+      if (tokenAudio) {
+        res.setHeader("X-Contactia-Audio-Token", tokenAudio);
+      }
+    }
     return res.end(cuerpo);
   } catch (error) {
     const idError = crypto.randomBytes(6).toString("hex");
@@ -173,6 +203,7 @@ module.exports = async (req, res) => {
 
 module.exports._pruebas = {
   crearIdentificadorSeguridad,
+  obtenerIdConversacion,
   obtenerSdp,
   obtenerSlug
 };

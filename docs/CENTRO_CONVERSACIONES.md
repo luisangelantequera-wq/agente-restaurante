@@ -2,7 +2,8 @@
 
 El Centro de conversaciones proporciona trazabilidad y pruebas automáticas.
 En el Preview de Restaurante Sol también guarda una transcripción de diagnóstico
-anonimizada. No graba ni almacena audio.
+filtrada. En las sesiones de voz puede conservar fragmentos del cliente durante
+el tramo previo a la solicitud de datos personales.
 
 ## Identificación
 
@@ -28,7 +29,7 @@ Solo en despliegues Preview y únicamente para `restaurante-sol`, el navegador
 envía a `/api/conversaciones` una copia filtrada y no bloqueante. El servidor
 vuelve a aplicar el filtro antes de actualizar una fila de `CONVERSACIONES`.
 
-- No se acepta ningún campo de audio o grabación.
+- El audio nunca viaja dentro de la transcripción ni se guarda en Airtable.
 - Nombre, correo, teléfono, observaciones, localizadores y resúmenes con datos
   del cliente se sustituyen por `[DATO PERSONAL OMITIDO]`.
 - Se conservan los códigos de paso, las preguntas, las respuestas no sensibles
@@ -36,8 +37,33 @@ vuelve a aplicar el filtro antes de actualizar una fila de `CONVERSACIONES`.
 - Una conversación se actualiza por `id_conversacion`; no se crea una fila por
   cada turno.
 - `eliminar_despues` se fija a 30 días y la tarea diaria de privacidad elimina
-  los registros vencidos.
+  los registros vencidos y sus fragmentos de audio privados.
 - Producción no expone ni acepta este endpoint.
+
+## Audio parcial de diagnóstico
+
+- El aviso se reproduce antes de comenzar a escuchar al cliente.
+- Solo se graban intervenciones del cliente en intención, fecha, personas,
+  hora, zona y comprobación inicial de los datos.
+- La captura se detiene antes de preguntar el nombre y no se reanuda durante
+  nombre, correo, teléfono, observaciones ni resumen final.
+- Si la transcripción del turno contiene un correo, teléfono, localizador,
+  enlace o una presentación explícita del nombre, el fragmento se descarta.
+- Cada intervención se cifra en el servidor con AES-256-GCM y se guarda como
+  un archivo independiente en la carpeta privada `Contactia Audios Temporales`
+  de Google Drive. Drive nunca recibe el audio en formato reproducible. La
+  referencia visible en Airtable es únicamente un booleano.
+- La subida requiere un token breve, firmado, limitado a la conversación y a
+  la dirección de la sesión de voz.
+- La reproducción exige la cookie administrativa HttpOnly del centro; nunca se
+  entrega una URL ni un identificador público de Google Drive. El servidor lee
+  el archivo cifrado, verifica su integridad, lo descifra y entrega el binario
+  únicamente a la sesión administrativa.
+- La tarea diaria elimina primero el audio vencido y después la conversación
+  de Airtable. Además ordena a Drive que purgue cualquier archivo cifrado con
+  más de 30 días, incluso si hubiera quedado huérfano por un fallo intermedio.
+  La copia de seguridad diaria ejecuta la misma purga directamente en Apps
+  Script, por lo que la retención no depende de que haya nuevas grabaciones.
 
 ### Revisión automática
 
@@ -98,8 +124,18 @@ La batería inicial cubre:
 Los casos de audio serán una segunda capa. Permitirán verificar también la
 transcripción de voz antes de entregar el texto al motor determinista.
 
-## Fase posterior
+## Activación
 
-Antes del piloto telefónico se definirá por separado el almacenamiento seguro
-de referencias de audio. La grabación no se activará hasta disponer del aviso
-de privacidad, control de acceso y borrado automático específicos para audio.
+La captura permanece inactiva si el Preview no tiene configurada la conexión
+privada existente con Google Apps Script mediante
+`GOOGLE_APPS_SCRIPT_BACKUP_URL`, `BACKUP_UPLOAD_SECRET` y
+`BACKUP_ENCRYPTION_KEY`. Para separar criptográficamente los usos, la clave del
+audio se deriva con un contexto propio y no coincide con la que cifra las
+copias de seguridad. La ausencia del almacén no afecta a la voz, las reservas
+ni las transcripciones filtradas.
+
+El Apps Script crea automáticamente la carpeta `Contactia Audios Temporales`,
+mantiene sus archivos privados y admite las acciones `audio_upload`,
+`audio_read` y `audio_delete_conversations`. Tras modificar
+`scripts/google-drive-backup.gs`, es necesario publicar una nueva versión del
+despliegue de Apps Script para que esas acciones estén disponibles.
