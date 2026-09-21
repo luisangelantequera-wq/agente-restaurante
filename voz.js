@@ -210,7 +210,8 @@
         method: "POST",
         headers: {
           Authorization: `Bearer ${tokenAudio}`,
-          "Content-Type": blob.type.split(";")[0]
+          "Content-Type": "application/octet-stream",
+          "X-Contactia-Audio-Type": blob.type.split(";")[0]
         },
         body: blob
       });

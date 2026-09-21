@@ -42,7 +42,8 @@ function solicitud({
   ip = "203.0.113.20",
   method = "POST",
   token = "token-prueba",
-  tipo = "audio/webm",
+  tipo = "application/octet-stream",
+  tipoAudio = "audio/webm",
   body = Buffer.from("audio-prueba")
 } = {}) {
   return {
@@ -54,6 +55,7 @@ function solicitud({
       authorization: `Bearer ${token}`,
       "content-length": String(body.length),
       "content-type": tipo,
+      "x-contactia-audio-type": tipoAudio,
       "x-forwarded-for": ip
     },
     body
@@ -293,6 +295,34 @@ test("la subida solo existe en Preview y guarda el binario con referencias váli
     assert.equal(guardados[0].idConversacion, "CONV-AUDIO-12345678");
     assert.equal(guardados[0].idTurno, "T003");
     assert.equal(guardados[0].tipo, "audio/webm");
+    assert.deepEqual(guardados[0].contenido, Buffer.from("audio-prueba"));
+  } finally {
+    restaurarEntorno(anterior);
+  }
+});
+
+
+test("la subida binaria conserva el tipo real del audio en una cabecera separada", async () => {
+  const anterior = guardarEntorno();
+  const guardados = [];
+  const manejar = crearManejadorAudio({
+    almacenAudioConfigurado: () => true,
+    validarTokenSubidaAudio: () => true,
+    guardarAudioTurno: async (datos) => {
+      guardados.push(datos);
+    }
+  });
+
+  try {
+    process.env.VERCEL_ENV = "preview";
+    const res = crearRespuesta();
+    await manejar(solicitud({
+      tipo: "application/octet-stream",
+      tipoAudio: "audio/ogg"
+    }), res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(guardados[0].tipo, "audio/ogg");
     assert.deepEqual(guardados[0].contenido, Buffer.from("audio-prueba"));
   } finally {
     restaurarEntorno(anterior);

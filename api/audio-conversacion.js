@@ -96,7 +96,10 @@ function crearManejadorAudio(dependencias = {}) {
     }
 
     if (req.method === "POST") {
-      const tipo = normalizarTipoAudio(req.headers?.["content-type"]);
+      const tipo = normalizarTipoAudio(
+        req.headers?.["x-contactia-audio-type"] ||
+        req.headers?.["content-type"]
+      );
       const contenido = obtenerBuffer(req);
       const tamano = tamanoSolicitud(req, contenido);
       const token = obtenerTokenBearer(req);

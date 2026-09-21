@@ -256,6 +256,8 @@ test("la interfaz activa el micrófono solo bajo el parámetro de prueba", () =>
   assert.match(voz, /Google no está disponible\. Uso la voz de OpenAI/);
   assert.match(voz, /MediaRecorder/);
   assert.match(voz, /\/api\/audio-conversacion/);
+  assert.match(voz, /"Content-Type": "application\/octet-stream"/);
+  assert.match(voz, /"X-Contactia-Audio-Type"/);
   assert.match(voz, /pasoPermiteAudio/);
   assert.match(voz, /contieneDatoPersonalParaAudio/);
   assert.match(voz, /La grabación se detendrá antes de solicitar sus datos personales/);

@@ -281,6 +281,10 @@ test("la página interna es independiente y no se enlaza desde el restaurante", 
 
   assert.match(centroHtml, /Acceso exclusivo de Contactia/);
   assert.match(centroHtml, /noindex, nofollow, noarchive/);
+  assert.ok(
+    centroHtml.indexOf('<option value="todas">Todas</option>') <
+      centroHtml.indexOf('<option value="con_incidencia">Con incidencias</option>')
+  );
   assert.match(centroJs, /textContent/);
   assert.match(centroJs, /\/api\/audio-conversacion/);
   assert.match(centroJs, /Escuchar/);
