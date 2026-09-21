@@ -91,6 +91,72 @@ test("completa una reserva francesa sin usar servicios reales", async () => {
 });
 
 
+test("la reserva confirmada termina con una locución breve sin localizador", async () => {
+  const simulador = await crearSimuladorConversacion();
+  const correo = ["cliente", "example.invalid"].join("@");
+
+  await simulador.enviar("quiero reservar");
+  await simulador.enviar("mañana");
+  await simulador.enviar("para cuatro personas");
+  const respuestaHora = await simulador.enviar("a las 13:30");
+  assert.match(respuestaHora.respuesta, /trece horas y treinta minutos/);
+  assert.doesNotMatch(respuestaHora.respuesta, /13:30|1:30/);
+  await simulador.enviar("interior");
+  await simulador.enviar("sí");
+  await simulador.enviar("Cliente Prueba");
+  await simulador.enviar(correo);
+  await simulador.enviar("621436587");
+  await simulador.enviar("no");
+  const resultado = await simulador.enviar("sí, confirmo");
+
+  assert.equal(resultado.paso, "finalizado");
+  assert.equal(
+    resultado.respuesta,
+    "Gracias por reservar con nosotros. Recibirá un correo con los " +
+      "detalles de su reserva."
+  );
+  assert.doesNotMatch(resultado.respuesta, /SOL-|localizador|https?:/i);
+  assert.ok(
+    simulador.exportarConversacion({ anonimizar: false }).turnos.some(
+      (turno) => /SOL-20260922-ABCDEF1234/.test(turno.texto)
+    )
+  );
+});
+
+
+test("la voz no promete un correo cuando el envío ha fallado", async () => {
+  const simulador = await crearSimuladorConversacion({
+    respuestas: {
+      reservar: [{
+        ok: true,
+        reservado: true,
+        id_reserva: "SOL-20260922-ABCDEF1234",
+        token_gestion: "a".repeat(48),
+        correo_enviado: false,
+        enlace_gestion: "https://contactia.test/r/restaurante-sol/"
+      }]
+    }
+  });
+  const correo = ["cliente", "example.invalid"].join("@");
+
+  await simulador.enviar("quiero reservar");
+  await simulador.enviar("mañana");
+  await simulador.enviar("para cuatro personas");
+  await simulador.enviar("a las 13:30");
+  await simulador.enviar("interior");
+  await simulador.enviar("sí");
+  await simulador.enviar("Cliente Prueba");
+  await simulador.enviar(correo);
+  await simulador.enviar("621436587");
+  await simulador.enviar("no");
+  const resultado = await simulador.enviar("sí, confirmo");
+
+  assert.match(resultado.respuesta, /reserva está confirmada/i);
+  assert.match(resultado.respuesta, /no hemos podido enviar el correo/i);
+  assert.doesNotMatch(resultado.respuesta, /SOL-|https?:/i);
+});
+
+
 test("el Preview solicita transcripción original e idioma en cada turno", () => {
   const voz = fs.readFileSync(
     path.join(__dirname, "..", "voz.js"),

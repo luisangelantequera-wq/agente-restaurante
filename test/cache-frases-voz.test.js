@@ -85,6 +85,14 @@ test("Google pronuncia las horas en formato inequívoco de 24 horas", () => {
     prepararTextoParaVoz("He entendido las 09:00 horas."),
     "He entendido las nueve horas."
   );
+  assert.equal(
+    verbalizarHoraConfirmada("La reserva será a las 13:30."),
+    "La reserva será a las trece horas y treinta minutos."
+  );
+  assert.equal(
+    prepararTextoParaVoz("Hora: 13:30"),
+    "Hora: trece horas y treinta minutos"
+  );
 });
 
 

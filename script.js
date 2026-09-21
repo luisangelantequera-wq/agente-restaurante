@@ -55,6 +55,7 @@ let capturaGuiadaEstricta = false;
 let idiomaConversacion = "es";
 let registroConversacionesRemotoHabilitado = false;
 let temporizadorGuardadoConversacion = null;
+let ultimoCorreoConfirmacionEnviado = null;
 const observadoresMensajes = new Set();
 let contextoTurnoVoz = null;
 const registroConversacion = window.ContactiaCentroConversaciones
@@ -1107,6 +1108,7 @@ async function crearReserva() {
     if (data.reservado === true) {
       tokenGestionActivo = data.token_gestion || "";
       localizadorGestion = data.id_reserva;
+      ultimoCorreoConfirmacionEnviado = data.correo_enviado === true;
       registroConversacion.actualizarContexto({
         resultado: "reserva_confirmada"
       });
@@ -2468,8 +2470,34 @@ async function procesarMensaje(texto, opciones = {}) {
 }
 
 
+function verbalizarHorasParaVoz(texto) {
+  const horas = [
+    "cero", "una", "dos", "tres", "cuatro", "cinco", "seis", "siete",
+    "ocho", "nueve", "diez", "once", "doce", "trece", "catorce",
+    "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve",
+    "veinte", "veintiuna", "veintidós", "veintitrés"
+  ];
+  const minutos = {
+    "00": "",
+    "15": " y quince minutos",
+    "30": " y treinta minutos",
+    "45": " y cuarenta y cinco minutos"
+  };
+
+  return String(texto || "").replace(
+    /\b([01]\d|2[0-3]):(00|15|30|45)(?:\s+horas)?\b/g,
+    (coincidencia, hora, minuto) => {
+      const numeroHora = Number(hora);
+      const sufijoHora = numeroHora === 1 ? "" : " horas";
+
+      return `${horas[numeroHora]}${sufijoHora}${minutos[minuto]}`;
+    }
+  );
+}
+
+
 function prepararRespuestaParaVoz(texto) {
-  return String(texto || "")
+  return verbalizarHorasParaVoz(String(texto || "")
     .replace(/tel:\+?(\d+)/gi, (_, digitos) => {
       const numero = digitos.startsWith("34") && digitos.length === 11
         ? digitos.slice(2)
@@ -2481,7 +2509,7 @@ function prepararRespuestaParaVoz(texto) {
       "\nEl enlace de gestión aparece en pantalla y se ha enviado por correo."
     )
     .replace(/https?:\/\/\S+/gi, "el enlace que aparece en pantalla")
-    .trim();
+    .trim());
 }
 
 
@@ -2527,9 +2555,21 @@ function prepararRespuestasParaVoz(respuestas) {
   const hayResumen = mensajes.some((mensaje) =>
     /^Por favor, revise su reserva:/i.test(mensaje)
   );
+  const hayReservaConfirmada = mensajes.some((mensaje) =>
+    /Reserva confirmada\./i.test(mensaje)
+  );
   const zona = datosReserva.zona_preferida
     ? ` en la zona ${datosReserva.zona_preferida}`
     : "";
+
+  if (paso === "finalizado" && hayReservaConfirmada) {
+    return ultimoCorreoConfirmacionEnviado
+      ? "Gracias por reservar con nosotros. Recibirá un correo con los " +
+          "detalles de su reserva."
+      : "Gracias por reservar con nosotros. Su reserva está confirmada, " +
+          "pero no hemos podido enviar el correo. Los detalles y el " +
+          "localizador aparecen en pantalla.";
+  }
 
   if (paso === "confirmacion" && hayResumen) {
     const telefono = String(datosReserva.telefono || "")
@@ -2634,6 +2674,7 @@ function reiniciarReserva() {
   reservaGestionOriginal = null;
   solicitudEspera = null;
   datosListaEspera = null;
+  ultimoCorreoConfirmacionEnviado = null;
 
   datosReserva = {
     restaurante_id: restauranteActivo.id,

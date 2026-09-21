@@ -14,6 +14,7 @@
             "reservado": true,
             "id_reserva": "SOL-PRUEBA-0001",
             "token_gestion": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "correo_enviado": true,
             "enlace_gestion": "https://contactia.test/gestion-prueba"
           }
         ]
@@ -23,7 +24,7 @@
       { "entrada": "Quiero hacer una recerva", "paso": "fecha", "respuesta_incluye": ["¿Qué día desea reservar?"] },
       { "entrada": "mañana", "paso": "personas", "respuesta_incluye": ["¿Para cuántas personas desea reservar?"] },
       { "entrada": "pa cuatro", "paso": "hora", "respuesta_incluye": ["¿A qué hora desea reservar?"] },
-      { "entrada": "a las quince horas", "paso": "zona", "respuesta_incluye": ["He entendido las 15:00 horas", "¿En qué zona prefiere la mesa?"] },
+      { "entrada": "a las quince horas", "paso": "zona", "respuesta_incluye": ["He entendido las quince horas", "¿En qué zona prefiere la mesa?"] },
       { "entrada": "la quiero fuera", "paso": "confirmacion_datos", "respuesta_incluye": ["zona TERRAZA", "Indique «Sí» o «No»"] },
       { "entrada": "zi", "paso": "nombre", "respuesta_incluye": ["Sí, hay disponibilidad", "¿A nombre de quién hacemos la reserva?"] },
       { "entrada": "$NOMBRE_PRUEBA", "paso": "email", "respuesta_incluye": ["¿Cuál es su correo electrónico?"] },
@@ -31,7 +32,7 @@
       { "entrada": "$TELEFONO_PRUEBA", "paso": "observaciones", "respuesta_incluye": ["¿Desea añadir alguna observación?"] },
       { "entrada": "sí", "paso": "observaciones_detalle", "respuesta_incluye": ["¿Qué observación desea añadir?"] },
       { "entrada": "tengo alergias", "paso": "confirmacion", "respuesta_incluye": ["¿Confirma la reserva?"] },
-      { "entrada": "zi, confirmo", "paso": "finalizado", "respuesta_incluye": ["Reserva confirmada", "SOL-PRUEBA-0001"] }
+      { "entrada": "zi, confirmo", "paso": "finalizado", "respuesta_incluye": ["Gracias por reservar con nosotros", "Recibirá un correo"] }
     ],
     "acciones_esperadas": { "verificar": 2, "reservar": 1 },
     "payload_esperado": {
@@ -74,7 +75,7 @@
       { "entrada": "a las dos de la tarde", "paso": "zona" },
       { "entrada": "interior", "paso": "confirmacion_datos" },
       { "entrada": "no", "paso": "seleccion_correccion_datos", "respuesta_incluye": ["¿Qué dato desea cambiar?"] },
-      { "entrada": "a las ocho de la tarde", "paso": "confirmacion_datos", "respuesta_incluye": ["20:00", "zona INTERIOR"] },
+      { "entrada": "a las ocho de la tarde", "paso": "confirmacion_datos", "respuesta_incluye": ["veinte horas", "zona INTERIOR"] },
       { "entrada": "sí", "paso": "nombre", "respuesta_incluye": ["Sí, hay disponibilidad"] }
     ],
     "acciones_esperadas": { "verificar": 3 },
@@ -108,7 +109,7 @@
       {
         "entrada": "el martes",
         "paso": "confirmacion_datos",
-        "respuesta_incluye": ["cuatro personas", "14:00", "zona INTERIOR"],
+        "respuesta_incluye": ["cuatro personas", "catorce horas", "zona INTERIOR"],
         "respuesta_no_incluye": ["¿A qué hora desea reservar?"]
       },
       { "entrada": "sí", "paso": "nombre", "respuesta_incluye": ["Sí, hay disponibilidad"] }
@@ -139,8 +140,8 @@
       { "entrada": "para dos", "paso": "hora" },
       { "entrada": "a las dos de la tarde", "paso": "zona" },
       { "entrada": "terraza", "paso": "confirmacion_datos" },
-      { "entrada": "sí", "paso": "hora", "respuesta_incluye": ["disponibilidad a las 15:00"] },
-      { "entrada": "a las quince horas", "paso": "confirmacion_datos", "respuesta_incluye": ["15:00", "zona TERRAZA"] },
+      { "entrada": "sí", "paso": "hora", "respuesta_incluye": ["disponibilidad a las quince horas"] },
+      { "entrada": "a las quince horas", "paso": "confirmacion_datos", "respuesta_incluye": ["quince horas", "zona TERRAZA"] },
       { "entrada": "sí", "paso": "nombre", "respuesta_incluye": ["Sí, hay disponibilidad"] }
     ],
     "acciones_esperadas": { "verificar": 4 }
@@ -242,8 +243,8 @@
     },
     "turnos": [
       { "entrada": "modificar", "paso": "seleccion_modificacion", "respuesta_incluye": ["¿Qué desea cambiar"] },
-      { "entrada": "a las cuatro de la tarde", "paso": "confirmacion_modificacion", "respuesta_incluye": ["16:00", "Personas: 4", "¿Confirma el cambio?"] },
-      { "entrada": "zi", "paso": "inicio", "respuesta_incluye": ["Reserva modificada correctamente", "Hora: 16:00"] }
+      { "entrada": "a las cuatro de la tarde", "paso": "confirmacion_modificacion", "respuesta_incluye": ["dieciséis horas", "Personas: 4", "¿Confirma el cambio?"] },
+      { "entrada": "zi", "paso": "inicio", "respuesta_incluye": ["Reserva modificada correctamente", "Hora: dieciséis horas"] }
     ],
     "acciones_esperadas": { "consultar": 2, "modificar": 1 },
     "payload_esperado": {
@@ -476,6 +477,7 @@
             "reservado": true,
             "id_reserva": "SOL-PRUEBA-0003",
             "token_gestion": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "correo_enviado": true,
             "enlace_gestion": "https://contactia.test/gestion-incidencia"
           }
         ]
@@ -497,7 +499,7 @@
       { "entrada": "$EMAIL_PRUEBA", "paso": "telefono" },
       { "entrada": "$TELEFONO_PRUEBA", "paso": "observaciones" },
       { "entrada": "no", "paso": "confirmacion" },
-      { "entrada": "sí, confirmo la reserva", "paso": "finalizado", "respuesta_incluye": ["Reserva confirmada", "SOL-PRUEBA-0003"] }
+      { "entrada": "sí, confirmo la reserva", "paso": "finalizado", "respuesta_incluye": ["Gracias por reservar con nosotros", "Recibirá un correo"] }
     ],
     "acciones_esperadas": { "verificar": 2, "reservar": 1 },
     "revision_esperada": {
@@ -526,6 +528,7 @@
             "reservado": true,
             "id_reserva": "SOL-PRUEBA-0004",
             "token_gestion": "ffffffffffffffffffffffffffffffffffffffffffffffff",
+            "correo_enviado": true,
             "enlace_gestion": "https://contactia.test/gestion-ambigua"
           }
         ]
@@ -552,7 +555,7 @@
       { "entrada": "$EMAIL_PRUEBA", "paso": "telefono" },
       { "entrada": "$TELEFONO_PRUEBA", "paso": "observaciones" },
       { "entrada": "no", "paso": "confirmacion" },
-      { "entrada": "sí, confirmo la reserva", "paso": "finalizado", "respuesta_incluye": ["Reserva confirmada", "SOL-PRUEBA-0004"] }
+      { "entrada": "sí, confirmo la reserva", "paso": "finalizado", "respuesta_incluye": ["Gracias por reservar con nosotros", "Recibirá un correo"] }
     ],
     "acciones_esperadas": { "verificar": 2, "reservar": 1 },
     "revision_esperada": {

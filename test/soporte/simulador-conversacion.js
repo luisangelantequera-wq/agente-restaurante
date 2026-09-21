@@ -99,6 +99,7 @@ function crearServidorSimulado(configuracion = {}) {
         reservado: true,
         id_reserva: "SOL-20260922-ABCDEF1234",
         token_gestion: "a".repeat(48),
+        correo_enviado: true,
         enlace_gestion: "https://contactia.test/r/restaurante-sol/#gestion=" +
           "a".repeat(48)
       };
