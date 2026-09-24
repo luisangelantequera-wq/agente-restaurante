@@ -861,7 +861,8 @@ async function comprobarDisponibilidad() {
         personas: datosReserva.personas,
         fecha: datosReserva.fecha,
         hora: datosReserva.hora,
-        zona_preferida: datosReserva.zona_preferida
+        zona_preferida: datosReserva.zona_preferida,
+        ofertaPendiente: true
       }
       : null;
 
@@ -889,7 +890,7 @@ async function comprobarDisponibilidad() {
     if (puedeOfrecerListaEspera) {
       agregarMensaje(
         `Si prefiere mantener las ${solicitudEspera.hora}, puedo apuntarle ` +
-        "a la lista de espera. Indique: lista de espera.",
+        "a la lista de espera. ¿Desea que le apunte? Indique «Sí» o «No».",
         "bot"
       );
     }
@@ -966,7 +967,7 @@ function mostrarConfirmacionListaEspera() {
 
   agregarMensaje(
     `Voy a apuntarle en la lista de espera:\n\n` +
-    `📅 Fecha: ${mostrarFecha(datosListaEspera.fecha)}\n` +
+    `📅 Fecha: ${mostrarFechaParaVoz(datosListaEspera.fecha)}\n` +
     `🕒 Hora solicitada: ${datosListaEspera.hora}\n` +
     `👥 Personas: ${datosListaEspera.personas}\n` +
     lineaZona +
@@ -1575,6 +1576,19 @@ async function procesarMensaje(texto, opciones = {}) {
 
   if (await atenderPreguntaInformativa(mensaje, opciones)) {
     return;
+  }
+
+  if (paso === "hora" && solicitudEspera?.ofertaPendiente) {
+    solicitudEspera.ofertaPendiente = false;
+    const respuesta = window.ContactiaEntrada.interpretarRespuestaBinaria(mensaje);
+    if (respuesta === "si") {
+      iniciarListaEspera();
+      return;
+    }
+    if (respuesta === "no") {
+      agregarMensaje("De acuerdo. Puede indicarme otra hora, otro día o un número diferente de personas.", "bot");
+      return;
+    }
   }
 
   if (paso === "hora" && solicitudEspera && quiereListaEspera(mensaje)) {
