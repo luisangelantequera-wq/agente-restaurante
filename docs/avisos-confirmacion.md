@@ -13,3 +13,13 @@ Si falla el guardado del seguimiento tras la aceptación, no se repite el email.
 El centro muestra únicamente avisos pendientes de reservas confirmadas y datos operativos. No requiere ni muestra nombre, correo o teléfono. Los registros históricos sin estos campos no se consideran automáticamente fallidos.
 
 La funcionalidad está limitada a Preview. El único cambio externo necesario se ha realizado en la base de pruebas, no en la base de Producción.
+
+## Consulta posterior del resultado
+
+Se consulta `GET /emails/{id}` de Resend con la clave existente (debe permitir lectura). Referencia: https://resend.com/docs/api-reference/emails/retrieve-email . Solo se utiliza `last_event`; los contactos y el cuerpo que pueda devolver el proveedor no se guardan ni se muestran.
+
+En Preview, cada consulta de disponibilidad comprueba como máximo un correo del restaurante. La actualización del centro comprueba como máximo tres. Se prioriza el que lleva más tiempo sin comprobarse, con intervalo mínimo de cinco minutos. No hay todavía ejecución periódica independiente de la actividad, ni webhooks.
+
+Se registran `entregado` (al servidor receptor, no prueba de lectura humana), `demorado` o `rechazado`. Los rechazos se muestran como incidencias para contactar por otra vía, sin iniciar llamadas, SMS o reenvíos. Se revisan reservas confirmadas desde la fecha actual y con identificador de envío conocido. Sin identificador o con permisos insuficientes, no se infiere entrega ni rechazo. Un fallo al consultar conserva el estado anterior.
+
+La consulta actualiza solo los campos `aviso_cliente_*`. No modifica reservas, mesas ni retenciones. La protección de la reserva no depende del resultado del aviso.

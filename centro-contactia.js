@@ -95,6 +95,7 @@
       listaAvisos.replaceChildren();
       const avisos = datos.avisos || [];
       estadoAvisos.textContent = avisos.length ? `${avisos.length} avisos pendientes. Las reservas siguen confirmadas.` : "No hay avisos pendientes registrados.";
+      if (datos.seguimiento) estadoAvisos.textContent += " " + datos.seguimiento;
       for (const aviso of avisos) {
         const fila = document.createElement("article");
         fila.className = "operacion-reserva";
