@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { ejecutar, elegible } = require('../lib/avisos-programados');
 const { enviarConReintentos, huellaPayload } = require('../lib/aviso-confirmacion');
-const handler = require('../api/avisos-programados');
+const handler = require('../lib/endpoint-avisos-programados');
 const payload = { from: 'prueba@example.invalid', to: ['cliente@example.invalid'], subject: 'Confirmada', text: 'Reserva simulada' };
 const ahora = Date.now();
 function campos(cambios = {}, metadatos = {}) {

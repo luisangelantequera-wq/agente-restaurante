@@ -12,7 +12,7 @@
         "cdg1"
       ]
     },
-    "api/avisos-programados.js": {
+    "api/centro-conversaciones.js": {
       "maxDuration": 60
     }
   },

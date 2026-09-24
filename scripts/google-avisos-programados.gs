@@ -6,7 +6,7 @@ function comprobarAvisosContactia() {
     const propiedades = PropertiesService.getScriptProperties();
     const secreto = propiedades.getProperty('CONTACTIA_AVISOS_SECRET') || '';
     if (secreto.length < 32) throw new Error('Configure CONTACTIA_AVISOS_SECRET en las propiedades del script.');
-    const respuesta = UrlFetchApp.fetch('https://agente-restaurante-git-prototipo-voz-reservas-projects-46f41d07.vercel.app/api/avisos-programados', {
+    const respuesta = UrlFetchApp.fetch('https://agente-restaurante-git-prototipo-voz-reservas-projects-46f41d07.vercel.app/api/centro-conversaciones?accion=ejecutar_programados', {
       method: 'get', headers: { Authorization: 'Bearer ' + secreto },
       followRedirects: false, muteHttpExceptions: true
     });
