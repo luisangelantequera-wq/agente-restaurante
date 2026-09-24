@@ -1073,6 +1073,15 @@ async function crearListaEspera() {
 
 
 // 9️⃣ CREAR LA RESERVA REAL
+function mostrarResultadoReservaIncierto() {
+  agregarMensaje(
+    "No he podido comprobar si su reserva ha quedado confirmada. Para evitar duplicarla, no vuelva a realizarla todavía. Revise si ha recibido el correo de confirmación; si no lo recibe, contacte con el restaurante para comprobarla.",
+    "bot"
+  );
+  paso = "finalizado";
+}
+
+
 async function crearReserva() {
   agregarMensaje(
     "Gracias 😊 Estoy creando su reserva...",
@@ -1110,8 +1119,11 @@ async function crearReserva() {
         return;
       }
       if (data.retencion_error === "en_curso") {
-        agregarMensaje("Esta solicitud ya se está tramitando. Revise su correo antes de iniciar otra reserva.", "bot");
-        paso = "finalizado";
+        mostrarResultadoReservaIncierto();
+        return;
+      }
+      if (respuesta.status >= 500) {
+        mostrarResultadoReservaIncierto();
         return;
       }
       agregarMensaje(
@@ -1176,25 +1188,10 @@ async function crearReserva() {
       return;
     }
 
-    agregarMensaje(
-      "El servidor respondió, pero no pude confirmar que la reserva se haya creado.",
-      "bot"
-    );
-
-    paso = "inicio";
-
+    mostrarResultadoReservaIncierto();
   } catch (error) {
-    console.error(
-      "Error al crear la reserva:",
-      error
-    );
-
-    agregarMensaje(
-      "No he podido conectar con el servidor para crear la reserva.",
-      "bot"
-    );
-
-    paso = "inicio";
+    console.error("Error al comprobar el resultado de la reserva:", error);
+    mostrarResultadoReservaIncierto();
   }
 }
 

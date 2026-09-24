@@ -82,3 +82,21 @@ test("conversación: rechazar la espera tras perder la mesa no registra solicitu
   await s.enviar("no");
   assert.equal(s.solicitudes.filter(r => r.accion === "lista_espera_crear").length, 0);
 });
+
+for (const [caso, respuesta] of [
+  ['conexión perdida', { error_red_simulado: true }],
+  ['error interno', { ok: false, status_simulado: 500 }],
+  ['respuesta incompleta', { ok: true }],
+  ['guardado en curso', { ok: false, retencion_error: 'en_curso', status_simulado: 409 }]
+]) {
+  test(`conversación: ${caso} informa de incertidumbre sin repetir la reserva`, async () => {
+    const s = await hastaResumen({ respuestas: { reservar: [respuesta] } });
+    const r = await s.enviar('sí, confirmo');
+    assert.equal(r.paso, 'finalizado');
+    assert.match(r.respuesta, /No he podido comprobar/);
+    assert.match(r.respuesta, /si ha recibido el correo/);
+    assert.doesNotMatch(r.respuesta, /✅ Reserva confirmada|No se ha podido crear/);
+    await s.enviar('sí, confirmo');
+    assert.equal(s.solicitudes.filter(r => r.accion === 'reservar').length, 1);
+  });
+}

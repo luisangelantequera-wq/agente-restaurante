@@ -170,6 +170,7 @@ function crearServidorSimulado(configuracion = {}) {
     const datos = cola.length > 0
       ? cola.shift()
       : respuestaPredeterminada(solicitud);
+    if (datos.error_red_simulado) throw new Error("Conexión interrumpida en la prueba");
     const status = datos.status_simulado || (datos.ok === false ? 400 : 200);
 
     return crearRespuesta(datos, status);
