@@ -1713,12 +1713,16 @@ async function enviarCorreoResend({
   contexto,
   seguimiento
 }) {
+  if (seguimiento?.preparar) return seguimiento.preparar({
+    from: process.env.EMAIL_FROM || "Contactia <reservas@contactia.net>",
+    to: [destinatario], subject: asunto, text: texto, html
+  });
   if (seguimiento) {
     try {
       seguimiento.resultado = await require("../lib/aviso-confirmacion").enviarConReintentos({
         payload: { from: process.env.EMAIL_FROM || "Contactia <reservas@contactia.net>", to: [destinatario], subject: asunto, text: texto, html },
         clave: seguimiento.clave, apiKey: process.env.RESEND_API_KEY,
-        fetchImpl: fetch, registrar: seguimiento.registrar
+        fetchImpl: fetch, registrar: seguimiento.registrar, contexto: seguimiento.contexto
       });
       return seguimiento.resultado.estado === "aceptado";
     } catch {
@@ -4817,6 +4821,7 @@ const prefijoReserva = normalizarPrefijoReserva(
       const nombreRestauranteReserva = obtenerNombreRestaurante(restaurante);
       const seguimientoAviso = process.env.VERCEL_ENV === "preview" ? {
         clave: `confirmacion/${process.env.AIRTABLE_BASE_ID}/${reservaCreada.id}`,
+        contexto: { idioma: ["en", "fr"].includes(idioma) ? idioma : "es", zona: nombreZona(zonaReserva), mensaje_huella: require("../lib/aviso-confirmacion").huellaPayload(observacionesConZona(mensaje, zonaReserva) || "") },
         registrar: async detalle => {
           await consultarAirtable(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaCreada.id}`, {
             method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -4942,3 +4947,13 @@ module.exports._seguridad = {
 };
 
 
+
+// Preparación sin efectos: el programador compara la huella antes de enviar.
+module.exports.prepararAviso = async (reserva, restaurante, detalle) => enviarCorreoConfirmacionReserva({
+  destinatario: reserva.email, nombre: reserva.nombre_completo,
+  nombreRestaurante: obtenerNombreRestaurante(restaurante), fecha: reserva.fecha,
+  hora: reserva.hora, personas: reserva.personas, zona: detalle.zona,
+  localizador: reserva.id_reserva, idioma: detalle.idioma,
+  enlaceGestion: generarEnlaceGestion(reserva.token_gestion, obtenerSlugPublicoRestaurante(restaurante)),
+  seguimiento: { preparar: payload => payload }
+});

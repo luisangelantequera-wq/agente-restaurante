@@ -3,10 +3,17 @@
   "version": 2,
   "functions": {
     "api/voz-sesion.js": {
-      "regions": ["cdg1"]
+      "regions": [
+        "cdg1"
+      ]
     },
     "api/voz-sintesis.js": {
-      "regions": ["cdg1"]
+      "regions": [
+        "cdg1"
+      ]
+    },
+    "api/avisos-programados.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -68,5 +75,3 @@
     }
   ]
 }
-
-

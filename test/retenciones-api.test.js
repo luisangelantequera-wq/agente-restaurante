@@ -67,6 +67,7 @@ function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
           })
         }
         : nombre === "../lib/aviso-confirmacion" ? {
+          ...requerir(nombre),
           enviarConReintentos: opciones => requerir(nombre).enviarConReintentos({ ...opciones, esperar: async () => {} })
         }
         : nombre === "../lib/auditoria" ? { registrarAuditoria: async () => {}, determinarOrigenAuditoria: () => "prueba" }
@@ -81,7 +82,7 @@ function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
       return { status: res.statusCode, ...res.body };
     };
   }
-  return { instancia, redis, reservas, escrituras, correos, fallarPost: () => { fallarPost = true; } };
+  return { instancia, restaurante, redis, reservas, escrituras, correos, fallarPost: () => { fallarPost = true; } };
 }
 
 test("API real: dos verificaciones simultáneas solo anuncian disponibilidad a una", async () => {
@@ -219,4 +220,17 @@ test("API: correo aceptado se registra separado de la confirmación", async () =
   assert.equal(f.estado, "confirmada");
   assert.equal(f.aviso_cliente_estado, "aceptado");
   assert.equal(e.correos.length, 1);
+});
+
+for (const idioma of ["es", "en", "fr"]) test(`API: reconstrucción diferida idéntica al envío original (${idioma})`, async () => {
+  const e = entorno({ avisos: true }), a = e.instancia();
+  const oferta = await a({ ...datos, accion: "verificar" });
+  await a({ ...datos, ...contacto, idioma, accion: "reservar", retencion_token: oferta.retencion_token });
+  const f = [...e.reservas.values()][0].fields;
+  const detalle = JSON.parse(f.aviso_cliente_detalle);
+  const { huellaPayload } = require('../lib/aviso-confirmacion');
+  const payload = await require('../api/chat').prepararAviso(f, e.restaurante, detalle);
+  assert.equal(huellaPayload(payload), detalle.huella);
+  assert.equal(huellaPayload(f.mensaje || ''), detalle.mensaje_huella);
+  assert.equal(JSON.stringify(payload), e.correos[0].body);
 });
