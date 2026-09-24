@@ -56,6 +56,22 @@ let idiomaConversacion = "es";
 let registroConversacionesRemotoHabilitado = false;
 let temporizadorGuardadoConversacion = null;
 let ultimoCorreoConfirmacionEnviado = null;
+let retencionActiva = null;
+
+function liberarRetencionActiva() {
+  const anterior = retencionActiva;
+  retencionActiva = null;
+  if (!anterior) return;
+  // keepalive ayuda al cerrar la pestaña; si no llega, la oferta caduca sola.
+  void fetch("/api/chat", {
+    method: "POST", keepalive: true,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accion: "liberar_retencion", restaurante_id: anterior.restaurante_id,
+      retencion_token: anterior.token })
+  }).catch(() => {});
+}
+
+window.addEventListener("pagehide", liberarRetencionActiva);
 const observadoresMensajes = new Set();
 let contextoTurnoVoz = null;
 const registroConversacion = window.ContactiaCentroConversaciones
@@ -519,6 +535,7 @@ async function validarMomentoReservaAntesDeContinuar() {
       },
       body: JSON.stringify({
         accion: "verificar",
+        solo_validar_momento: true,
         restaurante_id: datosReserva.restaurante_id,
         personas: datosReserva.personas,
         fecha: datosReserva.fecha,
@@ -715,6 +732,8 @@ function normalizarTelefono(texto) {
 
 // 8️⃣ COMPROBAR DISPONIBILIDAD
 async function comprobarDisponibilidad() {
+  const retencionAnterior = retencionActiva;
+  retencionActiva = null;
   agregarMensaje(
     "Un momento, voy a comprobar si hay mesas disponibles...",
     "bot"
@@ -728,6 +747,7 @@ async function comprobarDisponibilidad() {
       },
       body: JSON.stringify({
         accion: "verificar",
+        retencion_token: retencionAnterior?.token || "",
         restaurante_id: datosReserva.restaurante_id,
         personas: datosReserva.personas,
         fecha: datosReserva.fecha,
@@ -737,8 +757,6 @@ async function comprobarDisponibilidad() {
     });
 
     const data = await respuesta.json();
-
-    console.log("Respuesta verificar:", data);
 
     if (!respuesta.ok || data.ok === false) {
       agregarMensaje(
@@ -766,6 +784,10 @@ async function comprobarDisponibilidad() {
     }
 
     if (data.disponible) {
+      retencionActiva = data.retencion_token ? {
+        token: data.retencion_token, vence: data.retencion_hasta,
+        restaurante_id: datosReserva.restaurante_id
+      } : null;
       solicitudEspera = null;
       const detalleZona = datosReserva.zona_preferida
         ? ` en ${datosReserva.zona_preferida}`
@@ -993,11 +1015,10 @@ async function crearListaEspera() {
       solicitudEspera = null;
       datosListaEspera = null;
       agregarMensaje(
-        "¡Se acaba de liberar una mesa adecuada! No le he añadido a la " +
-        "lista de espera; puede confirmar ahora la reserva.",
+        "Parece que se ha liberado una mesa adecuada. Voy a comprobar si podemos reservarla.",
         "bot"
       );
-      mostrarConfirmacionNuevaReserva();
+      await comprobarDisponibilidad();
       return;
     }
 
@@ -1049,6 +1070,7 @@ async function crearReserva() {
       },
       body: JSON.stringify({
         accion: "reservar",
+        retencion_token: retencionActiva?.token || "",
         restaurante_id: datosReserva.restaurante_id,
         personas: datosReserva.personas,
         fecha: datosReserva.fecha,
@@ -1064,9 +1086,17 @@ async function crearReserva() {
 
     const data = await respuesta.json();
 
-    console.log("Respuesta reservar:", data);
-
     if (!respuesta.ok || data.ok === false) {
+      if (data.retencion_error === "caducada" || data.retencion_error === "conflicto") {
+        agregarMensaje("La retención temporal ha terminado. Voy a comprobar de nuevo la disponibilidad; sus datos se conservarán.", "bot");
+        await comprobarDisponibilidad();
+        return;
+      }
+      if (data.retencion_error === "en_curso") {
+        agregarMensaje("Esta solicitud ya se está tramitando. Revise su correo antes de iniciar otra reserva.", "bot");
+        paso = "finalizado";
+        return;
+      }
       agregarMensaje(
         `No se ha podido crear la reserva: ${
           data.error || "Error desconocido"
@@ -1106,6 +1136,7 @@ async function crearReserva() {
     }
 
     if (data.reservado === true) {
+      retencionActiva = null;
       tokenGestionActivo = data.token_gestion || "";
       localizadorGestion = data.id_reserva;
       ultimoCorreoConfirmacionEnviado = data.correo_enviado === true;
@@ -2383,6 +2414,8 @@ async function procesarMensaje(texto, opciones = {}) {
     const campoCorreccion = window.ContactiaEntrada
       .detectarCampoCorreccion(mensaje);
 
+    if (["hora", "fecha", "personas", "zona"].includes(campoCorreccion)) liberarRetencionActiva();
+
     if (campoCorreccion === "hora") {
       paso = "hora";
       agregarMensaje("¿A qué hora desea cambiar la reserva?", "bot");
@@ -2667,6 +2700,7 @@ window.ContactiaVozBridge = {
 
 // 1️⃣1️⃣ REINICIAR
 function reiniciarReserva() {
+  liberarRetencionActiva();
   paso = "inicio";
   capturaGuiadaEstricta = false;
   localizadorGestion = "";

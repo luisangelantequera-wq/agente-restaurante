@@ -1,6 +1,7 @@
 // ============================================================
 
 const crypto = require("crypto");
+const { desdeEntorno: almacenRetenciones, ErrorRetencion } = require("../lib/retenciones-mesas");
 const {
   calcularPrivacidadHastaDesdeAhora,
   crearMetadatosPrivacidadListaEspera,
@@ -52,6 +53,7 @@ const ACCIONES_PERMITIDAS = new Set([
   "consultar",
   "enviar_contacto_restaurante",
   "lista_espera_crear",
+  "liberar_retencion",
   "modificar",
   "ocupar_mesa",
   "opciones_mesas",
@@ -99,6 +101,7 @@ const LIMITES_CAMPOS_TEXTO = {
   telefono: 25,
   tipo_recurso: 20,
   token_gestion: 48,
+  retencion_token: 48,
   zona_preferida: 80
 };
 // CONTACTIA V2 - api/chat.js
@@ -430,7 +433,8 @@ async function buscarAsignacionDisponible(
   duracionReservaMinutos,
   reservaExcluirId = null,
   devolverTodas = false,
-  zonaPreferidaId = null
+  zonaPreferidaId = null,
+  incluirRetenciones = true
 ) {
 
 
@@ -497,6 +501,14 @@ const formulaReservas =
   }
 
   const finSolicitado = inicioSolicitado + duracion;
+
+  const retenciones = almacenRetenciones();
+  if (retenciones && incluirRetenciones) {
+    const bloqueadas = await retenciones.mesasBloqueadas(restauranteRecordId, {
+      fecha, hora, duracion, personas: Number(personas), zona: zonaPreferidaId || ""
+    }, reservaExcluirId || "");
+    for (const id of bloqueadas) mesasOcupadas.add(id);
+  }
 
   for (const reserva of reservas) {
     if (reserva.id === reservaExcluirId) {
@@ -633,7 +645,7 @@ const formulaReservas =
       );
       if (
         capacidad < personasNum ||
-        (!devolverTodas && capacidad > personasNum + margenNum)
+        ((!devolverTodas || !incluirRetenciones) && capacidad > personasNum + margenNum)
       ) {
         return null;
       }
@@ -766,8 +778,27 @@ async function confirmarReservaSinConflictos(
   duracionReservaMinutos,
   mesasAsignadas,
   reservasExcluirIds = [],
-  estadoGanador = "confirmada"
+  estadoGanador = "confirmada",
+  retencionPrevia = null
 ) {
+  const retenciones = almacenRetenciones();
+  let retencion = retencionPrevia;
+  if (retenciones && !retencion) {
+    const datos = { fecha, hora, duracion: Number(duracionReservaMinutos),
+      personas: Number(reservaCreada.fields.personas), zona: "" };
+    retencion = await retenciones.adquirir(restauranteRecordId, datos,
+      [{ ids: mesasAsignadas }], { registro: reservasExcluirIds[0] || "" });
+    if (!retencion) {
+      const rechazada = await consultarAirtable(
+        `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaCreada.id}`,
+        { method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { estado: "rechazada_conflicto",
+            privacidad_hasta: calcularPrivacidadHastaDesdeAhora() } }) }
+      );
+      return { confirmada: false, reserva: rechazada };
+    }
+    await retenciones.iniciar(restauranteRecordId, retencion.token, datos);
+  }
   const formula =
     `AND(` +
     `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
@@ -788,7 +819,7 @@ async function confirmarReservaSinConflictos(
   const idsMesas = new Set(mesasAsignadas);
   const idsReservasExcluidas = new Set(reservasExcluirIds);
   const ahora = Date.now();
-  const pendientesExpiradas = reservasRestaurante.filter((reserva) => {
+  const pendientesExpiradas = retenciones ? [] : reservasRestaurante.filter((reserva) => {
     if (reserva.id === reservaCreada.id) {
       return false;
     }
@@ -867,7 +898,7 @@ async function confirmarReservaSinConflictos(
       a.id.localeCompare(b.id)
     );
   const esGanadora =
-    !hayConfirmadaAnterior && pendientes[0]?.id === reservaCreada.id;
+    !hayConfirmadaAnterior && (Boolean(retenciones) || pendientes[0]?.id === reservaCreada.id);
   const estadoFinal = esGanadora ? estadoGanador : "rechazada_conflicto";
   const urlReserva =
     `https://api.airtable.com/v0/` +
@@ -885,7 +916,38 @@ async function confirmarReservaSinConflictos(
     })
   });
 
-  return { confirmada: esGanadora, reserva: actualizada };
+  if (retenciones) {
+    if (!esGanadora) await retenciones.descartar(restauranteRecordId, retencion.token);
+    else if (estadoGanador !== "pendiente") {
+      await retenciones.finalizar(restauranteRecordId, retencion.token, reservaCreada.id);
+    }
+  }
+  return { confirmada: Boolean(esGanadora), reserva: actualizada, retencion };
+}
+
+// Tras conseguir exclusión sobre una reserva, volver a leerla evita aplicar
+// una edición a una versión que otro operador acaba de cambiar.
+async function comprobarVersionReserva(reserva, retenciones, restauranteId, token) {
+  const actual = await consultarAirtable(
+    `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reserva.id}`
+  );
+  const version = r => JSON.stringify([r.fields.estado, r.fields.fecha, r.fields.hora,
+    r.fields.personas, [...(r.fields.mesa || [])].sort()]);
+  if (version(actual) !== version(reserva)) {
+    await retenciones.descartar(restauranteId, token);
+    throw new ErrorRetencion("conflicto", "La reserva ha cambiado. Consulte sus datos antes de continuar.");
+  }
+}
+
+async function protegerCambioRegistro(restauranteId, reserva) {
+  const retenciones = almacenRetenciones();
+  if (!retenciones) return null;
+  const token = await retenciones.iniciarCambioRegistro(restauranteId, reserva.id, {
+    fecha: String(reserva.fields.fecha).slice(0, 10), hora: reserva.fields.hora,
+    duracion: 1, personas: Number(reserva.fields.personas), zona: ""
+  });
+  await comprobarVersionReserva(reserva, retenciones, restauranteId, token);
+  return { retenciones, token };
 }
 
 
@@ -2395,6 +2457,13 @@ module.exports = async (req, res) => {
       restaurante_id
     );
 
+    if (accion === "liberar_retencion") {
+      const retenciones = almacenRetenciones();
+      const restaurante = await buscarRestaurante(restaurante_id);
+      if (retenciones && restaurante) await retenciones.liberar(restaurante.id, body.retencion_token);
+      return responder(res, 200, { ok: true });
+    }
+
     if (
       ["consultar", "cancelar", "modificar"].includes(accion) &&
       !token_gestion &&
@@ -2581,6 +2650,7 @@ module.exports = async (req, res) => {
           ? { privacidad_hasta: calcularPrivacidadHastaDesdeAhora() }
           : {})
       };
+      const cambioEstado = await protegerCambioRegistro(restauranteEstado.id, reservaEstado);
       const reservaActualizadaEstado = await consultarAirtable(
         urlReservaEstado,
         {
@@ -2590,6 +2660,9 @@ module.exports = async (req, res) => {
         }
       );
 
+      if (cambioEstado) await cambioEstado.retenciones.terminarCambioRegistro(
+        restauranteEstado.id, cambioEstado.token, estadoNuevo === "libre"
+      );
       await registrarAuditoria({
         restauranteId: restauranteIdEstado,
         reservaId: reservaActualizadaEstado.fields.id_reserva,
@@ -3169,6 +3242,8 @@ module.exports = async (req, res) => {
       const urlReserva =
         `https://api.airtable.com/v0/` +
         `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reserva.id}`;
+      const restauranteCancelacionId = reserva.fields.restaurante?.[0];
+      const cambioCancelacion = await protegerCambioRegistro(restauranteCancelacionId, reserva);
       const reservaActualizada = await consultarAirtable(urlReserva, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -3180,6 +3255,9 @@ module.exports = async (req, res) => {
         })
       });
 
+      if (cambioCancelacion) await cambioCancelacion.retenciones.terminarCambioRegistro(
+        restauranteCancelacionId, cambioCancelacion.token, true
+      );
       await registrarAuditoria({
         restauranteId: restaurante_id,
         reservaId: reservaActualizada.fields.id_reserva,
@@ -3650,9 +3728,12 @@ const prefijoReserva = normalizarPrefijoReserva(
     // ========================================================
 
     if (accion === "verificar") {
-
-      const mesaLibre =
-await buscarAsignacionDisponible(
+      if (body.solo_validar_momento === true) return responder(res, 200, { ok: true, momento_valido: true });
+      const retenciones = almacenRetenciones();
+      if (retenciones && body.retencion_token) {
+        await retenciones.liberar(restaurante.id, body.retencion_token);
+      }
+      const asignaciones = await buscarAsignacionDisponible(
   restaurante_id,
   restaurante.id,
   fecha,
@@ -3661,9 +3742,15 @@ await buscarAsignacionDisponible(
   margenCapacidad,
   duracionReservaMinutos,
   null,
-  false,
-  zonaReserva?.id || null
+  Boolean(retenciones),
+  zonaReserva?.id || null,
+  !retenciones
 );
+      const retencion = retenciones ? await retenciones.adquirir(restaurante.id, {
+        fecha, hora, duracion: Number(duracionReservaMinutos),
+        personas: numeroPersonas, zona: zonaReserva?.id || ""
+      }, asignaciones) : null;
+      const mesaLibre = retenciones ? retencion?.asignacion : asignaciones;
 
 
       if (!mesaLibre) {
@@ -3714,6 +3801,7 @@ await buscarAsignacionDisponible(
         ok: true,
         disponible: true,
         zona: nombreZona(zonaReserva),
+        ...(retencion ? { retencion_token: retencion.token, retencion_hasta: retencion.vence } : {}),
 
         mesa: {
           id: mesaLibre.ids[0],
@@ -3897,6 +3985,9 @@ await buscarAsignacionDisponible(
       const urlReserva =
         `https://api.airtable.com/v0/` +
         `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaActual.id}`;
+      if (resultadoBloqueo.retencion) await comprobarVersionReserva(
+        reservaActual, almacenRetenciones(), restaurante.id, resultadoBloqueo.retencion.token
+      );
       const reservaModificada = await consultarAirtable(urlReserva, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -3919,6 +4010,9 @@ await buscarAsignacionDisponible(
         })
       });
 
+      if (resultadoBloqueo.retencion) await almacenRetenciones().finalizar(
+        restaurante.id, resultadoBloqueo.retencion.token, reservaActual.id
+      );
       await registrarAuditoria({
         restauranteId: restaurante_id,
         reservaId: reservaModificada.fields.id_reserva,
@@ -4200,6 +4294,9 @@ await buscarAsignacionDisponible(
       const urlReserva =
         `https://api.airtable.com/v0/` +
         `${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaActual.id}`;
+      if (resultadoBloqueo.retencion) await comprobarVersionReserva(
+        reservaActual, almacenRetenciones(), restaurante.id, resultadoBloqueo.retencion.token
+      );
       const reservaActualizada = await consultarAirtable(urlReserva, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -4207,6 +4304,9 @@ await buscarAsignacionDisponible(
           fields: { mesa: asignacionElegida.ids }
         })
       });
+      if (resultadoBloqueo.retencion) await almacenRetenciones().finalizar(
+        restaurante.id, resultadoBloqueo.retencion.token, reservaActual.id
+      );
 
       await registrarAuditoria({
         restauranteId: restaurante_id,
@@ -4262,6 +4362,8 @@ await buscarAsignacionDisponible(
 
     if (accion === "reservar" || accion === "reservar_panel") {
       const esReservaPanel = accion === "reservar_panel";
+      const retenciones = almacenRetenciones();
+      let retencionCliente = null;
 
       // Para crear la reserva necesitamos estos datos.
       if (!datosContactoValidos(
@@ -4430,6 +4532,17 @@ await buscarAsignacionDisponible(
           capacidad: capacidadManual,
           tipo: "manual"
         };
+      } else if (retenciones && !esReservaPanel) {
+        const candidatas = await buscarAsignacionDisponible(
+          restaurante_id, restaurante.id, fecha, hora, numeroPersonas,
+          margenCapacidad, duracionReservaMinutos, null, true, zonaReserva?.id || null, false
+        );
+        const datosRetencion = { fecha, hora, duracion: Number(duracionReservaMinutos),
+          personas: numeroPersonas, zona: zonaReserva?.id || "" };
+        const retenida = await retenciones.iniciar(restaurante.id, body.retencion_token, datosRetencion);
+        retencionCliente = { token: body.retencion_token };
+        mesaLibre = candidatas.find(c => mismosIdsMesa(c.ids, retenida.mesas));
+        if (!mesaLibre) await retenciones.descartar(restaurante.id, body.retencion_token);
       } else {
         mesaLibre = await buscarAsignacionDisponible(
           restaurante_id,
@@ -4501,6 +4614,7 @@ await buscarAsignacionDisponible(
         });
 
         if (!validacionAntelacionActual.valido) {
+          if (retencionCliente) await retenciones.descartar(restaurante.id, retencionCliente.token);
           return responder(
             res,
             200,
@@ -4576,7 +4690,10 @@ await buscarAsignacionDisponible(
         fecha,
         hora,
         duracionReservaMinutos,
-        mesaLibre.ids
+        mesaLibre.ids,
+        [],
+        "confirmada",
+        retencionCliente
       );
 
       if (!resultadoConfirmacion.confirmada) {
@@ -4723,6 +4840,12 @@ await buscarAsignacionDisponible(
 
 
   } catch (error) {
+
+    if (error instanceof ErrorRetencion) {
+      return responder(res, error.codigo === "servicio" || error.codigo === "configuracion" ? 503 : 409, {
+        ok: false, error: error.message, retencion_error: error.codigo
+      });
+    }
 
     const idError = crypto.randomBytes(6).toString("hex");
 
