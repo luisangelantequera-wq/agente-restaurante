@@ -249,6 +249,25 @@ module.exports = async (req, res) => {
     return responder(res, 401, { ok: false, error: "Sesión no válida o caducada." });
   }
 
+  if (cuerpo.accion === "listar_avisos") {
+    try {
+      const { leerAirtable } = require("../lib/revision-retenciones");
+      const filas = await leerAirtable("RESERVAS", ["id_reserva", "fecha", "hora", "personas", "estado", "aviso_cliente_estado", "aviso_cliente_detalle"],
+        "AND({aviso_cliente_estado}='pendiente',{estado}='confirmada')");
+      const avisos = filas.map(r => {
+        let detalle = {};
+        try { detalle = JSON.parse(r.fields.aviso_cliente_detalle || "{}"); } catch {}
+        const motivos = { preparado: "Envío iniciado; resultado pendiente", configuracion: "Revisar configuración de correo", sin_destinatario: "No hay correo de destino", fallo_temporal: "Fallo temporal del proveedor", respuesta_desconocida: "No se recibió una respuesta concluyente", rechazado_proveedor: "Envío rechazado por el proveedor" };
+        return { localizador: r.fields.id_reserva, fecha: r.fields.fecha, hora: r.fields.hora,
+          personas: r.fields.personas, intentos: Number(detalle.intentos) || 0,
+          motivo: motivos[detalle.motivo] || "Revisar resultado del aviso", actualizado: detalle.actualizado || "" };
+      });
+      return responder(res, 200, { ok: true, avisos });
+    } catch {
+      return responder(res, 503, { ok: false, error: "No se pudieron consultar los avisos pendientes." });
+    }
+  }
+
   if (["listar_retenciones", "comprobar_retencion"].includes(cuerpo.accion)) {
     if (cuerpo.accion === "comprobar_retencion" &&
         (!/^rec[A-Za-z0-9]{14}$/.test(cuerpo.restaurante_id || "") || !/^[a-f0-9]{64}$/.test(cuerpo.id || ""))) {

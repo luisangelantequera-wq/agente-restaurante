@@ -1710,8 +1710,22 @@ async function enviarCorreoResend({
   asunto,
   texto,
   html,
-  contexto
+  contexto,
+  seguimiento
 }) {
+  if (seguimiento) {
+    try {
+      seguimiento.resultado = await require("../lib/aviso-confirmacion").enviarConReintentos({
+        payload: { from: process.env.EMAIL_FROM || "Contactia <reservas@contactia.net>", to: [destinatario], subject: asunto, text: texto, html },
+        clave: seguimiento.clave, apiKey: process.env.RESEND_API_KEY,
+        fetchImpl: fetch, registrar: seguimiento.registrar
+      });
+      return seguimiento.resultado.estado === "aceptado";
+    } catch {
+      seguimiento.resultado = { estado: "pendiente", motivo: "error_seguimiento" };
+      return false;
+    }
+  }
   if (!process.env.RESEND_API_KEY || !destinatario) {
     console.warn(
       `Correo de ${contexto} omitido: falta RESEND_API_KEY o destinatario.`
@@ -1766,6 +1780,7 @@ async function enviarCorreoConfirmacionReserva({
   zona,
   localizador,
   enlaceGestion,
+  seguimiento,
   idioma = "es"
 }) {
   nombreRestaurante = normalizarTexto(nombreRestaurante) ||
@@ -1823,6 +1838,7 @@ async function enviarCorreoConfirmacionReserva({
       asunto,
       texto,
       html,
+      seguimiento,
       contexto: "confirmation de réservation"
     });
   }
@@ -1871,6 +1887,7 @@ async function enviarCorreoConfirmacionReserva({
       asunto,
       texto,
       html,
+      seguimiento,
       contexto: "booking confirmation"
     });
   }
@@ -1918,6 +1935,7 @@ async function enviarCorreoConfirmacionReserva({
     asunto,
     texto,
     html,
+    seguimiento,
     contexto: "confirmación"
   });
 }
@@ -4673,6 +4691,12 @@ const prefijoReserva = normalizarPrefijoReserva(
 
           estado: "pendiente",
 
+          ...(process.env.VERCEL_ENV === "preview" ? {
+            aviso_cliente_estado: "pendiente",
+            aviso_cliente_detalle: JSON.stringify({ estado: "pendiente", intentos: 0,
+              motivo: "preparado", actualizado: new Date().toISOString() })
+          } : {}),
+
           ...crearMetadatosPrivacidadReserva({
             fecha,
             hora,
@@ -4779,8 +4803,21 @@ const prefijoReserva = normalizarPrefijoReserva(
         obtenerSlugPublicoRestaurante(restaurante)
       );
       const nombreRestauranteReserva = obtenerNombreRestaurante(restaurante);
+      const seguimientoAviso = process.env.VERCEL_ENV === "preview" ? {
+        clave: `confirmacion/${process.env.AIRTABLE_BASE_ID}/${reservaCreada.id}`,
+        registrar: async detalle => {
+          await consultarAirtable(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaCreada.id}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fields: {
+              aviso_cliente_estado: detalle.estado,
+              aviso_cliente_detalle: JSON.stringify(detalle)
+            } })
+          });
+        }
+      } : null;
       const [correoEnviado, correoRestauranteEnviado] = await Promise.all([
         enviarCorreoConfirmacionReserva({
+          seguimiento: seguimientoAviso,
           destinatario: email,
           nombre,
           nombreRestaurante: nombreRestauranteReserva,
@@ -4822,6 +4859,8 @@ const prefijoReserva = normalizarPrefijoReserva(
         token_gestion: tokenGestion,
 
         enlace_gestion: enlaceGestion,
+
+        aviso_cliente_estado: seguimientoAviso?.resultado?.estado || (correoEnviado ? "aceptado" : "pendiente"),
 
         correo_enviado: correoEnviado,
 

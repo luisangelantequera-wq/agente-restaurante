@@ -297,7 +297,7 @@ test("revisión de retenciones exige sesión, Preview e identificadores válidos
   process.env.VERCEL_ENV = 'preview';
   process.env.CONTACTIA_CENTRO_SECRET = 'clave-contactia-de-prueba-con-32-caracteres';
   try {
-    for (const accion of ['listar_retenciones', 'comprobar_retencion']) {
+    for (const accion of ['listar_retenciones', 'comprobar_retencion', 'listar_avisos']) {
       assert.equal((await ejecutar(solicitud({ accion }))).status, 401);
     }
     const cookie = `${COOKIE_SESION_CONTACTIA}=${encodeURIComponent(crearTokenSesionContactia())}`;

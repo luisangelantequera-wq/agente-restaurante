@@ -14,9 +14,9 @@ const fecha = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 const datos = { restaurante_id: 1, fecha, hora: "14:00", personas: 4, zona_preferida: "TERRAZA" };
 const contacto = { nombre: "Prueba", email: "prueba@example.com", telefono: "+34600111222" };
 
-function entorno() {
+function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
   const redis = crearRedisSimulado(), reservas = new Map();
-  const escrituras = [];
+  const escrituras = [], correos = [];
   let fallarPost = false, cantidad = 0;
   const restaurante = { id: REST, fields: { id: 1, nombre: "Restaurante Sol", estado: "activo",
     horario_reservas: JSON.stringify(Object.fromEntries(["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"].map(d => [d, ["13:00-23:00"]]))),
@@ -27,6 +27,10 @@ function entorno() {
   const respuesta = datos => ({ ok: true, status: 200, text: async () => JSON.stringify(datos), json: async () => datos });
   const fetchFalso = async (url, opciones = {}) => {
     const u = new URL(url), partes = u.pathname.split("/"), tabla = partes[3], id = partes[4];
+    if (u.hostname === "api.resend.com") {
+      correos.push(opciones);
+      return { ok: estadoCorreo < 300, status: estadoCorreo, text: async () => JSON.stringify(estadoCorreo < 300 ? { id: "correoPrueba" } : {}) };
+    }
     if (tabla === "RESTAURANTES") return respuesta({ records: [restaurante] });
     if (tabla === "ZONA") return respuesta(id ? zona : { records: [zona] });
     if (tabla === "MESAS") return respuesta(id ? mesa : { records: [mesa] });
@@ -62,9 +66,12 @@ function entorno() {
             fetchImpl: fetchFalso, env: { AIRTABLE_API_KEY: "prueba", AIRTABLE_BASE_ID: "appPrueba" }
           })
         }
+        : nombre === "../lib/aviso-confirmacion" ? {
+          enviarConReintentos: opciones => requerir(nombre).enviarConReintentos({ ...opciones, esperar: async () => {} })
+        }
         : nombre === "../lib/auditoria" ? { registrarAuditoria: async () => {}, determinarOrigenAuditoria: () => "prueba" }
         : requerir(nombre),
-      module: { exports: {} }, process: { env: { AIRTABLE_BASE_ID: "appPrueba" } },
+      module: { exports: {} }, process: { env: { AIRTABLE_BASE_ID: "appPrueba", ...(avisos ? { VERCEL_ENV: "preview", RESEND_API_KEY: "prueba" } : {}) } },
       Buffer, URLSearchParams, console: { log() {}, warn() {}, error() {} }, fetch: fetchFalso
     });
     vm.runInContext(codigo, contexto);
@@ -74,7 +81,7 @@ function entorno() {
       return { status: res.statusCode, ...res.body };
     };
   }
-  return { instancia, redis, reservas, escrituras, fallarPost: () => { fallarPost = true; } };
+  return { instancia, redis, reservas, escrituras, correos, fallarPost: () => { fallarPost = true; } };
 }
 
 test("API real: dos verificaciones simultáneas solo anuncian disponibilidad a una", async () => {
@@ -183,4 +190,33 @@ test("API real: una nueva consulta resuelve automáticamente un rechazo acredita
   const otra = await a({ ...datos, accion: "verificar" });
   assert.equal(otra.disponible, true);
   assert.equal(e.reservas.size, 1);
+});
+
+
+test("API: fallo del correo conserva reserva confirmada y registra aviso pendiente", async () => {
+  const e = entorno({ avisos: true }), a = e.instancia();
+  const oferta = await a({ ...datos, accion: "verificar" });
+  const r = await a({ ...datos, ...contacto, accion: "reservar", retencion_token: oferta.retencion_token });
+  assert.equal(r.reservado, true);
+  assert.equal(r.correo_enviado, false);
+  assert.equal(r.aviso_cliente_estado, "pendiente");
+  const f = [...e.reservas.values()][0].fields;
+  assert.equal(f.estado, "confirmada");
+  assert.equal(f.aviso_cliente_estado, "pendiente");
+  assert.equal(JSON.parse(f.aviso_cliente_detalle).intentos, 3);
+  assert.equal(e.correos.length, 3);
+  assert.equal(new Set(e.correos.map(r => r.headers["Idempotency-Key"])).size, 1);
+  assert.equal((await a({ ...datos, accion: "verificar" })).disponible, false);
+});
+
+test("API: correo aceptado se registra separado de la confirmación", async () => {
+  const e = entorno({ avisos: true, estadoCorreo: 200 }), a = e.instancia();
+  const oferta = await a({ ...datos, accion: "verificar" });
+  const r = await a({ ...datos, ...contacto, accion: "reservar", retencion_token: oferta.retencion_token });
+  assert.equal(r.correo_enviado, true);
+  assert.equal(r.aviso_cliente_estado, "aceptado");
+  const f = [...e.reservas.values()][0].fields;
+  assert.equal(f.estado, "confirmada");
+  assert.equal(f.aviso_cliente_estado, "aceptado");
+  assert.equal(e.correos.length, 1);
 });

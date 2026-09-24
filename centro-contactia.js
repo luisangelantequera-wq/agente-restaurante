@@ -84,6 +84,34 @@
     }
   }
 
+  const listaAvisos = document.querySelector("#listaAvisos");
+  const estadoAvisos = document.querySelector("#estadoAvisos");
+  const actualizarAvisos = document.querySelector("#actualizarAvisos");
+  async function cargarAvisos() {
+    actualizarAvisos.disabled = true;
+    estadoAvisos.textContent = "Consultando avisos…";
+    try {
+      const datos = await solicitar({ accion: "listar_avisos" });
+      listaAvisos.replaceChildren();
+      const avisos = datos.avisos || [];
+      estadoAvisos.textContent = avisos.length ? `${avisos.length} avisos pendientes. Las reservas siguen confirmadas.` : "No hay avisos pendientes registrados.";
+      for (const aviso of avisos) {
+        const fila = document.createElement("article");
+        fila.className = "operacion-reserva";
+        const titulo = document.createElement("h3");
+        titulo.textContent = `${aviso.localizador} · ${aviso.fecha} · ${aviso.hora} · ${aviso.personas} personas`;
+        const info = document.createElement("p");
+        info.textContent = `${aviso.motivo}. Intentos: ${aviso.intentos}. ${aviso.actualizado ? formatearFecha(aviso.actualizado) : ""}`;
+        fila.append(titulo, info);
+        listaAvisos.appendChild(fila);
+      }
+    } catch (error) {
+      listaAvisos.replaceChildren();
+      estadoAvisos.textContent = error.message;
+      if (error.status === 401) mostrarAcceso("La sesión ha caducado.");
+    } finally { actualizarAvisos.disabled = false; }
+  }
+
   let conversaciones = [];
   let audioActivo = null;
 
@@ -311,6 +339,7 @@
       renderizarConversaciones();
       mostrarCentro();
       await cargarRetenciones();
+      await cargarAvisos();
     } catch (error) {
       if (error.status === 401) {
         mostrarAcceso("La sesión ha caducado. Introduzca de nuevo la clave.");
@@ -345,10 +374,12 @@
       conversaciones = [];
       lista.replaceChildren();
       listaRetenciones.replaceChildren();
+      listaAvisos.replaceChildren();
       mostrarAcceso();
     }
   });
 
+  actualizarAvisos.addEventListener("click", cargarAvisos);
   actualizarRetenciones.addEventListener("click", cargarRetenciones);
   actualizar.addEventListener("click", cargarConversaciones);
   filtroRevision.addEventListener("change", cargarConversaciones);

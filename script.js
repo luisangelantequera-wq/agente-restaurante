@@ -1184,6 +1184,10 @@ async function crearReserva() {
         "bot"
       );
 
+      if (data.aviso_cliente_estado === "pendiente") {
+        agregarMensaje("Su reserva está confirmada. No hemos podido enviarle el correo; el aviso queda pendiente. Conserve el localizador que aparece en pantalla.", "bot");
+      }
+
       paso = "finalizado";
       return;
     }
