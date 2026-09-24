@@ -249,6 +249,26 @@ module.exports = async (req, res) => {
     return responder(res, 401, { ok: false, error: "Sesión no válida o caducada." });
   }
 
+  if (["listar_retenciones", "comprobar_retencion"].includes(cuerpo.accion)) {
+    if (cuerpo.accion === "comprobar_retencion" &&
+        (!/^rec[A-Za-z0-9]{14}$/.test(cuerpo.restaurante_id || "") || !/^[a-f0-9]{64}$/.test(cuerpo.id || ""))) {
+      return responder(res, 400, { ok: false, error: "Identificadores no válidos." });
+    }
+    try {
+      const almacen = require("../lib/retenciones-mesas").desdeEntorno();
+      if (!almacen) return responder(res, 200, { ok: true, operaciones: [], mensaje: "Retenciones desactivadas en este entorno." });
+      const { crearServicioRevision, leerAirtable } = require("../lib/revision-retenciones");
+      const servicio = crearServicioRevision({ almacen, leer: leerAirtable });
+      if (cuerpo.accion === "listar_retenciones") {
+        return responder(res, 200, { ok: true, operaciones: await servicio.listar() });
+      }
+      const mensaje = await servicio.comprobar(cuerpo.restaurante_id, cuerpo.id);
+      return responder(res, 200, { ok: true, mensaje });
+    } catch {
+      return responder(res, 503, { ok: false, error: "No se pudo completar la comprobación. Actualice la lista antes de intentarlo de nuevo." });
+    }
+  }
+
   if (cuerpo.accion !== "listar") {
     return responder(res, 400, { ok: false, error: "Acción no válida." });
   }

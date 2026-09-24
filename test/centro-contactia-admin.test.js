@@ -291,3 +291,18 @@ test("la página interna es independiente y no se enlaza desde el restaurante", 
   assert.doesNotMatch(centroJs, /localStorage|sessionStorage/);
   assert.doesNotMatch(paginasPublicas, /centro-contactia/);
 });
+
+test("revisión de retenciones exige sesión, Preview e identificadores válidos", async () => {
+  const anterior = guardarEntorno();
+  process.env.VERCEL_ENV = 'preview';
+  process.env.CONTACTIA_CENTRO_SECRET = 'clave-contactia-de-prueba-con-32-caracteres';
+  try {
+    for (const accion of ['listar_retenciones', 'comprobar_retencion']) {
+      assert.equal((await ejecutar(solicitud({ accion }))).status, 401);
+    }
+    const cookie = `${COOKIE_SESION_CONTACTIA}=${encodeURIComponent(crearTokenSesionContactia())}`;
+    assert.equal((await ejecutar(solicitud({ accion: 'comprobar_retencion', id: 'invalido' }, cookie))).status, 400);
+    process.env.VERCEL_ENV = 'production';
+    assert.equal((await ejecutar(solicitud({ accion: 'listar_retenciones' }, cookie))).status, 404);
+  } finally { restaurarEntorno(anterior); }
+});

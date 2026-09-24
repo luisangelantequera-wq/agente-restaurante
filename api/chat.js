@@ -503,6 +503,17 @@ const formulaReservas =
   const finSolicitado = inicioSolicitado + duracion;
 
   const retenciones = almacenRetenciones();
+  if (retenciones) {
+    // Recuperación automática: no depende de abrir el centro administrativo.
+    // Una consulta fallida nunca elimina la protección ya almacenada.
+    try {
+      const { crearServicioRevision, leerAirtable } = require("../lib/revision-retenciones");
+      await crearServicioRevision({ almacen: retenciones, leer: leerAirtable })
+        .revisarRestaurante(restauranteRecordId);
+    } catch {
+      console.error("Revisión automática de retenciones pendiente; se mantienen los bloqueos.");
+    }
+  }
   if (retenciones && incluirRetenciones) {
     const bloqueadas = await retenciones.mesasBloqueadas(restauranteRecordId, {
       fecha, hora, duracion, personas: Number(personas), zona: zonaPreferidaId || ""
@@ -4627,6 +4638,10 @@ const prefijoReserva = normalizarPrefijoReserva(
         }
       }
 
+
+      if (retencionCliente) {
+        await retenciones.vincularAlta(restaurante.id, retencionCliente.token, idReserva);
+      }
 
       const nuevaReserva = {
 

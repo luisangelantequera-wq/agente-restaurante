@@ -33,6 +33,14 @@
     </section>
 
     <section id="centro" class="oculto" aria-live="polite">
+      <section class="panel revision-reservas" aria-labelledby="tituloRevisionReservas">
+        <h2 id="tituloRevisionReservas">Reservas pendientes de comprobar</h2>
+        <p>Operaciones cuyo guardado no pudo completarse con certeza. Comprobar consulta Airtable y solo resuelve los casos con evidencia suficiente.</p>
+        <button id="actualizarRetenciones" class="boton-secundario" type="button">Actualizar operaciones</button>
+        <p id="estadoRetenciones" role="status"></p>
+        <div id="listaRetenciones"></div>
+      </section>
+
       <div class="panel filtros">
         <div class="campo-filtro">
           <label for="filtroRevision">Revisión</label>

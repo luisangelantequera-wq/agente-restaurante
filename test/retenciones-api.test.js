@@ -24,7 +24,7 @@ function entorno() {
     api_key_restaurante: "claveprueba" } };
   const zona = { id: ZONA, fields: { nombre: "TERRAZA", restaurante: [REST], estado: "activo" } };
   const mesa = { id: MESA, fields: { nombre_mesa: "Mesa", restaurante: [REST], zona: [ZONA], capacidad: 4, estado: "libre" } };
-  const respuesta = datos => ({ ok: true, status: 200, text: async () => JSON.stringify(datos) });
+  const respuesta = datos => ({ ok: true, status: 200, text: async () => JSON.stringify(datos), json: async () => datos });
   const fetchFalso = async (url, opciones = {}) => {
     const u = new URL(url), partes = u.pathname.split("/"), tabla = partes[3], id = partes[4];
     if (tabla === "RESTAURANTES") return respuesta({ records: [restaurante] });
@@ -57,6 +57,11 @@ function entorno() {
     const contexto = vm.createContext({
       require: nombre => nombre === "../lib/retenciones-mesas"
         ? { ...moduloRetenciones, desdeEntorno: () => redis.instancia() }
+        : nombre === "../lib/revision-retenciones" ? {
+          ...requerir(nombre), leerAirtable: (tabla, campos, formula) => requerir(nombre).leerAirtable(tabla, campos, formula, {
+            fetchImpl: fetchFalso, env: { AIRTABLE_API_KEY: "prueba", AIRTABLE_BASE_ID: "appPrueba" }
+          })
+        }
         : nombre === "../lib/auditoria" ? { registrarAuditoria: async () => {}, determinarOrigenAuditoria: () => "prueba" }
         : requerir(nombre),
       module: { exports: {} }, process: { env: { AIRTABLE_BASE_ID: "appPrueba" } },
@@ -164,4 +169,18 @@ test("API real: panel puede finalizar la mesa y devolverla a disponibilidad", as
     clave_restaurante: "claveprueba", estado_nuevo: "libre" });
   assert.equal(libre.estado_actualizado, true, JSON.stringify(libre));
   assert.equal((await a({ ...datos, accion: "verificar" })).disponible, true);
+});
+
+
+test("API real: una nueva consulta resuelve automáticamente un rechazo acreditado", async () => {
+  const e = entorno(), a = e.instancia();
+  const oferta = await a({ ...datos, accion: "verificar" });
+  e.fallarPost();
+  await a({ ...datos, ...contacto, accion: "reservar", retencion_token: oferta.retencion_token });
+  const registro = [...e.reservas.values()][0];
+  // Simula el resultado definitivo de Airtable cuya respuesta no llegó al trabajador.
+  registro.fields.estado = "rechazada_conflicto";
+  const otra = await a({ ...datos, accion: "verificar" });
+  assert.equal(otra.disponible, true);
+  assert.equal(e.reservas.size, 1);
 });

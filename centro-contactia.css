@@ -474,3 +474,8 @@ dialog::backdrop {
     width: 100%;
   }
 }
+
+.revision-reservas { margin-bottom: 1.5rem; padding: 1.25rem; }
+.operacion-reserva { border-top: 1px solid #d8e0e8; padding: 1rem 0; overflow-wrap: anywhere; }
+.operacion-reserva h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.operacion-reserva p { line-height: 1.5; }

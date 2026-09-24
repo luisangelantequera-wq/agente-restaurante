@@ -23,6 +23,67 @@
   const transcripcion = document.querySelector("#transcripcion");
   const cerrarDetalle = document.querySelector("#cerrarDetalle");
 
+  const listaRetenciones = document.querySelector("#listaRetenciones");
+  const estadoRetenciones = document.querySelector("#estadoRetenciones");
+  const actualizarRetenciones = document.querySelector("#actualizarRetenciones");
+  let cargandoRetenciones = false;
+
+  async function cargarRetenciones() {
+    if (cargandoRetenciones) return;
+    cargandoRetenciones = true;
+    actualizarRetenciones.disabled = true;
+    estadoRetenciones.textContent = "Consultando operaciones…";
+    try {
+      const datos = await solicitar({ accion: "listar_retenciones" });
+      listaRetenciones.replaceChildren();
+      const operaciones = datos.operaciones || [];
+      estadoRetenciones.textContent = datos.mensaje || (operaciones.length
+        ? `${operaciones.filter(r => !r.resuelta).length} pendientes de comprobar.`
+        : "No hay operaciones pendientes de comprobar.");
+      for (const r of operaciones) {
+        const tarjeta = document.createElement("article");
+        tarjeta.className = "operacion-reserva";
+        const titulo = document.createElement("h3");
+        titulo.textContent = `${r.restaurante} · ${r.fecha} · ${r.hora} · ${r.personas} personas`;
+        tarjeta.appendChild(titulo);
+        const info = document.createElement("p");
+        info.textContent = `${r.localizador || "Sin localizador vinculado"} · ${r.iniciada ? "Inicio: " + formatearFecha(r.iniciada) : "Inicio no registrado"}`;
+        tarjeta.appendChild(info);
+        const estado = document.createElement("p");
+        estado.textContent = r.resuelta
+          ? (r.resultado === "confirmada" ? "Resuelta: reserva confirmada; mesa protegida." : "Resuelta: solicitud rechazada; bloqueo retirado.") + (r.origen === "automatico" ? " Resuelta automáticamente. " : " Revisión de Contactia. ") + formatearFecha(r.revisada)
+          : r.aviso || "Resultado pendiente de comprobar. La mesa continúa protegida.";
+        tarjeta.appendChild(estado);
+        if (r.comprobable) {
+          const boton = document.createElement("button");
+          boton.type = "button";
+          boton.className = "boton-secundario";
+          boton.textContent = "Comprobar en Airtable";
+          boton.addEventListener("click", async () => {
+            boton.disabled = true;
+            estado.textContent = "Comprobando el resultado…";
+            try {
+              const resultado = await solicitar({ accion: "comprobar_retencion", restaurante_id: r.restaurante_id, id: r.id });
+              estado.textContent = resultado.mensaje;
+            } catch (error) {
+              estado.textContent = error.message;
+              if (error.status === 401) mostrarAcceso("La sesión ha caducado.");
+            } finally { boton.disabled = false; }
+          });
+          tarjeta.appendChild(boton);
+        }
+        listaRetenciones.appendChild(tarjeta);
+      }
+    } catch (error) {
+      listaRetenciones.replaceChildren();
+      estadoRetenciones.textContent = error.message;
+      if (error.status === 401) mostrarAcceso("La sesión ha caducado.");
+    } finally {
+      cargandoRetenciones = false;
+      actualizarRetenciones.disabled = false;
+    }
+  }
+
   let conversaciones = [];
   let audioActivo = null;
 
@@ -249,6 +310,7 @@
       }).format(new Date())}`;
       renderizarConversaciones();
       mostrarCentro();
+      await cargarRetenciones();
     } catch (error) {
       if (error.status === 401) {
         mostrarAcceso("La sesión ha caducado. Introduzca de nuevo la clave.");
@@ -282,10 +344,12 @@
     } finally {
       conversaciones = [];
       lista.replaceChildren();
+      listaRetenciones.replaceChildren();
       mostrarAcceso();
     }
   });
 
+  actualizarRetenciones.addEventListener("click", cargarRetenciones);
   actualizar.addEventListener("click", cargarConversaciones);
   filtroRevision.addEventListener("change", cargarConversaciones);
   filtroIdioma.addEventListener("change", cargarConversaciones);
