@@ -51,3 +51,34 @@ test("conversación: corrección directa reemplaza la retención anterior sin li
   assert.equal(ultima.hora, "15:00");
   assert.equal(s.solicitudes.filter(r => r.accion === "liberar_retencion").length, 0);
 });
+
+test("conversación: al perder la mesa conserva datos para espera y exige confirmación", async () => {
+  const s = await hastaResumen({ respuestas: {
+    verificar: [{ ok: true }, oferta("a".repeat(48)), { ok: true, disponible: false, alternativas: [] }],
+    reservar: [{ ok: false, retencion_error: "caducada", status_simulado: 409 }]
+  } });
+  await s.enviar("sí, confirmo");
+  const resumen = await s.enviar("sí");
+  assert.equal(resumen.paso, "confirmacion_espera");
+  assert.match(resumen.respuesta, /no es una reserva confirmada/);
+  assert.match(resumen.respuesta, /Cliente Prueba/);
+  assert.equal(s.solicitudes.filter(r => r.accion === "lista_espera_crear").length, 0);
+  await s.enviar("sí, confirmo");
+  const solicitudes = s.solicitudes.filter(r => r.accion === "lista_espera_crear");
+  assert.equal(solicitudes.length, 1);
+  assert.equal(solicitudes[0].nombre, "Cliente Prueba");
+  assert.equal(solicitudes[0].email, "prueba@example.com");
+  assert.equal(solicitudes[0].telefono, "+34621436587");
+  assert.equal(solicitudes[0].hora, "14:00");
+});
+
+test("conversación: rechazar la espera tras perder la mesa no registra solicitudes", async () => {
+  const s = await hastaResumen({ respuestas: {
+    verificar: [{ ok: true }, oferta("b".repeat(48)), { ok: true, disponible: false, alternativas: [] }],
+    reservar: [{ ok: false, retencion_error: "caducada", status_simulado: 409 }]
+  } });
+  await s.enviar("sí, confirmo");
+  await s.enviar("sí");
+  await s.enviar("no");
+  assert.equal(s.solicitudes.filter(r => r.accion === "lista_espera_crear").length, 0);
+});

@@ -940,6 +940,22 @@ function mostrarConfirmacionNuevaReserva() {
 
 
 function iniciarListaEspera() {
+  // Una reserva que perdió disponibilidad conserva los datos ya completados.
+  if (datosReserva.nombre && datosReserva.email && datosReserva.telefono) {
+    datosListaEspera = {
+      ...solicitudEspera,
+      nombre: datosReserva.nombre,
+      email: datosReserva.email,
+      telefono: datosReserva.telefono,
+      observaciones: datosReserva.observaciones || ""
+    };
+    agregarMensaje(
+      "Conservaré los datos que ya me ha indicado. La lista de espera no es una reserva confirmada; el restaurante podrá avisarle si se libera una mesa.",
+      "bot"
+    );
+    mostrarConfirmacionListaEspera();
+    return;
+  }
   datosListaEspera = {
     ...solicitudEspera,
     nombre: "",
