@@ -52,3 +52,17 @@ No hay envío de WhatsApp, llamada, corrección de email ni aviso final real al 
 El plan guarda estados, contador, fechas, política e IDs de eventos; no copia nombre, email ni teléfono al centro o a Redis. El emisor futuro consultará los datos de contacto solo cuando necesite efectuar la comunicación.
 
 Pruebas simuladas: WhatsApp entregado/fallido, tres llamadas sin respuesta, contacto conseguido, eventos duplicados/tardíos, teléfono inválido, horario de Madrid y separación, plazo agotado, reserva cancelada, políticas aisladas por restaurante y ausencia de acciones de cancelación. Se prueba también la persistencia del plan desde el sexto fallo de correo y desde un rebote. Sin llamadas a Airtable ni proveedores reales.
+
+## Consentimiento preparado (desactivado)
+La variable de Preview CONTACTIA_CONSENTIMIENTO_WHATSAPP=1 permite ensayar
+la pregunta después del móvil: «Si no podemos entregarle el correo, ¿autoriza
+que le enviemos la confirmación por WhatsApp a este número?».
+No activarla para clientes hasta conectar y verificar el proveedor.
+La configuración pública expone únicamente el booleano; no añade consultas.
+Sí o No permite continuar; una respuesta ambigua repite la pregunta.
+El servidor exige booleano true y función activa, y guarda en el seguimiento
+la versión de pregunta, finalidad, idioma y fecha del registro. No demuestra
+titularidad del móvil ni sustituye la integración del proveedor.
+El paso RES-09-W se trata como personal, sin habilitar grabación de audio.
+Los clientes anteriores no adquieren autorización por tener teléfono.
+La pregunta usa el mismo mecanismo de traducción de voz existente.

@@ -4809,7 +4809,7 @@ const prefijoReserva = normalizarPrefijoReserva(
       const nombreRestauranteReserva = obtenerNombreRestaurante(restaurante);
       const seguimientoAviso = process.env.VERCEL_ENV === "preview" ? {
         clave: `confirmacion/${process.env.AIRTABLE_BASE_ID}/${reservaCreada.id}`,
-        contexto: { politica_contacto: require("../lib/contacto-alternativo").politicaParaRestaurante(restaurante.id), whatsapp_autorizado: false, idioma: ["en", "fr"].includes(idioma) ? idioma : "es", zona: nombreZona(zonaReserva), mensaje_huella: require("../lib/aviso-confirmacion").huellaPayload(observacionesConZona(mensaje, zonaReserva) || "") },
+        contexto: { politica_contacto: require("../lib/contacto-alternativo").politicaParaRestaurante(restaurante.id), ...require("../lib/consentimiento-whatsapp").evidencia(body.whatsapp_autorizado, idioma), idioma: ["en", "fr"].includes(idioma) ? idioma : "es", zona: nombreZona(zonaReserva), mensaje_huella: require("../lib/aviso-confirmacion").huellaPayload(observacionesConZona(mensaje, zonaReserva) || "") },
         registrar: async detalle => {
           // Encolar primero: si falla la escritura posterior, queda una referencia recuperable.
           let falloCola;

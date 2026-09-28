@@ -180,7 +180,7 @@ module.exports = async (req, res) => {
 
     const zonas = await consultarZonasActivas(registro.id);
     const restaurante = normalizarRestaurantePublico(
-      { ...registro.fields, zonas },
+      { ...registro.fields, zonas, consentimiento_whatsapp: require("../lib/consentimiento-whatsapp").habilitado() },
       slugPublico
     );
 

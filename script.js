@@ -1106,7 +1106,8 @@ async function crearReserva() {
         telefono: datosReserva.telefono,
         zona_preferida: datosReserva.zona_preferida,
         mensaje: datosReserva.observaciones,
-        idioma: idiomaConversacion
+        idioma: idiomaConversacion,
+        whatsapp_autorizado: datosReserva.whatsapp_autorizado
       })
     });
 
@@ -1385,6 +1386,7 @@ function repetirPreguntaPendiente() {
     nombre: "¿A nombre de quién hacemos la reserva?",
     email: "¿Cuál es su correo electrónico?",
     telefono: "¿Cuál es su número de teléfono móvil?",
+    consentimiento_whatsapp: "Si no podemos entregarle el correo, ¿autoriza que le enviemos la confirmación por WhatsApp a este número?",
     observaciones:
       "¿Desea añadir alguna observación? Si no, responda: no.",
     observaciones_detalle: "¿Qué observación desea añadir?",
@@ -2357,6 +2359,12 @@ async function procesarMensaje(texto, opciones = {}) {
     datosReserva.telefono =
       normalizarTelefono(mensaje);
 
+    delete datosReserva.whatsapp_autorizado;
+    if (restauranteActivo.consentimiento_whatsapp === true) {
+      paso = "consentimiento_whatsapp";
+      agregarMensaje("Si no podemos entregarle el correo, ¿autoriza que le enviemos la confirmación por WhatsApp a este número?", "bot");
+      return;
+    }
     paso = "observaciones";
 
     agregarMensaje(
@@ -2367,6 +2375,21 @@ async function procesarMensaje(texto, opciones = {}) {
     return;
   }
 
+
+  // La autorización debe ser explícita; una respuesta ambigua no avanza.
+  if (paso === "consentimiento_whatsapp") {
+    const respuesta = normalizarTexto(mensaje).replace(/[.,!¿?¡]/g, "").trim();
+    const si = /^(si|si autorizo|autorizo|de acuerdo|si por favor)$/.test(respuesta);
+    const no = /^(no|no autorizo|no gracias)$/.test(respuesta);
+    if (!si && !no) {
+      agregarMensaje("¿Autoriza el envío por WhatsApp si falla el correo? Indique «Sí» o «No».", "bot");
+      return;
+    }
+    datosReserva.whatsapp_autorizado = si;
+    paso = "observaciones";
+    agregarMensaje("¿Desea añadir alguna observación? Si no, responda: no.", "bot");
+    return;
+  }
 
   // OBSERVACIONES
   if (paso === "observaciones") {
