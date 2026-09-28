@@ -7,7 +7,7 @@ function comprobarAvisosContactia() {
     const secreto = propiedades.getProperty('CONTACTIA_AVISOS_SECRET') || '';
     if (secreto.length < 32) throw new Error('Configure CONTACTIA_AVISOS_SECRET en las propiedades del script.');
     const respuesta = UrlFetchApp.fetch('https://agente-restaurante-git-prototipo-voz-reservas-projects-46f41d07.vercel.app/api/centro-conversaciones?accion=ejecutar_programados', {
-      method: 'get', headers: { Authorization: 'Bearer ' + secreto },
+      method: 'get', headers: { Authorization: 'Bearer ' + secreto, 'x-vercel-protection-bypass': propiedades.getProperty('VERCEL_AUTOMATION_BYPASS_SECRET') || '' },
       followRedirects: false, muteHttpExceptions: true
     });
     if (respuesta.getResponseCode() !== 200) throw new Error('Comprobación pendiente: HTTP ' + respuesta.getResponseCode());
@@ -15,7 +15,7 @@ function comprobarAvisosContactia() {
     if (datos.en_curso) return;
     if (!Number.isInteger(datos.comprobados)) throw new Error('Respuesta inesperada del servidor.');
     propiedades.setProperty('ULTIMA_EJECUCION', new Date().toISOString());
-    console.log(JSON.stringify({ comprobados: datos.comprobados, reintentados: datos.reintentados, aceptados: datos.aceptados, bloqueados: datos.bloqueados }));
+    console.log(JSON.stringify({ comprobados: datos.comprobados, reintentados: datos.reintentados, aceptados: datos.aceptados, bloqueados: datos.bloqueados, sin_trabajo: Boolean(datos.sin_trabajo), pausado: Boolean(datos.pausado) }));
     if (datos.aviso) throw new Error(datos.aviso);
   } finally { lock.releaseLock(); }
 }

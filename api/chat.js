@@ -3762,18 +3762,6 @@ const prefijoReserva = normalizarPrefijoReserva(
 
     if (accion === "verificar") {
       if (body.solo_validar_momento === true) return responder(res, 200, { ok: true, momento_valido: true });
-      if (process.env.VERCEL_ENV === "preview") {
-        try {
-          const { leerAirtable } = require("../lib/revision-retenciones");
-          await require("../lib/estado-avisos").revisarEstadoAvisos({
-            leer: leerAirtable, fetchImpl: fetch, apiKey: process.env.RESEND_API_KEY,
-            restauranteId: restaurante.id,
-            guardar: (id, fields) => consultarAirtable(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS/${id}`, {
-              method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields })
-            })
-          });
-        } catch { console.error("Comprobación de entrega pendiente; las reservas se mantienen."); }
-      }
       const retenciones = almacenRetenciones();
       if (retenciones && body.retencion_token) {
         await retenciones.liberar(restaurante.id, body.retencion_token);
@@ -4823,6 +4811,10 @@ const prefijoReserva = normalizarPrefijoReserva(
         clave: `confirmacion/${process.env.AIRTABLE_BASE_ID}/${reservaCreada.id}`,
         contexto: { idioma: ["en", "fr"].includes(idioma) ? idioma : "es", zona: nombreZona(zonaReserva), mensaje_huella: require("../lib/aviso-confirmacion").huellaPayload(observacionesConZona(mensaje, zonaReserva) || "") },
         registrar: async detalle => {
+          // Encolar primero: si falla la escritura posterior, queda una referencia recuperable.
+          let falloCola;
+          try { await require("../lib/cola-avisos").desdeEntorno().actualizar(reservaCreada.id, detalle); }
+          catch (error) { falloCola = error; }
           await consultarAirtable(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS/${reservaCreada.id}`, {
             method: "PATCH", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fields: {
@@ -4830,6 +4822,7 @@ const prefijoReserva = normalizarPrefijoReserva(
               aviso_cliente_detalle: JSON.stringify(detalle)
             } })
           });
+          if (falloCola) throw falloCola;
         }
       } : null;
       const [correoEnviado, correoRestauranteEnviado] = await Promise.all([

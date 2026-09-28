@@ -255,19 +255,6 @@ module.exports = async (req, res) => {
   if (cuerpo.accion === "listar_avisos") {
     try {
       const { leerAirtable } = require("../lib/revision-retenciones");
-      let seguimiento;
-      try {
-        seguimiento = await require("../lib/estado-avisos").revisarEstadoAvisos({
-          leer: leerAirtable, apiKey: process.env.RESEND_API_KEY, limite: 3,
-          guardar: async (id, fields) => {
-            const respuesta = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESERVAS/${id}`, {
-              method: "PATCH", headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ fields }), signal: AbortSignal.timeout(5000)
-            });
-            if (!respuesta.ok) throw new Error("No se pudo actualizar el aviso.");
-          }
-        });
-      } catch { seguimiento = { aviso: "No se ha podido comprobar la entrega. Se muestran los datos guardados." }; }
       const filas = await leerAirtable("RESERVAS", ["id_reserva", "fecha", "hora", "personas", "estado", "aviso_cliente_estado", "aviso_cliente_detalle"],
         "AND(OR({aviso_cliente_estado}='pendiente',{aviso_cliente_estado}='rechazado',{aviso_cliente_estado}='demorado'),{estado}='confirmada')");
       const avisos = filas.map(r => {
@@ -278,7 +265,7 @@ module.exports = async (req, res) => {
           personas: r.fields.personas, intentos: Number(detalle.intentos) || 0,
           motivo: motivos[detalle.motivo] || "Revisar resultado del aviso", actualizado: detalle.actualizado || "" };
       });
-      return responder(res, 200, { ok: true, avisos, seguimiento: seguimiento?.aviso || "" });
+      return responder(res, 200, { ok: true, avisos, seguimiento: "" });
     } catch {
       return responder(res, 503, { ok: false, error: "No se pudieron consultar los avisos pendientes." });
     }
