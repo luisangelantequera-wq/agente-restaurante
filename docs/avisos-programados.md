@@ -44,3 +44,9 @@ Un 401 indica secreto incorrecto o despliegue sin la variable. Un 403/429 o HTML
 Ejecutar `detenerComprobacionesContactia` en Apps Script. Para revocar acceso, eliminar o rotar el secreto en ambos sitios y redesplegar Preview. No afecta al envío normal de confirmaciones.
 
 Referencias: https://developers.google.com/apps-script/guides/triggers/installable y https://resend.com/docs/dashboard/emails/idempotency-keys .
+
+## Validación integrada del 28/09/2026
+
+Pruebas con reloj y servicios simulados, sin llamadas reales: tres fallos inmediatos dejan el aviso en la cola; antes del vencimiento no se consulta Airtable; después el endpoint real reconstruye y reintenta el mismo correo; una comprobación posterior registra la entrega y retira la referencia. La ejecución siguiente vuelve a consumir cero llamadas a Airtable. Se verifica que todos los campos de la reserva ajenos al seguimiento conservan exactamente su valor.
+
+Se cubren tanto respuestas HTTP 503 como respuestas perdidas después de la aceptación. El proveedor simulado conserva la clave de idempotencia y acredita una sola aceptación para los cuatro intentos. Esto verifica el contrato del cliente con el proveedor, no constituye una prueba de entrega real en Resend. El activador continúa eliminado.

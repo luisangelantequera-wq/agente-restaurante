@@ -5,10 +5,12 @@ const handler = require('../lib/endpoint-avisos-programados');
 const ahora = Date.now(), id = 'recPrueba';
 const d = { estado: 'aceptado', iniciado: new Date(ahora - 3600000).toISOString(), actualizado: new Date(ahora - 3600000).toISOString(), id_envio: '11111111-1111-1111-1111-111111111111', intentos: 1 };
 async function entorno(fn, opciones = {}) {
-  const env = { ...process.env }, fetchOriginal = global.fetch;
+  const env = { ...process.env }, fetchOriginal = global.fetch, relojOriginal = Date.now;
+  let reloj = ahora;
+  Date.now = () => reloj;
   const cola = new Map(opciones.trabajo ? [[id, { fecha: opciones.futura ? ahora + 3600000 : ahora - 1000, version: 'original' }]] : []);
   const datos = { estado: 'confirmada', fecha: '2099-01-01', aviso_cliente_estado: 'aceptado', aviso_cliente_detalle: JSON.stringify(d), ...opciones.campos };
-  const contador = { airtable: 0, resend: 0, parches: [], pausa: 0 };
+  const contador = { airtable: 0, resend: 0, parches: [], pausa: 0, envios: [], aceptaciones: new Set() };
   let pausado = false;
   const respuesta = result => ({ ok: true, json: async () => ({ result }) });
   try {
@@ -31,12 +33,26 @@ async function entorno(fn, opciones = {}) {
       if (url.includes('airtable.com')) {
         contador.airtable++;
         if (opciones.cuota) return { ok: false, status: 429 };
-        if (req.method === 'PATCH') { contador.parches.push(JSON.parse(req.body).fields); return { ok: true }; }
+        if (req.method === 'PATCH') { contador.parches.push(JSON.parse(req.body).fields); Object.assign(datos, JSON.parse(req.body).fields); return { ok: true }; }
         const formula = new URL(url).searchParams.get('filterByFormula');
-        assert.equal(formula, "OR(RECORD_ID()='recPrueba')"); // Nunca búsquedas por estado ni tabla entera.
+        if (opciones.recuperacion) {
+          assert.ok(["OR(RECORD_ID()='recPrueba')", "RECORD_ID()='recPrueba'", "RECORD_ID()='recRestaurante'"].includes(formula));
+          if (url.includes('/RESTAURANTES?')) return { ok: true, json: async () => ({ records: [{ id: 'recRestaurante', fields: { nombre: 'Prueba' } }] }) };
+        } else assert.equal(formula, "OR(RECORD_ID()='recPrueba')"); // Nunca búsquedas por estado ni tabla entera.
         return { ok: true, json: async () => ({ records: opciones.ausente ? [] : [{ id, fields: datos }] }) };
       }
-      if (url.includes('resend.com')) { contador.resend++; return { ok: true, json: async () => ({ id: d.id_envio, last_event: 'delivered' }) }; }
+      if (url.includes('resend.com')) {
+        contador.resend++;
+        if (req.method === 'POST') {
+          contador.envios.push(req);
+          if (contador.envios.length <= 3) {
+            if (opciones.respuestaPerdida) { contador.aceptaciones.add(req.headers['Idempotency-Key']); throw Error('Respuesta perdida'); }
+            return { ok: false, status: 503, text: async () => '{}' };
+          }
+          contador.aceptaciones.add(req.headers['Idempotency-Key']);
+          return { ok: true, text: async () => JSON.stringify({ id: d.id_envio }) };
+        }
+        return { ok: true, json: async () => ({ id: d.id_envio, last_event: 'delivered' }) }; }
       throw Error('Destino inesperado');
     };
     const invocar = async () => {
@@ -44,8 +60,8 @@ async function entorno(fn, opciones = {}) {
       await handler({ method: 'GET', headers: { authorization: 'Bearer ' + 'x'.repeat(40) } }, res);
       return res;
     };
-    await fn({ invocar, contador, cola });
-  } finally { global.fetch = fetchOriginal; for (const k of Object.keys(process.env)) if (!(k in env)) delete process.env[k]; Object.assign(process.env, env); }
+    await fn({ invocar, contador, cola, datos, avanzar: ms => { reloj += ms; } });
+  } finally { Date.now = relojOriginal; global.fetch = fetchOriginal; for (const k of Object.keys(process.env)) if (!(k in env)) delete process.env[k]; Object.assign(process.env, env); }
 }
 test('288 ejecuciones sin pendientes producen cero llamadas a Airtable y Resend', async () => entorno(async ({ invocar, contador }) => {
   for (let i = 0; i < 288; i++) { const r = await invocar(); assert.equal(r.codigo, 200); assert.equal(r.datos.sin_trabajo, true); }
@@ -80,3 +96,32 @@ test('comprobaciones de entrega tienen esperas crecientes y máximo cuatro', () 
   for (const estado of ['entregado', 'rechazado']) assert.equal(proximaRevision({ ...d, estado }, ahora), null);
   assert.equal(proximaRevision({ ...d, iniciado: new Date(ahora - 86400000).toISOString() }, ahora), null);
 });
+
+for (const respuestaPerdida of [false, true]) test(`circuito completo: ${respuestaPerdida ? 'respuesta perdida' : 'fallo temporal'} → reintento → entrega → cola vacía`, async () => entorno(async ({ invocar, contador, cola, datos, avanzar }) => {
+  const { enviarConReintentos, huellaPayload } = require('../lib/aviso-confirmacion');
+  const { desdeEntorno } = require('../lib/cola-avisos');
+  const contexto = { idioma: 'es', zona: '', mensaje_huella: huellaPayload('') };
+  Object.assign(datos, { hora: '14:00', personas: 4, restaurante: ['recRestaurante'], nombre_completo: 'Prueba', email: 'prueba@example.invalid', id_reserva: 'PRUEBA-20990101', token_gestion: 'token-simulado', mensaje: '' });
+  const payload = await require('../api/chat').prepararAviso(datos, { fields: { nombre: 'Prueba' } }, contexto);
+  const anteriorReserva = Object.fromEntries(Object.entries(datos).filter(([k]) => !k.startsWith('aviso_cliente_')));
+  const inicial = await enviarConReintentos({ payload, contexto, clave: 'confirmacion/appSimulada/recPrueba', apiKey: 'simulada',
+    fetchImpl: global.fetch, esperar: async () => {}, registrar: async detalle => {
+      await desdeEntorno().actualizar(id, detalle);
+      datos.aviso_cliente_estado = detalle.estado; datos.aviso_cliente_detalle = JSON.stringify(detalle);
+    } });
+  assert.equal(inicial.estado, 'pendiente'); assert.equal(inicial.intentos, 3); assert.equal(cola.size, 1);
+  assert.equal((await invocar()).datos.sin_trabajo, true); assert.equal(contador.airtable, 0);
+  avanzar(6 * 60000);
+  const recuperado = await invocar();
+  assert.equal(recuperado.codigo, 200); assert.equal(recuperado.datos.aceptados, 1);
+  assert.equal(datos.aviso_cliente_estado, 'aceptado'); assert.equal(contador.envios.length, 4);
+  assert.equal(new Set(contador.envios.map(r => r.body)).size, 1);
+  assert.equal(new Set(contador.envios.map(r => r.headers['Idempotency-Key'])).size, 1);
+  assert.equal(contador.aceptaciones.size, 1);
+  avanzar(20 * 60000);
+  assert.equal((await invocar()).datos.comprobados, 1);
+  assert.equal(datos.aviso_cliente_estado, 'entregado'); assert.equal(cola.size, 0);
+  const consultas = contador.airtable;
+  assert.equal((await invocar()).datos.sin_trabajo, true); assert.equal(contador.airtable, consultas);
+  assert.deepEqual(Object.fromEntries(Object.entries(datos).filter(([k]) => !k.startsWith('aviso_cliente_'))), anteriorReserva);
+}, { recuperacion: true, respuestaPerdida }));
