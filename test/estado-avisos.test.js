@@ -23,6 +23,11 @@ for (const [evento, estado] of [['delivered', 'entregado'], ['bounced', 'rechaza
   test(`${evento} solo cambia aviso, no reserva ni mesa`, async () => {
     const r = await comprobar(evento);
     assert.equal(r.cambios[0].f.aviso_cliente_estado, estado);
+    if (['bounced', 'failed'].includes(evento)) {
+      const contacto = JSON.parse(r.cambios[0].f.aviso_cliente_detalle).contacto;
+      assert.equal(contacto.fase, 'llamada_pendiente');
+      assert.equal(contacto.intentos_llamada, 0);
+    }
     assert.deepEqual(Object.keys(r.cambios[0].f).sort(), ['aviso_cliente_detalle', 'aviso_cliente_estado']);
     assert.ok(!JSON.stringify(r.cambios).includes('privado'));
     assert.equal(r.llamadas[0].req.method, undefined); // GET; nunca reenvía

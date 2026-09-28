@@ -263,6 +263,7 @@ module.exports = async (req, res) => {
         const motivos = { contenido_cambiado: "Los datos han cambiado; no reenviar la confirmación anterior", correo_rebotado: "Correo devuelto; contactar por otra vía", entrega_fallida: "El proveedor no pudo entregar el correo", correo_suprimido: "El proveedor ha bloqueado el envío", queja_destinatario: "El destinatario ha marcado el correo como no deseado; no reenviar", entrega_demorada: "Entrega demorada; no reenviar mientras el proveedor lo intenta", preparado: "Envío iniciado; resultado pendiente", configuracion: "Revisar configuración de correo", sin_destinatario: "No hay correo de destino", fallo_temporal: "Fallo temporal del proveedor", respuesta_desconocida: "No se recibió una respuesta concluyente", rechazado_proveedor: "Envío rechazado por el proveedor" };
         return { localizador: r.fields.id_reserva, fecha: r.fields.fecha, hora: r.fields.hora,
           personas: r.fields.personas, intentos: Number(detalle.intentos) || 0,
+          contacto: require("../lib/contacto-alternativo").resumenContacto(detalle),
           motivo: motivos[detalle.motivo] || "Revisar resultado del aviso", actualizado: detalle.actualizado || "" };
       });
       return responder(res, 200, { ok: true, avisos, seguimiento: "" });

@@ -104,6 +104,11 @@
         const info = document.createElement("p");
         info.textContent = `${aviso.motivo}. Intentos: ${aviso.intentos}. ${aviso.actualizado ? formatearFecha(aviso.actualizado) : ""}`;
         fila.append(titulo, info);
+        if (aviso.contacto) {
+          const contacto = document.createElement("p");
+          contacto.textContent = aviso.contacto;
+          fila.append(contacto);
+        }
         listaAvisos.appendChild(fila);
       }
     } catch (error) {
