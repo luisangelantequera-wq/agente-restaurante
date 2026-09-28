@@ -43,3 +43,11 @@ test('endpoint exige sesión antes de la prueba', async () => {
   assert.equal(res.statusCode,401);
  } finally {for(const [k,v] of Object.entries(anterior)){if(v===undefined)delete process.env[k];else process.env[k]=v;}}
 });
+test('distingue ausencia, vacío y formato; tolera espacios exteriores sin revelar valores', async () => {
+ for (const [valor,motivo] of [[undefined,/No llega/],['  ',/vacía/],['whatsapp:numero-invalido',/formato/]]) {
+  const r=await ejecutar({accion:'whatsapp_prueba_config'},{env:{...env,TWILIO_WHATSAPP_TEST_TO:valor}});
+  assert.match(r.diagnostico[0].motivo,motivo); assert.ok(!JSON.stringify(r).includes('numero-invalido'));
+ }
+ const r=await ejecutar({accion:'whatsapp_prueba_config'},{env:{...env,TWILIO_WHATSAPP_TEST_TO:' '+env.TWILIO_WHATSAPP_TEST_TO+'\n'}});
+ assert.equal(r.preparado,true); assert.equal(r.destino,'•••• 0000');
+});

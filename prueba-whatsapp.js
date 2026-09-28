@@ -9,7 +9,7 @@ async function solicitar(datos) {
 async function configurar() {
   const d = await solicitar({ accion: "whatsapp_prueba_config" });
   acceso.hidden = true; prueba.hidden = false; enviar.disabled = !d.preparado;
-  document.getElementById("config").textContent = d.preparado ? `Destino configurado: ${d.destino}` : `Faltan variables o su formato no es válido: ${d.faltan.join(", ")}. Guárdelas en Preview y vuelva a desplegar.`;
+  document.getElementById("config").textContent = d.preparado ? `Destino configurado: ${d.destino}` : `${(d.diagnostico || []).map(x => `${x.variable}: ${x.motivo}`).join(" ")} Versión: ${d.version}.`;
 }
 acceso.addEventListener("submit", async e => {
   e.preventDefault(); resultado.textContent = "Comprobando acceso…";
