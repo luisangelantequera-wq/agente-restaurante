@@ -100,6 +100,15 @@ for (const caso of [{ ausente: true }, { campos: { estado: 'cancelada' } }, { ca
 test('Airtable 429 pausa 24 horas y la siguiente ejecución no vuelve a consultar', async () => entorno(async ({ invocar, contador, cola }) => {
   assert.equal((await invocar()).codigo, 503); assert.equal(contador.pausa, 86400);
   assert.equal((await invocar()).datos.pausado, true); assert.equal(contador.airtable, 1); assert.equal(cola.size, 1);
+  const inspeccion = await invocar('inspeccionar_programados');
+  assert.equal(inspeccion.codigo, 200);
+  assert.equal(inspeccion.datos.pausado, true);
+  assert.equal(inspeccion.datos.vigentes, null);
+  assert.equal(inspeccion.datos.consultas_airtable, 0);
+  assert.equal(contador.airtable, 1);
+  assert.equal(contador.resend, 0);
+  assert.equal(contador.parches.length, 0);
+  assert.equal(cola.get(id).version, 'original');
 }, { trabajo: true, cuota: true }));
 test('Redis inaccesible no provoca búsquedas de respaldo en Airtable', async () => entorno(async ({ invocar, contador }) => {
   assert.equal((await invocar()).codigo, 503); assert.equal(contador.airtable, 0);

@@ -18,6 +18,9 @@ Los avisos anteriores a esta versión no se importan automáticamente. Deben rev
 4. Configuración del proyecto → Propiedades del script: añadir `CONTACTIA_AVISOS_SECRET` con exactamente el mismo valor.
 5. En Vercel → Deployment Protection → Protection Bypass for Automation, crear un secreto (la pantalla exige exactamente 32 caracteres). Guardarlo en las propiedades de Apps Script como `VERCEL_AUTOMATION_BYPASS_SECRET`. Es distinto del secreto del endpoint. El script lo envía por cabecera, sin seguir redirecciones ni registrar credenciales.
 6. Ejecutar `instalarComprobacionesContactia` y autorizar el acceso solicitado por Google. No requiere publicar una aplicación web. Primero hace una comprobación real; si falla no instala el activador.
+   La versión actualizada tampoco instala ni retira activadores si la respuesta
+   indica pausa de servicio o ejecución en curso. Antes de reanudar, actualizar
+   el código del proyecto de comprobaciones con esta versión.
 7. Verificar en Activadores que hay exactamente uno cada cinco minutos y en Ejecuciones dos ejecuciones correctas separadas por ese intervalo. Las ejecuciones muestran solo contadores. `ULTIMA_EJECUCION` registra el momento de respuesta del servidor, y un aviso produce ejecución fallida para no ocultar problemas de permisos.
 
 Un 401 indica secreto incorrecto o despliegue sin la variable. Un 403/429 o HTML puede ser la protección de Vercel: no significa que haya funcionado. Revisar la configuración mediante los mecanismos oficiales; no desactivar la protección global. Un 503 indica configuración incompleta o servicio temporalmente inaccesible. Resend debe permitir consultar correos además de enviarlos. No afirmar que el sistema está activo hasta observar ejecuciones correctas.
