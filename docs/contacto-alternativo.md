@@ -39,7 +39,7 @@ En los envíos nuevos, la falta de destinatario, el agotamiento de intentos y el
 
 ## WhatsApp y llamadas
 
-Actualmente no existe captura de autorización para WhatsApp, por lo que los envíos nuevos guardan `whatsapp_autorizado: false`. Dar un móvil no marca esa autorización. Hasta implementar su captura, el plan salta ese canal y muestra llamada pendiente de integración; no llama.
+La captura de autorización está implementada pero desactivada por defecto (véase abajo). Dar un móvil no marca esa autorización. Mientras esté desactivada, los envíos nuevos guardan `whatsapp_autorizado: false` y el plan salta a llamada pendiente de integración; no llama.
 
 `prepararContacto` calcula el plan. `siguienteAccion` propone el siguiente paso y, cuando se declara disponible el proveedor de llamadas, calcula una hora permitida y separada del intento anterior. El futuro ejecutor deberá pasar el límite de contacto apropiado para esa reserva, autenticar eventos del proveedor y persistir transiciones de forma atómica antes de habilitar llamadas reales.
 
@@ -66,3 +66,19 @@ titularidad del móvil ni sustituye la integración del proveedor.
 El paso RES-09-W se trata como personal, sin habilitar grabación de audio.
 Los clientes anteriores no adquieren autorización por tener teléfono.
 La pregunta usa el mismo mecanismo de traducción de voz existente.
+
+## Preparación del contenido (29/09/2026)
+
+`lib/confirmacion-whatsapp.js` prepara un borrador en español desde una reserva confirmada y el plan de contacto pendiente. Exige evidencia de consentimiento, datos completos y fallo de correo admitido por el plan existente. Conserva la reserva sin pedir reconfirmación. Incluye restaurante, fecha con día de semana, hora, personas, zona y localizador; no copia nombre, correo, teléfono ni observaciones.
+
+Es una función pura sin conexión al programador ni envío. `listo` significa contenido preparado, nunca enviado: `envio_habilitado` permanece false. Los idiomas inglés y francés quedan pendientes de sus propias plantillas. El ejemplo ficticio está visible en `/prueba-whatsapp.html`.
+
+Propuesta de plantilla de utilidad `contactia_confirmacion_correo_fallido_v1` (es):
+
+> No hemos podido entregarle el correo de confirmación. Su reserva en {{1}} está confirmada para el {{2}}, a las {{3}}, para {{4}} personas, en {{5}}. Localizador: {{6}}. No necesita volver a confirmar. Gracias por reservar con nosotros.
+
+Variables: 1 restaurante, 2 fecha completa, 3 hora, 4 personas, 5 zona, 6 localizador. La categoría y aprobación final corresponden al proveedor.
+
+La cuenta Try out WhatsApp actual solo permite plantillas predefinidas, no contenido personalizado ni ContentVariables. Fuente: https://www.twilio.com/docs/usage/trials/try-out-whatsapp (comprobada 28/09/2026).
+
+Pendiente antes de activar: cuenta con funciones completas, remitente registrado y plantilla aprobada; adaptador a registros reales y verificación de vigencia/destinatario/autorización; bloqueo atómico por reserva y versión; persistir SID sin duplicar ante resultado ambiguo; verificar firmas de callbacks, correlacionar SID y tratar delivered/read frente a queued/sent; reconciliación limitada de resultados; traducciones y prueba integral. No reutilizar el ContentSid ficticio como confirmación. No reactivar Apps Script todavía.
