@@ -82,3 +82,11 @@ Variables: 1 restaurante, 2 fecha completa, 3 hora, 4 personas, 5 zona, 6 locali
 La cuenta Try out WhatsApp actual solo permite plantillas predefinidas, no contenido personalizado ni ContentVariables. Fuente: https://www.twilio.com/docs/usage/trials/try-out-whatsapp (comprobada 28/09/2026).
 
 Pendiente antes de activar: cuenta con funciones completas, remitente registrado y plantilla aprobada; adaptador a registros reales y verificación de vigencia/destinatario/autorización; bloqueo atómico por reserva y versión; persistir SID sin duplicar ante resultado ambiguo; verificar firmas de callbacks, correlacionar SID y tratar delivered/read frente a queued/sent; reconciliación limitada de resultados; traducciones y prueba integral. No reutilizar el ContentSid ficticio como confirmación. No reactivar Apps Script todavía.
+
+## Adaptador preparado, aislado (29/09/2026)
+
+`lib/proveedor-confirmacion-whatsapp.js` forma `ContentSid` + `ContentVariables` para la API oficial de Twilio. Se ha comprobado con proveedor simulado: bloqueo sin reserva/consentimiento, producción, bandera apagada, número inválido y SID ficticio de Try out; una respuesta `queued` nunca significa entregado, y un timeout nunca dispara un segundo envío. No hay rutas que invoquen este adaptador, ni variable de activación definida en Vercel.
+
+El futuro canal exige `CONTACTIA_WHATSAPP_CONFIRMACION_HABILITADA=1` solo en Preview y un SID propio distinto del de prueba en `TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID`. Configurar esos valores **solo después** de la aprobación de plantilla, remitente y circuito de resultados; estas variables por sí solas no conectan el ejecutor. La integración pendiente debe fijar identidad y teléfono al mismo registro confirmado, comparar la huella de reserva vigente, persistir una exclusión atómica por reserva+versión antes de enviar, correlacionar SID y firmar callbacks, y gobernar la recuperación de estados inciertos sin duplicados. No reutilizar el botón manual para clientes.
+
+Referencia: https://www.twilio.com/docs/content/send-templates-created-with-the-content-template-builder
