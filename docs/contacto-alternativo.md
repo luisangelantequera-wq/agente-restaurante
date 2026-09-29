@@ -69,9 +69,9 @@ La pregunta usa el mismo mecanismo de traducción de voz existente.
 
 ## Preparación del contenido (29/09/2026)
 
-`lib/confirmacion-whatsapp.js` prepara un borrador en español desde una reserva confirmada y el plan de contacto pendiente. Exige evidencia de consentimiento, datos completos y fallo de correo admitido por el plan existente. Conserva la reserva sin pedir reconfirmación. Incluye restaurante, fecha con día de semana, hora, personas, zona y localizador; no copia nombre, correo, teléfono ni observaciones.
+`lib/confirmacion-whatsapp.js` prepara borradores en español, inglés y francés desde una reserva confirmada y el plan de contacto pendiente. Exige evidencia de consentimiento, datos completos y fallo de correo admitido por el plan existente. Conserva la reserva sin pedir reconfirmación. Incluye restaurante, fecha con día de semana, hora, personas, zona y localizador; no copia nombre, correo, teléfono ni observaciones.
 
-Es una función pura sin conexión al programador ni envío. `listo` significa contenido preparado, nunca enviado: `envio_habilitado` permanece false. Los idiomas inglés y francés quedan pendientes de sus propias plantillas. El ejemplo ficticio está visible en `/prueba-whatsapp.html`.
+Es una función pura sin conexión al programador ni envío. `listo` significa contenido preparado, nunca enviado: `envio_habilitado` permanece false. Los tres idiomas tienen contenido preparado; sus plantillas todavía requieren aprobación para envío real. Los ejemplos ficticios están visibles en `/prueba-whatsapp.html`.
 
 Propuesta de plantilla de utilidad `contactia_confirmacion_correo_fallido_v1` (es):
 
@@ -81,7 +81,7 @@ Variables: 1 restaurante, 2 fecha completa, 3 hora, 4 personas, 5 zona, 6 locali
 
 La cuenta Try out WhatsApp actual solo permite plantillas predefinidas, no contenido personalizado ni ContentVariables. Fuente: https://www.twilio.com/docs/usage/trials/try-out-whatsapp (comprobada 28/09/2026).
 
-Pendiente antes de activar: cuenta con funciones completas, remitente registrado y plantilla aprobada; adaptador a registros reales y verificación de vigencia/destinatario/autorización; bloqueo atómico por reserva y versión; persistir SID sin duplicar ante resultado ambiguo; verificar firmas de callbacks, correlacionar SID y tratar delivered/read frente a queued/sent; reconciliación limitada de resultados; traducciones y prueba integral. No reutilizar el ContentSid ficticio como confirmación. No reactivar Apps Script todavía.
+Pendiente antes de activar: cuenta con funciones completas, remitente registrado y plantilla aprobada; adaptador a registros reales y verificación de vigencia/destinatario/autorización; bloqueo atómico por reserva y versión; persistir SID sin duplicar ante resultado ambiguo; verificar firmas de callbacks, correlacionar SID y tratar delivered/read frente a queued/sent; reconciliación limitada de resultados; plantillas aprobadas por idioma y prueba integral. No reutilizar el ContentSid ficticio como confirmación. No reactivar Apps Script todavía.
 
 ## Adaptador preparado, aislado (29/09/2026)
 
@@ -94,3 +94,21 @@ Referencia: https://www.twilio.com/docs/content/send-templates-created-with-the-
 ## Cola de comprobaciones (29/09/2026)
 
 La entrada vencida de Redis solo hace una búsqueda acotada por ID en Airtable. Si el seguimiento leído ya indica una fecha de revisión futura, la entrada se mueve a esa fecha con comparación de versión y no llama a Resend ni reenvía. Los estados terminales salen de la cola. El estado del proveedor también respeta el calendario escalonado (15 minutos, 1 hora, 6 horas y 12 horas) y el máximo de cuatro consultas. Las ejecuciones con cola vacía no leen Airtable. El activador de Apps Script sigue eliminado y no se reactiva con este cambio.
+
+## Borradores en inglés y francés (29/09/2026)
+
+La preparación pura usa el idioma guardado en el seguimiento (`es`, `en` o
+`fr`), y formatea la fecha con día de semana en ese idioma. El nombre del
+restaurante, la zona configurada y el localizador permanecen fieles a la
+reserva. Un idioma distinto se bloquea; no se sustituye automáticamente por
+español. Todos los borradores mantienen `envio_habilitado: false`.
+
+Propuestas de contenido, con las mismas seis variables de la plantilla española:
+
+- Inglés: We could not deliver your confirmation email. Your reservation at {{1}} is confirmed for {{2}}, at {{3}}, for {{4}} guests, in the {{5}} area. Booking reference: {{6}}. You do not need to confirm again. Thank you for booking with us.
+- Francés: Nous n’avons pas pu vous faire parvenir l’e-mail de confirmation. Votre réservation au restaurant {{1}} est confirmée pour le {{2}}, à {{3}}, pour {{4}} personnes, dans la zone {{5}}. Référence de réservation : {{6}}. Vous n’avez pas besoin de confirmer à nouveau. Merci d’avoir réservé chez nous.
+
+El adaptador de proveedor existente sigue admitiendo solo borradores españoles.
+La integración futura necesitará seleccionar un ContentSid aprobado del mismo
+idioma; el SID español no se reutiliza para los borradores inglés y francés.
+Esta ampliación no configura variables, registra plantillas ni envía mensajes.

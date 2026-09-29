@@ -14,6 +14,13 @@ test('datos insuficientes, autorización ausente y teléfono inválido impiden f
  assert.equal(prepararPeticion({borrador,telefonoCliente:'666111222',env}).listo,false);
  assert.equal(prepararPeticion({borrador:{...borrador,variables:{...borrador.variables,7:'otro'}},telefonoCliente:'+34600000000',env}).listo,false);
 });
+test('borradores inglés y francés no utilizan la plantilla de envío española',()=>{
+ for(const idioma of ['en','fr']) {
+  const traducido=preparar({reserva,aviso:{...aviso,idioma}});
+  assert.equal(traducido.listo,true);
+  assert.equal(prepararPeticion({borrador:traducido,telefonoCliente:'+34600000000',env}).listo,false);
+ }
+});
 test('petición utiliza plantilla propia y ContentVariables, nunca Body',async()=>{
  const p=prepararPeticion({borrador,telefonoCliente:'+34600000000',env});assert.equal(p.listo,true);
  const form=new URLSearchParams(p.form);assert.equal(form.get('To'),'whatsapp:+34600000000');assert.equal(form.get('ContentSid'),env.TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID);

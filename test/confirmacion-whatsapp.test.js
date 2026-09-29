@@ -15,6 +15,23 @@ test('requiere reserva confirmada y consentimiento explícito con evidencia',()=
 });
 test('rechaza datos inválidos, idiomas pendientes y contacto ya resuelto',()=>{
  for(const r of [{fecha:'2026-02-30'},{hora:'25:00'},{personas:0},{zona:''},{restaurante:'A\nB'}])assert.equal(preparar({reserva:{...reserva,...r},aviso}).listo,false);
- assert.equal(preparar({reserva,aviso:{...aviso,idioma:'fr'}}).motivo,'plantilla_idioma_pendiente');
+ assert.equal(preparar({reserva,aviso:{...aviso,idioma:'de'}}).motivo,'plantilla_idioma_pendiente');
  assert.equal(preparar({reserva,aviso:{...aviso,contacto:{fase:'resuelto'}}}).listo,false);
+});
+
+for (const [idioma, dia, cierre] of [
+ ['en', /Friday, 2 October 2026/, /You do not need to confirm again/],
+ ['fr', /vendredi 2 octobre 2026/, /Vous n’avez pas besoin de confirmer à nouveau/]
+]) test(`prepara ${idioma} con fecha localizada y mantiene el envío desactivado`,()=>{
+ const r=preparar({reserva,aviso:{...aviso,idioma}});
+ assert.equal(r.listo,true);
+ assert.equal(r.idioma,idioma);
+ assert.equal(r.envio_habilitado,false);
+ assert.match(r.variables['2'],dia);
+ assert.match(r.texto,cierre);
+ assert.doesNotMatch(r.texto,/\{\{|No hemos podido/);
+ for(const k of ['nombre','email','telefono'])assert.ok(!JSON.stringify(r).includes(reserva[k]));
+ assert.equal(r.variables['5'],reserva.zona);
+ assert.equal(r.variables['6'],reserva.localizador);
+ assert.equal(preparar({reserva,aviso:{...aviso,idioma,whatsapp_autorizado:false}}).listo,false);
 });
