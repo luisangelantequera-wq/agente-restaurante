@@ -257,6 +257,19 @@ module.exports = async (req, res) => {
     return responder(res, status, datos);
   }
 
+  if (cuerpo.accion === "inspeccionar_programados") {
+    try {
+      const env = process.env;
+      const cola = require("../lib/cola-avisos").desdeEntorno();
+      const datos = await require("../lib/inspeccion-avisos").inspeccionar({ cola,
+        leer: (tabla, campos, formula) => {
+          if (!env.AIRTABLE_API_KEY) throw new Error("Configuración incompleta");
+          return require("../lib/revision-retenciones").leerAirtable(tabla, campos, formula);
+        } });
+      return responder(res, 200, { ok: true, ...datos });
+    } catch { return responder(res, 503, { ok: false, error: "No se pudo inspeccionar; no se ha enviado ni modificado ningún aviso." }); }
+  }
+
   if (cuerpo.accion === "listar_avisos") {
     try {
       const { leerAirtable } = require("../lib/revision-retenciones");
