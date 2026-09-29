@@ -55,9 +55,9 @@ async function entorno(fn, opciones = {}) {
         return { ok: true, json: async () => ({ id: d.id_envio, last_event: 'delivered' }) }; }
       throw Error('Destino inesperado');
     };
-    const invocar = async () => {
+    const invocar = async (accion = "ejecutar_programados") => {
       const res = { setHeader() {}, status(n) { this.codigo = n; return this; }, json(d) { this.datos = d; } };
-      await handler({ method: 'GET', headers: { authorization: 'Bearer ' + 'x'.repeat(40) } }, res);
+      await handler({ method: 'GET', query: { accion }, headers: { authorization: 'Bearer ' + 'x'.repeat(40) } }, res);
       return res;
     };
     await fn({ invocar, contador, cola, datos, avanzar: ms => { reloj += ms; } });
@@ -135,3 +135,35 @@ for (const respuestaPerdida of [false, true]) test(`circuito completo: ${respues
   assert.equal((await invocar()).datos.sin_trabajo, true); assert.equal(contador.airtable, consultas);
   assert.deepEqual(Object.fromEntries(Object.entries(datos).filter(([k]) => !k.startsWith('aviso_cliente_'))), anteriorReserva);
 }, { recuperacion: true, respuestaPerdida }));
+
+test('inspección vacía no usa Airtable, Resend ni muta la cola', async () => entorno(async ({ invocar, contador, cola }) => {
+ const r = await invocar('inspeccionar_programados');
+ assert.equal(r.codigo, 200); assert.deepEqual(r.datos, { modo:'solo_lectura', vencidos:0, vigentes:0, desactualizados:0, consultas_airtable:0 });
+ assert.equal(contador.airtable,0); assert.equal(contador.resend,0); assert.equal(cola.size,0);
+}));
+test('inspección vencida hace una lectura y no envía, parchea ni retira', async () => entorno(async ({ invocar, contador, cola }) => {
+ const r = await invocar('inspeccionar_programados');
+ assert.equal(r.codigo,200); assert.deepEqual(r.datos, { modo:'solo_lectura', vencidos:1, vigentes:1, desactualizados:0, consultas_airtable:1 });
+ assert.equal(contador.airtable,1); assert.equal(contador.resend,0); assert.equal(contador.parches.length,0); assert.equal(cola.size,1);
+}, { trabajo:true }));
+test('inspección reconoce entrada antigua y no anticipa el proveedor', async () => entorno(async ({ invocar, contador, cola }) => {
+ const r = await invocar('inspeccionar_programados');
+ assert.equal(r.datos.desactualizados,1); assert.equal(r.datos.vigentes,0);
+ assert.equal(contador.resend,0); assert.equal(cola.get(id).version,'original');
+}, { trabajo:true, campos:{ aviso_cliente_detalle:JSON.stringify({...d,comprobado:new Date(ahora).toISOString(),comprobaciones:0}) } }));
+test('inspección exige GET y secreto correcto antes de tocar proveedores', async () => {
+ const anterior={...process.env}, fetchOriginal=global.fetch;
+ let llamadas=0;
+ try {
+  Object.assign(process.env,{VERCEL_ENV:'preview',CONTACTIA_AVISOS_SECRET:'x'.repeat(40),KV_REST_API_URL:'https://simulado.upstash.io',KV_REST_API_TOKEN:'simulado',AIRTABLE_BASE_ID:'appSimulada',AIRTABLE_API_KEY:'simulada',RESEND_API_KEY:'simulada'});
+  global.fetch=async()=>{llamadas++;throw Error('no debe llamarse');};
+  const invocar=async(method,authorization)=>{
+   const res={setHeader(){},status(n){this.codigo=n;return this;},json(d){this.datos=d;}};
+   await handler({method,query:{accion:'inspeccionar_programados'},headers:{authorization}},res);
+   return res.codigo;
+  };
+  assert.equal(await invocar('POST','Bearer '+'x'.repeat(40)),405);
+  assert.equal(await invocar('GET','Bearer incorrecta'),401);
+  assert.equal(llamadas,0);
+ } finally {global.fetch=fetchOriginal;for(const k of Object.keys(process.env))if(!(k in anterior))delete process.env[k];Object.assign(process.env,anterior);}
+});

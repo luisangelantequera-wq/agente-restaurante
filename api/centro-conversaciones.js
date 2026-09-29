@@ -199,7 +199,7 @@ async function obtenerConversacionesAirtable(filtros) {
 
 
 module.exports = async (req, res) => {
-  if (req.query?.accion === "ejecutar_programados") {
+  if (["ejecutar_programados", "inspeccionar_programados"].includes(req.query?.accion)) {
     return require("../lib/endpoint-avisos-programados")(req, res);
   }
   if (!disponibleEnEsteEntorno()) {
