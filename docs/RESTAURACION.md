@@ -52,3 +52,20 @@ La clave de restauración y la clave de cifrado permanecen como secretos de
 producción en Vercel. Nunca deben copiarse al repositorio, al navegador del
 cliente ni a Airtable.
 
+## Retención de copias en Drive
+
+La subida diaria solicita conservar las copias durante siete días. La versión
+preparada de `scripts/google-drive-backup.gs` elimina definitivamente, tras
+una subida satisfactoria, los archivos con el nombre de copia de Contactia
+que ya han superado ese plazo. También crea la copia nueva antes de borrar una
+versión anterior del mismo nombre: si falla la creación, la anterior permanece.
+Si Drive no confirma la eliminación, el script devuelve un error y conserva
+los archivos no eliminados para una revisión posterior.
+
+Esta política no vacía automáticamente las copias que ya estuvieran en la
+papelera por ejecuciones antiguas, ni ejecuta la purga cuando no hay una nueva
+subida. La actualización requiere publicar una nueva versión de la
+implementación web del Apps Script de copias y afecta a todos los entornos que
+usen esa misma URL. Antes de publicarla se debe revisar si hay copias antiguas
+en la carpeta que todavía se necesiten para restaurar datos.
+

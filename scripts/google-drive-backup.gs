@@ -41,15 +41,15 @@ function deleteExpiredBackups(folder, retentionDays) {
       BACKUP_FILE_PATTERN.test(file.getName()) &&
       file.getDateCreated().getTime() < limit
     ) {
-      file.setTrashed(true);
+      deleteFilePermanently(file, 'copia de seguridad');
     }
   }
 }
 
 
-// Solo se llama después de identificar un archivo de audio de nuestra carpeta privada.
+// Solo se llama después de validar el nombre y la carpeta privada del archivo.
 // DriveApp.setTrashed(true) conserva el archivo en la papelera otros 30 días.
-function deleteAudioPermanently(file) {
+function deleteFilePermanently(file, tipo) {
   const response = UrlFetchApp.fetch(
     'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(file.getId()), {
       method: 'delete',
@@ -57,7 +57,7 @@ function deleteAudioPermanently(file) {
       muteHttpExceptions: true
     });
   if (response.getResponseCode() !== 204) {
-    throw new Error('No se ha confirmado el borrado definitivo del audio. HTTP ' + response.getResponseCode());
+    throw new Error('No se ha confirmado el borrado definitivo de ' + tipo + '. HTTP ' + response.getResponseCode());
   }
 }
 
@@ -73,7 +73,7 @@ function deleteExpiredAudios(folder, retentionDays) {
       AUDIO_FILE_PATTERN.test(file.getName()) &&
       file.getDateCreated().getTime() < limit
     ) {
-      deleteAudioPermanently(file);
+      deleteFilePermanently(file, 'audio');
       deleted += 1;
     }
   }
@@ -82,11 +82,18 @@ function deleteExpiredAudios(folder, retentionDays) {
 }
 
 
-function deleteExistingFile(folder, filename) {
+function deleteExistingFile(folder, filename, currentFileId) {
+  if (!BACKUP_FILE_PATTERN.test(filename) && !AUDIO_FILE_PATTERN.test(filename)) {
+    throw new Error('Nombre de archivo no válido para sustituir.');
+  }
+
   const files = folder.getFilesByName(filename);
 
   while (files.hasNext()) {
-    files.next().setTrashed(true);
+    const file = files.next();
+    if (file.getId() !== currentFileId) {
+      deleteFilePermanently(file, 'archivo anterior');
+    }
   }
 }
 
@@ -183,7 +190,7 @@ function deleteAudiosByConversation(folder, conversationIds) {
     const match = file.getName().match(AUDIO_FILE_PATTERN);
 
     if (match && permitted[match[1]]) {
-      deleteAudioPermanently(file);
+      deleteFilePermanently(file, 'audio');
       deleted += 1;
     }
   }
@@ -264,12 +271,12 @@ function handleAudioAction(data, action) {
     Math.max(1, Number(data.retention_days) || 30)
   );
 
-  deleteExistingFile(folder, data.filename);
   const file = folder.createFile(
     data.filename,
     data.content,
     MimeType.PLAIN_TEXT
   );
+  deleteExistingFile(folder, data.filename, file.getId());
   deleteExpiredAudios(folder, retentionDays);
 
   return jsonResponse({ ok: true, file_id: file.getId() });
@@ -334,12 +341,12 @@ function doPost(e) {
       return jsonResponse({ ok: false, error: "Contenido no válido." });
     }
 
-    deleteExistingFile(folder, data.filename);
     const file = folder.createFile(
       data.filename,
       data.content,
       MimeType.PLAIN_TEXT
     );
+    deleteExistingFile(folder, data.filename, file.getId());
     deleteExpiredBackups(folder, retentionDays);
 
     return jsonResponse({ ok: true, file_id: file.getId() });
@@ -348,4 +355,3 @@ function doPost(e) {
     return jsonResponse({ ok: false, error: "No se pudo procesar la solicitud." });
   }
 }
-

@@ -63,6 +63,6 @@ test("el borrado de conversación solo alcanza sus audios y exige confirmación 
   const fallo = prepararDrive(403);
   assert.throws(
     () => fallo.funciones.deleteAudiosByConversation(fallo.carpeta, ["CONV-AUDIO-12345678"]),
-    /No se ha confirmado el borrado definitivo del audio. HTTP 403/
+    /No se ha confirmado el borrado definitivo de audio. HTTP 403/
   );
 });
