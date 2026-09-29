@@ -136,6 +136,12 @@ ni las transcripciones filtradas.
 
 El Apps Script crea automáticamente la carpeta `Contactia Audios Temporales`,
 mantiene sus archivos privados y admite las acciones `audio_upload`,
-`audio_read` y `audio_delete_conversations`. Tras modificar
-`scripts/google-drive-backup.gs`, es necesario publicar una nueva versión del
-despliegue de Apps Script para que esas acciones estén disponibles.
+`audio_read`, `audio_purge_expired` y `audio_delete_conversations`. La purga
+elimina definitivamente los audios de más de 30 días mediante la API de Drive,
+sin dejarlos otros 30 días en la papelera. Si Drive no confirma el borrado, la
+tarea conserva la conversación y puede reintentarlo en la siguiente ejecución.
+Este comportamiento solo entra en vigor al actualizar
+`scripts/google-drive-backup.gs`, autorizar los permisos solicitados por
+Apps Script y publicar una nueva versión de su despliegue web. Hasta entonces,
+el despliegue existente sigue enviando los audios a la papelera. Esta revisión
+no cambia la política de las copias de seguridad, que se gestionan aparte.

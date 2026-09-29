@@ -47,6 +47,20 @@ function deleteExpiredBackups(folder, retentionDays) {
 }
 
 
+// Solo se llama después de identificar un archivo de audio de nuestra carpeta privada.
+// DriveApp.setTrashed(true) conserva el archivo en la papelera otros 30 días.
+function deleteAudioPermanently(file) {
+  const response = UrlFetchApp.fetch(
+    'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(file.getId()), {
+      method: 'delete',
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true
+    });
+  if (response.getResponseCode() !== 204) {
+    throw new Error('No se ha confirmado el borrado definitivo del audio. HTTP ' + response.getResponseCode());
+  }
+}
+
 function deleteExpiredAudios(folder, retentionDays) {
   const limit = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
   const files = folder.getFiles();
@@ -59,7 +73,7 @@ function deleteExpiredAudios(folder, retentionDays) {
       AUDIO_FILE_PATTERN.test(file.getName()) &&
       file.getDateCreated().getTime() < limit
     ) {
-      file.setTrashed(true);
+      deleteAudioPermanently(file);
       deleted += 1;
     }
   }
@@ -169,7 +183,7 @@ function deleteAudiosByConversation(folder, conversationIds) {
     const match = file.getName().match(AUDIO_FILE_PATTERN);
 
     if (match && permitted[match[1]]) {
-      file.setTrashed(true);
+      deleteAudioPermanently(file);
       deleted += 1;
     }
   }

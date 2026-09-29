@@ -208,3 +208,57 @@ test("la tarea de privacidad elimina conversaciones al cumplir su retención", a
   }
 });
 
+
+test("si falla el borrado del audio, conserva la conversación para reintentar", async () => {
+  const fetchAnterior = global.fetch;
+  const apiKeyAnterior = process.env.AIRTABLE_API_KEY;
+  const baseAnterior = process.env.AIRTABLE_BASE_ID;
+  const eliminaciones = [];
+
+  process.env.AIRTABLE_API_KEY = "clave-prueba";
+  process.env.AIRTABLE_BASE_ID = "appBasePrueba";
+  global.fetch = async (url, opciones = {}) => {
+    const direccion = new URL(String(url));
+    const tabla = decodeURIComponent(direccion.pathname.split("/").at(-1));
+
+    if (opciones.method === "DELETE") {
+      eliminaciones.push(tabla);
+      return { ok: true, status: 200, text: async () => "{}" };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        records: tabla === "CONVERSACIONES" ? [{
+          id: "recConversacionCaducada",
+          fields: {
+            id_conversacion: "CONV-CADUCADA-1234",
+            transcripcion_anonimizada:
+              '[{"id_turno":"T001","audio_disponible":true}]'
+          }
+        }] : []
+      })
+    };
+  };
+
+  try {
+    await assert.rejects(
+      ejecutarAnonimizacion(new Date("2026-10-18T12:00:00.000Z"), {
+        async eliminarAudiosConversaciones(ids) {
+          assert.deepEqual(ids, ["CONV-CADUCADA-1234"]);
+          throw new Error("Drive no confirmó el borrado");
+        }
+      }),
+      /Drive no confirmó el borrado/
+    );
+    assert.deepEqual(eliminaciones, []);
+  } finally {
+    global.fetch = fetchAnterior;
+    if (apiKeyAnterior === undefined) delete process.env.AIRTABLE_API_KEY;
+    else process.env.AIRTABLE_API_KEY = apiKeyAnterior;
+    if (baseAnterior === undefined) delete process.env.AIRTABLE_BASE_ID;
+    else process.env.AIRTABLE_BASE_ID = baseAnterior;
+  }
+});
+
