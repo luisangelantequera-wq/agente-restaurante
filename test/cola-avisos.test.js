@@ -70,6 +70,16 @@ test('288 ejecuciones sin pendientes producen cero llamadas a Airtable y Resend'
 test('aviso aún no vencido tampoco consulta Airtable', async () => entorno(async ({ invocar, contador }) => {
   assert.equal((await invocar()).datos.sin_trabajo, true); assert.equal(contador.airtable, 0);
 }, { trabajo: true, futura: true }));
+test('entrada vencida pero seguimiento movido al futuro se reprograma sin consultar Resend ni duplicar envío', async () => entorno(async ({ invocar, contador, cola }) => {
+  const r = await invocar();
+  assert.equal(r.codigo, 200);
+  assert.equal(r.datos.comprobados, 0);
+  assert.equal(contador.airtable, 1);
+  assert.equal(contador.resend, 0);
+  assert.equal(cola.get(id).fecha, ahora + 15 * 60000);
+  assert.equal((await invocar()).datos.sin_trabajo, true);
+  assert.equal(contador.airtable, 1);
+}, { trabajo: true, campos: { aviso_cliente_detalle: JSON.stringify({ ...d, comprobado: new Date(ahora).toISOString(), comprobaciones: 0 }) } }));
 test('aviso vencido se consulta por ID, se entrega y sale de la cola', async () => entorno(async ({ invocar, contador, cola }) => {
   const r = await invocar(); assert.equal(r.codigo, 200); assert.equal(r.datos.comprobados, 1);
   assert.equal(contador.airtable, 2); assert.equal(contador.resend, 1); assert.equal(cola.size, 0);

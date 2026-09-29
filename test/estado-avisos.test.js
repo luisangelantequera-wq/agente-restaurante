@@ -5,7 +5,7 @@ const id = '11111111-1111-1111-1111-111111111111';
 const ahora = Date.parse('2026-09-24T12:00:00Z');
 const fila = (estado = 'aceptado', fecha = '2026-09-24T10:00:00Z') => ({ id: 'recPrueba', fields: {
   restaurante: ['recSol'], estado: 'confirmada', aviso_cliente_estado: estado,
-  aviso_cliente_detalle: JSON.stringify({ id_envio: id, actualizado: fecha, intentos: 1 })
+  aviso_cliente_detalle: JSON.stringify({ estado, id_envio: id, iniciado: "2026-09-24T10:00:00Z", actualizado: fecha, intentos: 1, comprobaciones: 0 })
 } });
 async function comprobar(evento, opciones = {}) {
   const cambios = [], llamadas = [];
@@ -49,7 +49,8 @@ test('fallo o falta de permisos conserva estado anterior', async () => {
 });
 test('una demora no revierte entrega ni modifica el catálogo de eventos', async () => {
   const r = await comprobar('delivery_delayed', { filas: [fila('entregado')] });
-  assert.equal(r.cambios[0].f.aviso_cliente_estado, 'entregado');
+  assert.equal(r.cambios.length, 0); // Un aviso ya entregado es terminal.
+  assert.equal(r.llamadas.length, 0);
   assert.equal((await comprobar('delivery_delayed')).cambios[0].f.aviso_cliente_estado, 'demorado');
 });
 test('no guarda el cuerpo ni un evento desconocido del proveedor', async () => {

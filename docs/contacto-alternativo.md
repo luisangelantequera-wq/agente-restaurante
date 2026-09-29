@@ -90,3 +90,7 @@ Pendiente antes de activar: cuenta con funciones completas, remitente registrado
 El futuro canal exige `CONTACTIA_WHATSAPP_CONFIRMACION_HABILITADA=1` solo en Preview y un SID propio distinto del de prueba en `TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID`. Configurar esos valores **solo después** de la aprobación de plantilla, remitente y circuito de resultados; estas variables por sí solas no conectan el ejecutor. La integración pendiente debe fijar identidad y teléfono al mismo registro confirmado, comparar la huella de reserva vigente, persistir una exclusión atómica por reserva+versión antes de enviar, correlacionar SID y firmar callbacks, y gobernar la recuperación de estados inciertos sin duplicados. No reutilizar el botón manual para clientes.
 
 Referencia: https://www.twilio.com/docs/content/send-templates-created-with-the-content-template-builder
+
+## Cola de comprobaciones (29/09/2026)
+
+La entrada vencida de Redis solo hace una búsqueda acotada por ID en Airtable. Si el seguimiento leído ya indica una fecha de revisión futura, la entrada se mueve a esa fecha con comparación de versión y no llama a Resend ni reenvía. Los estados terminales salen de la cola. El estado del proveedor también respeta el calendario escalonado (15 minutos, 1 hora, 6 horas y 12 horas) y el máximo de cuatro consultas. Las ejecuciones con cola vacía no leen Airtable. El activador de Apps Script sigue eliminado y no se reactiva con este cambio.
