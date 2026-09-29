@@ -11,7 +11,7 @@ async function entorno(fn, opciones = {}) {
   const cola = new Map(opciones.trabajo ? [[id, { fecha: opciones.futura ? ahora + 3600000 : ahora - 1000, version: 'original' }]] : []);
   const datos = { estado: 'confirmada', fecha: '2099-01-01', aviso_cliente_estado: 'aceptado', aviso_cliente_detalle: JSON.stringify(d), ...opciones.campos };
   const contador = { airtable: 0, resend: 0, parches: [], pausa: 0, envios: [], aceptaciones: new Set() };
-  let pausado = false;
+  let pausado = false, bloqueo = null;
   const respuesta = result => ({ ok: true, json: async () => ({ result }) });
   try {
     Object.assign(process.env, { VERCEL_ENV: 'preview', CONTACTIA_AVISOS_SECRET: 'x'.repeat(40), KV_REST_API_URL: 'https://simulado.upstash.io', KV_REST_API_TOKEN: 'simulado', AIRTABLE_BASE_ID: 'appSimulada', AIRTABLE_API_KEY: 'simulada', RESEND_API_KEY: 'simulada' });
@@ -20,7 +20,9 @@ async function entorno(fn, opciones = {}) {
         if (opciones.redisCaido) throw Error('sin servicio');
         const a = JSON.parse(req.body);
         if (a[0] === 'GET') return respuesta(pausado ? '1' : null);
-        if (a[0] === 'SET') { if (a[1].endsWith(':pausa')) { pausado = true; contador.pausa = a.at(-1); } return respuesta('OK'); }
+        if (a[0] === 'SET') { if (a[1].endsWith(':pausa')) { pausado = true; contador.pausa = a.at(-1); }
+          if (opciones.mutex && a[1].endsWith(':ejecucion')) { if (bloqueo) return respuesta(null); bloqueo = a[2]; }
+          return respuesta('OK'); }
         if (a[1] === VENCIDOS) return respuesta([...cola].filter(([,v]) => v.fecha <= Date.now()).flatMap(([id,v]) => [id,v.version]));
         if (a[1] === ACTUALIZAR) {
           const [, , , , , referencia, fecha, version, anterior] = a;
@@ -28,10 +30,14 @@ async function entorno(fn, opciones = {}) {
           if (!fecha) cola.delete(referencia); else cola.set(referencia, { fecha: Number(fecha), version });
           return respuesta(1);
         }
+        if (opciones.mutex && a[0] === 'EVAL' && String(a[1]).includes("redis.call('get'")) {
+          if (bloqueo === a[4]) { bloqueo = null; return respuesta(1); } return respuesta(0);
+        }
         return respuesta(1); // Liberación del mutex.
       }
       if (url.includes('airtable.com')) {
         contador.airtable++;
+        if (opciones.onAirtable) await opciones.onAirtable();
         if (opciones.cuota) return { ok: false, status: 429 };
         if (req.method === 'PATCH') { contador.parches.push(JSON.parse(req.body).fields); Object.assign(datos, JSON.parse(req.body).fields); return { ok: true }; }
         const formula = new URL(url).searchParams.get('filterByFormula');
@@ -45,7 +51,7 @@ async function entorno(fn, opciones = {}) {
         contador.resend++;
         if (req.method === 'POST') {
           contador.envios.push(req);
-          if (contador.envios.length <= 3) {
+          if (contador.envios.length <= 3 && !opciones.resendAceptaPrimero) {
             if (opciones.respuestaPerdida) { contador.aceptaciones.add(req.headers['Idempotency-Key']); throw Error('Respuesta perdida'); }
             return { ok: false, status: 503, text: async () => '{}' };
           }
@@ -166,4 +172,56 @@ test('inspección exige GET y secreto correcto antes de tocar proveedores', asyn
   assert.equal(await invocar('GET','Bearer incorrecta'),401);
   assert.equal(llamadas,0);
  } finally {global.fetch=fetchOriginal;for(const k of Object.keys(process.env))if(!(k in anterior))delete process.env[k];Object.assign(process.env,anterior);}
+});
+
+test('dos programadores simultáneos: solo uno consulta Airtable y Resend', async () => {
+ let iniciarLectura, continuarLectura;
+ const lecturaIniciada = new Promise(resolve => { iniciarLectura = resolve; });
+ const bloqueoLectura = new Promise(resolve => { continuarLectura = resolve; });
+ let primeraLectura = true;
+ await entorno(async ({ invocar, contador, cola }) => {
+  const primero = invocar();
+  await lecturaIniciada;
+  const segundo = await invocar();
+  assert.equal(segundo.codigo, 200);
+  assert.deepEqual(segundo.datos, { en_curso: true });
+  assert.equal(contador.airtable, 1);
+  continuarLectura();
+  const final = await primero;
+  assert.equal(final.codigo, 200);
+  assert.equal(final.datos.comprobados, 1);
+  assert.equal(contador.airtable, 2); // Lectura acotada y seguimiento de esa sola ejecución.
+  assert.equal(contador.resend, 1);
+  assert.equal(cola.size, 0);
+ }, { trabajo: true, mutex: true, onAirtable: async () => {
+   if (primeraLectura) { primeraLectura = false; iniciarLectura(); await bloqueoLectura; }
+ } });
+});
+
+test('dos programadores simultáneos ante un reintento envían un solo correo', async () => {
+ let iniciarLectura, continuarLectura;
+ const lecturaIniciada = new Promise(resolve => { iniciarLectura = resolve; });
+ const bloqueoLectura = new Promise(resolve => { continuarLectura = resolve; });
+ let primeraLectura = true;
+ await entorno(async ({ invocar, contador, datos, cola }) => {
+  const { huellaPayload } = require('../lib/aviso-confirmacion');
+  Object.assign(datos, { aviso_cliente_estado:'pendiente', hora:'14:00', personas:4, restaurante:['recRestaurante'],
+   nombre_completo:'Prueba', email:'prueba@example.invalid', id_reserva:'PRUEBA-20990101', token_gestion:'token-simulado', mensaje:'' });
+  const contexto={idioma:'es',zona:'',mensaje_huella:huellaPayload('')};
+  const payload=await require('../api/chat').prepararAviso(datos,{fields:{nombre:'Prueba'}},contexto);
+  datos.aviso_cliente_detalle=JSON.stringify({ ...contexto, estado:'pendiente', motivo:'respuesta_desconocida',
+   iniciado:new Date(ahora-600000).toISOString(), siguiente:new Date(ahora-1000).toISOString(),
+   intentos:3, huella:huellaPayload(payload) });
+  const primero=invocar(); await lecturaIniciada;
+  assert.deepEqual((await invocar()).datos,{en_curso:true});
+  continuarLectura();
+  const r=await primero;
+  assert.equal(r.datos.aceptados,1);
+  assert.equal(contador.envios.length,1);
+  assert.equal(contador.aceptaciones.size,1);
+  assert.equal(datos.aviso_cliente_estado,'aceptado');
+  assert.equal(cola.size,1); // Próxima revisión, no un segundo correo.
+ }, { trabajo:true, mutex:true, recuperacion:true, resendAceptaPrimero:true,
+  onAirtable:async()=>{if(primeraLectura){primeraLectura=false;iniciarLectura();await bloqueoLectura;}}
+ });
 });
