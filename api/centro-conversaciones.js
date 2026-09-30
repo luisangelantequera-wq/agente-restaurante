@@ -199,7 +199,6 @@ async function obtenerConversacionesAirtable(filtros) {
 
 
 module.exports = async (req, res) => {
-  if (req.query?.accion === "comprobar_whatsapp_temporal") return require("../lib/diagnostico-whatsapp-temporal")(req, res);
   if (["ejecutar_programados", "inspeccionar_programados"].includes(req.query?.accion)) {
     return require("../lib/endpoint-avisos-programados")(req, res);
   }

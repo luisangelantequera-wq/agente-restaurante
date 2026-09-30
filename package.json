@@ -6,7 +6,8 @@
   "scripts": {
     "start": "vercel dev",
     "test": "node --test",
-    "test:conversacion": "node scripts/ejecutar-bateria-conversacional.js && node scripts/ejecutar-escenarios-conversacion.js"
+    "test:conversacion": "node scripts/ejecutar-bateria-conversacional.js && node scripts/ejecutar-escenarios-conversacion.js",
+    "postinstall": "node scripts/comprobar-whatsapp-redis.js"
   },
   "engines": {
     "node": "22.x"
