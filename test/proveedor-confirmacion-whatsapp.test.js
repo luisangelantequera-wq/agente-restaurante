@@ -21,6 +21,24 @@ test('borradores inglés y francés no utilizan la plantilla de envío española
   assert.equal(prepararPeticion({borrador:traducido,telefonoCliente:'+34600000000',env}).listo,false);
  }
 });
+test('cada idioma selecciona su SID propio sin sustituir una plantilla ausente',()=>{
+ const configurado={...env,TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID_EN:'HX'+'6'.repeat(32),TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID_FR:'HX'+'7'.repeat(32)};
+ const claves={es:'TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID',en:'TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID_EN',fr:'TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID_FR'};
+ for(const [idioma,clave] of Object.entries(claves)) {
+  const traducido=preparar({reserva,aviso:{...aviso,idioma}});
+  const peticion=prepararPeticion({borrador:traducido,telefonoCliente:'+34600000000',env:configurado});
+  assert.equal(peticion.listo,true);
+  const form=new URLSearchParams(peticion.form);
+  assert.equal(form.get('ContentSid'),configurado[clave]);
+  assert.deepEqual(JSON.parse(form.get('ContentVariables')),traducido.variables);
+  for(const valor of [undefined,'incorrecto',env.TWILIO_WHATSAPP_CONTENT_SID.toLowerCase()]) {
+   assert.deepEqual(prepararPeticion({borrador:traducido,telefonoCliente:'+34600000000',env:{...configurado,[clave]:valor}}),{listo:false,motivo:'plantilla_propia_pendiente'});
+  }
+ }
+ for(const idioma of ['de','toString','__proto__',undefined]) {
+  assert.deepEqual(prepararPeticion({borrador:{...borrador,idioma},telefonoCliente:'+34600000000',env:configurado}),{listo:false,motivo:'borrador_no_elegible'});
+ }
+});
 test('petición utiliza plantilla propia y ContentVariables, nunca Body',async()=>{
  const p=prepararPeticion({borrador,telefonoCliente:'+34600000000',env});assert.equal(p.listo,true);
  const form=new URLSearchParams(p.form);assert.equal(form.get('To'),'whatsapp:+34600000000');assert.equal(form.get('ContentSid'),env.TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID);

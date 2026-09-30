@@ -108,7 +108,21 @@ Propuestas de contenido, con las mismas seis variables de la plantilla española
 - Inglés: We could not deliver your confirmation email. Your reservation at {{1}} is confirmed for {{2}}, at {{3}}, for {{4}} guests, in the {{5}} area. Booking reference: {{6}}. You do not need to confirm again. Thank you for booking with us.
 - Francés: Nous n’avons pas pu vous faire parvenir l’e-mail de confirmation. Votre réservation au restaurant {{1}} est confirmée pour le {{2}}, à {{3}}, pour {{4}} personnes, dans la zone {{5}}. Référence de réservation : {{6}}. Vous n’avez pas besoin de confirmer à nouveau. Merci d’avoir réservé chez nous.
 
-El adaptador de proveedor existente sigue admitiendo solo borradores españoles.
-La integración futura necesitará seleccionar un ContentSid aprobado del mismo
-idioma; el SID español no se reutiliza para los borradores inglés y francés.
-Esta ampliación no configura variables, registra plantillas ni envía mensajes.
+El adaptador aislado selecciona ahora el ContentSid según el idioma del borrador:
+
+| Idioma | Variable de plantilla |
+|---|---|
+| Español | `TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID` |
+| Inglés | `TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID_EN` |
+| Francés | `TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID_FR` |
+
+Si falta la plantilla del idioma, el adaptador bloquea la petición sin recurrir
+al SID español. También bloquea un SID inválido o el del mensaje de prueba,
+incluso si se escribe con distinta capitalización. Un idioma no admitido se
+rechaza. Las pruebas usan SIDs ficticios y un proveedor simulado.
+
+Cada valor deberá corresponder a la plantilla aprobada en su idioma; el formato
+HX por sí solo no demuestra aprobación ni comprueba el idioma en Twilio.
+Configurar esos valores solo después de la aprobación y de completar el circuito
+de resultados descrito arriba. Esta ampliación no configura variables, registra
+plantillas, conecta el programador ni envía mensajes.

@@ -19,7 +19,7 @@ function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
   const escrituras = [], correos = [];
   let fallarPost = false, cantidad = 0;
   const restaurante = { id: REST, fields: { id: 1, nombre: "Restaurante Sol", estado: "activo",
-    horario_reservas: JSON.stringify(Object.fromEntries(["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"].map(d => [d, ["13:00-23:00"]]))),
+    horario_reservas: JSON.stringify(Object.fromEntries(["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"].map(d => [d, ["13:00-23:00"]]))),
     duracion_reserva_minutos: 90, intervalo_minutos: 15, margen_capacidad: 2, prefijo_reserva: "SOL",
     api_key_restaurante: "claveprueba" } };
   const zona = { id: ZONA, fields: { nombre: "TERRAZA", restaurante: [REST], estado: "activo" } };
