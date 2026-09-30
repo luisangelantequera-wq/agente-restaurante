@@ -211,3 +211,55 @@ La ruta de diagnóstico temporal y los cambios temporales de instalación/build
 fueron retirados del código final. El script queda disponible para ejecución
 manual con configuración de Preview; no se ejecuta en los despliegues normales.
 No se han activado el programador ni el canal de WhatsApp.
+
+## Teléfono de origen alternativo preparado (30/09/2026)
+
+`lib/consentimiento-telefono-origen.js` prepara la pregunta acordada:
+
+> ¿Nos autoriza a guardar el número desde el que llama para intentar contactar con usted si hubiera cualquier incidencia con su reserva?
+
+Solo pregunta si el número de origen internacional es distinto del teléfono
+facilitado (normalizado), existe contexto de telefonía con CallSid y el servidor
+ha autenticado el webhook. Ese contexto no podrá proceder del navegador ni del
+texto del cliente. Web, número oculto/desconocido, teléfono facilitado pendiente
+e idioma no admitido no activan la pregunta. Se preparan español, inglés y francés.
+
+Exige Preview y `CONTACTIA_CONSENTIMIENTO_TELEFONO_ORIGEN=1`, variable que no se
+ha configurado. No está conectado a la conversación, telefonía o base de datos.
+El módulo devuelve evidencia de fecha, idioma, finalidad y versión de pregunta;
+solo ante autorización booleana true devuelve el teléfono alternativo para su
+futura persistencia privada. Un no conserva evidencia sin incluir el número;
+una respuesta ambigua no genera evidencia y deberá repetir Sí o No. El origen
+se marca como identificador de llamada, no como número verificado. La autorización
+no activa WhatsApp ni habilita llamadas automáticas por sí sola.
+
+Antes de activar: conectar telefonía y validación del webhook, ligar contexto a
+la misma llamada/reserva, mostrar información de tratamiento apropiada, definir
+persistencia privada y anonimización/borrado con la reserva, excluir este paso
+del audio y de transcripciones de diagnóstico, y conectar la selección de
+contactos a la política de incidencias. No se añaden campos a Airtable en esta
+fase. La voz web no conoce el número telefónico de origen.
+
+## Protección ante posibles reservas falsas: requisito antes del piloto
+
+Pendiente preparar detección de patrones por restaurante y servicio: varias
+reservas próximas, correo rechazado y contactos telefónicos no utilizables,
+capacidad bloqueada y origen repetido cuando exista. No contestar por sí solo,
+un correo aislado fallido o teléfonos diferentes no demuestran sabotaje.
+
+Debe preparar alertas para Contactia y el restaurante con referencias de las
+reservas y capacidad afectada, y una política configurable para nuevas solicitudes
+sospechosas, como verificar contacto. No cancelará automáticamente reservas ya
+confirmadas ni bloqueará clientes por una señal aislada. Los umbrales, integración,
+canales de alerta y controles frente a falsos positivos siguen pendientes.
+
+Número oculto: `diagnosticoOrigen` prepara `telefono_origen_estado: oculto`
+para un origen telefónico autenticado que Twilio identifica como anonymous.
+El análisis podrá mostrar «Número oculto», sin introducir ese texto en un campo
+telefónico. No pregunta consentimiento de teléfono alternativo ni conserva un
+número inexistente. unknown, SIP sin teléfono o ausencia de identificación se
+clasifican como no_disponible, no como ocultación deliberada. Para un número
+visible solo devuelve el indicador disponible, sin copiar sus dígitos al
+análisis. Esta metadata todavía no se persiste ni se muestra en el centro.
+Su persistencia futura deberá acompañar la misma política de retención del
+registro. Un origen oculto aislado no dispara una alerta ni rechaza una reserva.
