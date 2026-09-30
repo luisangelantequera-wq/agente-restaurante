@@ -293,3 +293,35 @@ idempotente de eventos, revalidación antes de cualquier acción y prueba integr
 La lectura de reserva y el CAS de Redis no constituyen una transacción entre
 Airtable y Redis: el consumidor también deberá comprobar cancelación, cambios y
 autorización vigente. La ruta sigue desactivada y no se consulta Airtable aquí.
+
+## Lector de reserva preparado (30/09/2026)
+
+`lib/reserva-resultado-whatsapp.js` prepara `crearLector` para el receptor de
+resultados. Exige Preview, bandera de confirmación activa y la nueva bandera
+`CONTACTIA_WHATSAPP_LECTURA_RESERVA_HABILITADA=1`, todavía sin configurar.
+No está conectado a ninguna ruta. Las comprobaciones se hicieron con respuestas
+simuladas; no se consultó Airtable.
+
+Cada lectura hace un GET de RESERVAS filtrado por RECORD_ID con máximo dos
+registros y proyección explícita de campos. Exige cero o una coincidencia sin
+paginación; una respuesta ambigua, fallo, timeout o cuota 429 se propaga sin
+reintentar. No busca en RESTAURANTES ni recupera nombres, correos o enlaces de
+gestión. Teléfono y observaciones se leen solo dentro del servidor y nunca se
+copian a la salida, logs o Redis.
+
+`huellaReserva` calcula HMAC-SHA256 con CONTACTIA_AVISOS_SECRET y contexto de
+WhatsApp sobre identidad, restaurante vinculado, fecha, hora, personas,
+teléfono, mensaje/zona, idioma y evidencia de consentimiento. La salida es
+solo id, estado, autorización y huella. Una reserva cancelada, anonimizada,
+incompleta o sin evidencia válida de autorización no produce huella vigente.
+Cambiar el estado operativo del correo o del plan de contacto no cambia esa
+huella. El futuro emisor deberá usar esta misma función al registrar el SID;
+no se puede reutilizar la huella del payload de correo ni una SHA-256 genérica.
+Rotar el secreto invalida las huellas anteriores: no autoriza un reenvío.
+
+Las pruebas conjuntas de lector y receptor comprueban que un teléfono cambiado
+después del envío impide aplicar el callback anterior. Queda comprobar la
+lectura real, después de confirmar el restablecimiento de cuota del 1 de
+octubre, y conectar emisor/receptor/consumidor con la persistencia adecuada.
+El lector no valida cambios del nombre del restaurante en otra tabla; antes
+del envío el adaptador de contenido debe reconstruir sus datos vigentes.
