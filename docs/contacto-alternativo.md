@@ -126,3 +126,34 @@ HX por sí solo no demuestra aprobación ni comprueba el idioma en Twilio.
 Configurar esos valores solo después de la aprobación y de completar el circuito
 de resultados descrito arriba. Esta ampliación no configura variables, registra
 plantillas, conecta el programador ni envía mensajes.
+
+## Resultados de WhatsApp preparados (30/09/2026)
+
+`lib/resultado-whatsapp.js` interpreta avisos firmados de Twilio usando
+`validateRequest` del SDK oficial. Es un módulo aislado, sin endpoint, consultas,
+persistencia ni envío. Solo admite Preview con la bandera de confirmación activa.
+La URL exacta procede de `TWILIO_WHATSAPP_STATUS_CALLBACK_URL`; nunca se deriva
+de cabeceras Host. No se ha configurado esta variable ni un callback en Twilio.
+
+Valida la firma con todos los parámetros, incluidos los futuros, y exige que
+AccountSid y MessageSid correspondan a la cuenta y al seguimiento esperado.
+Rechaza parámetros repetidos, estados desconocidos y cuerpos de más de 16 KiB.
+No guarda ni devuelve los teléfonos recibidos en el aviso.
+
+`accepted`, `queued`, `sending` y `sent` no acreditan entrega. `delivered` y
+`read` proponen `whatsapp_entregado`; pasar de delivered a read no propone un
+segundo evento. `failed` y `undelivered` proponen `whatsapp_fallido`. Los eventos
+llevan un ID estable por SID y tipo. Los duplicados y estados atrasados no
+proponen cambios; una entrega posterior a un fallo terminal exige revisión de
+la discrepancia. Una reserva cancelada no recibe cambios de contacto.
+
+El futuro endpoint deberá aceptar POST de formulario, buscar el seguimiento
+por el SID registrado, verificar vigencia y autorización, y aplicar resultado
+y evento en una misma operación atómica con comparación de versión. Este módulo
+por sí solo no evita carreras de persistencia ni resuelve envíos cuyo SID no
+llegó a registrarse. No conecta ni activa las llamadas. Quedan pendientes el
+endpoint, la correlación persistente y la prueba integral de proveedor.
+
+Referencias oficiales:
+- https://www.twilio.com/docs/usage/webhooks/webhooks-security
+- https://www.twilio.com/docs/messaging/guides/track-outbound-message-status
