@@ -263,3 +263,33 @@ visible solo devuelve el indicador disponible, sin copiar sus dígitos al
 análisis. Esta metadata todavía no se persiste ni se muestra en el centro.
 Su persistencia futura deberá acompañar la misma política de retención del
 registro. Un origen oculto aislado no dispara una alerta ni rechaza una reserva.
+
+## Recepción de resultados preparada (30/09/2026)
+
+`lib/endpoint-resultado-whatsapp.js` prepara un handler con dependencias
+inyectadas, sin añadir una función ni ruta pública a Vercel. Solo acepta POST
+con formulario y cuerpo original, Preview y bandera activa. La validación de
+firma, cuenta, SID y estado ocurre antes de cualquier lectura de Redis o reserva.
+La autenticación se comparte con `resultado-whatsapp.autenticar` y no devuelve
+los teléfonos recibidos en el callback.
+
+Después lee el seguimiento por SID y exige una referencia válida. El futuro
+adaptador `leerReserva` deberá devolver `id`, `estado`, `whatsapp_autorizado` y
+la `huella` calculada del contenido vigente. Solo una reserva confirmada, con
+autorización vigente y huella coincidente permite persistir el resultado. Un
+resultado capturado no significa evento aplicado al plan de contacto ni llamada
+habilitada. Duplicados y atrasos reciben respuesta 200 sin modificación.
+
+Ante SID aún no registrado, falta de reserva, Redis caído, resultado conflictivo
+o carrera no resuelta responde 503 sin declarar éxito. Una carrera puede releer
+seguimiento y reserva una sola vez adicional, máximo dos lecturas de cada uno.
+No se afirma que Twilio reintente automáticamente: la configuración de callbacks
+y la reconciliación futura deben cubrir estas respuestas y el callback temprano.
+
+Pendiente antes de publicar la ruta: lector real acotado de reserva y huella,
+captura de cuerpo sin bodyParser y límite de tamaño durante la lectura, registro
+durable del SID tras envío, tratamiento de callbacks tempranos, consumidor
+idempotente de eventos, revalidación antes de cualquier acción y prueba integral.
+La lectura de reserva y el CAS de Redis no constituyen una transacción entre
+Airtable y Redis: el consumidor también deberá comprobar cancelación, cambios y
+autorización vigente. La ruta sigue desactivada y no se consulta Airtable aquí.
