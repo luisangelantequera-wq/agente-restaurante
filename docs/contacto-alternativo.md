@@ -157,3 +157,35 @@ endpoint, la correlación persistente y la prueba integral de proveedor.
 Referencias oficiales:
 - https://www.twilio.com/docs/usage/webhooks/webhooks-security
 - https://www.twilio.com/docs/messaging/guides/track-outbound-message-status
+
+## Persistencia del resultado preparada (30/09/2026)
+
+`lib/seguimiento-whatsapp.js` prepara un almacén exclusivo de Preview en Redis.
+Guarda SID, referencia de reserva, huella de versión, estado, versión del
+seguimiento, fecha y evento pendiente; no guarda nombre, correo, teléfono ni
+texto del mensaje. Cada registro caduca a los siete días desde su creación;
+las actualizaciones no alargan ese plazo. No se ha llamado al Redis real.
+
+El alta usa SET NX y nunca sustituye un SID existente. Cada resultado validado
+por `resultado-whatsapp` se aplica con una comparación y escritura en un script
+Lua atómico: si otra ejecución cambió el registro o caducó, no se escribe.
+El estado y el evento pendiente se guardan juntos. Un aviso read posterior a
+delivered conserva el evento pendiente; su reconocimiento exige la misma
+versión para evitar borrarlo desde una ejecución atrasada. Un fallo de Redis
+se propaga como error, nunca se declara guardado.
+
+Las pruebas utilizan Redis simulado para ejercitar carreras, duplicados,
+reconocimiento atrasado, expiración, firma falsa y cancelación. Queda pendiente
+validar el script Lua en Redis real antes de conectar el endpoint. Este módulo
+no se importa desde rutas ni programadores, no registra SIDs reales y no activa
+WhatsApp ni llamadas.
+
+El futuro ejecutor debe registrar el SID al aceptar el envío y gestionar el
+caso de callback recibido antes de registrar el SID. El futuro endpoint debe
+verificar la firma antes de realizar búsquedas, leer la reserva vigente y
+comparar su huella con la registrada; después llamar a procesar y releer ante
+una versión cambiada. El consumidor debe aplicar el evento con su ID estable
+de forma idempotente y reconocerlo solo después del éxito. El evento pendiente
+no significa que el plan de contacto ya se haya actualizado. La retención de
+siete días limita también el periodo de recuperación: un registro caducado
+requiere revisión y no autoriza un reenvío.
