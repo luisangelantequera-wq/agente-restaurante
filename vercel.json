@@ -73,6 +73,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "buildCommand": "node scripts/comprobar-whatsapp-redis.js"
+  ]
 }

@@ -189,3 +189,25 @@ de forma idempotente y reconocerlo solo después del éxito. El evento pendiente
 no significa que el plan de contacto ya se haya actualizado. La retención de
 siete días limita también el periodo de recuperación: un registro caducado
 requiere revisión y no autoriza un reenvío.
+
+## Comprobación en Redis real (30/09/2026)
+
+Se ejecutó `node scripts/comprobar-whatsapp-redis.js` como comando obligatorio
+de compilación de Preview en el commit `ef6376bdabbd94a3eeeb14d7804b3507fab512aa`.
+El comando terminó correctamente: la compilación avanzó a la validación de
+salida y Vercel informó `STATIC_BUILD_NO_OUT_DIR` después de completar el build.
+Ese error posterior corresponde a la configuración temporal de build, que se
+retiró al terminar; no corresponde a una aserción de Redis.
+
+La prueba utilizó el Upstash de Preview, prefijo aleatorio separado y referencias
+ficticias. Verificó SET NX sin sustitución, dos resultados delivered simultáneos
+con una sola escritura, conservación del evento pendiente al recibir read,
+reconocimiento con versión actual, rechazo de una versión atrasada y caducidad
+sin prórroga. La expiración final se forzó únicamente sobre la clave de prueba.
+El bloque finally borró esa clave y comprobó que ya no existía. No leyó Airtable,
+no usó clientes reales y no envió comunicaciones.
+
+La ruta de diagnóstico temporal y los cambios temporales de instalación/build
+fueron retirados del código final. El script queda disponible para ejecución
+manual con configuración de Preview; no se ejecuta en los despliegues normales.
+No se han activado el programador ni el canal de WhatsApp.
