@@ -268,6 +268,14 @@ module.exports = async (req, res) => {
     return responder(res, status, datos);
   }
 
+  if (cuerpo.accion === "whatsapp_confirmacion_revisar") {
+    if (!/^rec[a-zA-Z0-9]{1,29}$/.test(cuerpo.reserva_id || "")) {
+      return responder(res, 400, { ok: false, error: "Referencia no válida." });
+    }
+    const revision = await require("../lib/revision-envio-whatsapp").revisar(cuerpo.reserva_id);
+    return responder(res, 200, { ok: true, ...revision });
+  }
+
   if (cuerpo.accion === "inspeccionar_programados") {
     try {
       const env = process.env;

@@ -27,10 +27,11 @@ async function comprobar({ env = process.env, fetchImpl = global.fetch } = {}) {
   const resultado = await lector(REGISTRO);
   assert.equal(consultas, 1);
   assert.ok(resultado, "No se encontro el registro de prueba");
-  assert.deepEqual(Object.keys(resultado).sort(), ["estado", "huella", "id", "whatsapp_autorizado"]);
+  assert.deepEqual(Object.keys(resultado).sort(), ["estado", "huella", "id", "whatsapp_autorizado", "whatsapp_contacto_pendiente"]);
   assert.equal(resultado.id, REGISTRO);
   assert.equal(resultado.estado, "anonimizada", "El registro ya no esta anonimizado");
   assert.equal(resultado.whatsapp_autorizado, false);
+  assert.equal(resultado.whatsapp_contacto_pendiente, false);
   assert.equal(resultado.huella, null);
   return { lectura_correcta: true, reserva_anonimizada_bloqueada: true,
     consultas_airtable: consultas, escrituras: 0, comunicaciones: 0 };
