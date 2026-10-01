@@ -74,5 +74,5 @@
       "dest": "/index.html"
     }
   ],
-  "buildCommand": "node -e \"for(const k of ['VERCEL_ENV','KV_REST_API_URL','KV_REST_API_TOKEN','AIRTABLE_BASE_ID'])console.log(k,k==='VERCEL_ENV'?process.env[k]:Boolean(process.env[k]));process.exit(1)\""
+  "buildCommand": "AIRTABLE_BASE_ID=appDiagnosticoRedis node scripts/comprobar-destino-whatsapp-redis.js && node -e \"process.exit(1)\""
 }
