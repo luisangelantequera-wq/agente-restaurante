@@ -199,6 +199,10 @@ async function obtenerConversacionesAirtable(filtros) {
 
 
 module.exports = async (req, res) => {
+  const canal = req.query?.canal || new URL(req.url || '/', 'https://contactia.net').searchParams.get('canal');
+  if (canal === 'whatsapp_resultado') {
+    return require('../lib/ruta-resultado-whatsapp').crearRuta()(req, res);
+  }
   if (["ejecutar_programados", "inspeccionar_programados"].includes(req.query?.accion)) {
     return require("../lib/endpoint-avisos-programados")(req, res);
   }
@@ -219,6 +223,13 @@ module.exports = async (req, res) => {
 
   if (obtenerTamanoSolicitud(req) > MAX_REQUEST_BODY_BYTES) {
     return responder(res, 413, { ok: false, error: "Solicitud demasiado grande." });
+  }
+
+  // El callback necesita el cuerpo original. Conservamos el flujo JSON del
+  // centro al desactivar el parser automático de esta función compartida.
+  if (req.body === undefined) {
+    try { req.body = await require('../lib/ruta-resultado-whatsapp').leerCuerpo(req); }
+    catch (error) { return responder(res, error.status || 400, { ok: false, error: 'Solicitud no válida.' }); }
   }
 
   const cuerpo = obtenerCuerpo(req);
@@ -353,3 +364,4 @@ module.exports.convertirRegistro = convertirRegistro;
 module.exports.disponibleEnEsteEntorno = disponibleEnEsteEntorno;
 module.exports.filtrosValidos = filtrosValidos;
 module.exports.obtenerConversacionesAirtable = obtenerConversacionesAirtable;
+module.exports.config = { api: { bodyParser: false } };

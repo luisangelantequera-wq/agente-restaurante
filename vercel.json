@@ -59,6 +59,10 @@
   ],
   "routes": [
     {
+      "src": "/api/whatsapp-resultado",
+      "dest": "/api/centro-conversaciones.js?canal=whatsapp_resultado"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1.js"
     },

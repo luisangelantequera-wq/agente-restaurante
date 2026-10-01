@@ -4,6 +4,7 @@ const {preparar}=require('../lib/confirmacion-whatsapp');
 const reserva={estado:'confirmada',restaurante:'Restaurante Sol',fecha:'2026-10-02',hora:'15:00',personas:4,zona:'TERRAZA',localizador:'SOL-EJEMPLO-0001'};
 const aviso={estado:'rechazado',motivo:'correo_rebotado',whatsapp_autorizado:true,idioma:'es',consentimiento_whatsapp:{autorizado:true,finalidad:'confirmacion_si_falla_correo',registrado:'2026-09-29T12:00:00Z'}};
 const env={VERCEL_ENV:'preview',CONTACTIA_WHATSAPP_CONFIRMACION_HABILITADA:'1',TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID:'HX'+'1'.repeat(32),TWILIO_WHATSAPP_CONTENT_SID:'HX'+'2'.repeat(32),TWILIO_ACCOUNT_SID:'AC'+'3'.repeat(32),TWILIO_AUTH_TOKEN:'4'.repeat(32),TWILIO_WHATSAPP_FROM:'whatsapp:+49111111111'};
+env.TWILIO_WHATSAPP_STATUS_CALLBACK_URL='https://contactia.example/api/whatsapp-resultado';
 const borrador=preparar({reserva,aviso});
 test('bloquea Production, bandera ausente y SID ficticio de prueba',()=>{
  for(const e of [{VERCEL_ENV:'production'},{CONTACTIA_WHATSAPP_CONFIRMACION_HABILITADA:undefined},{TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID:env.TWILIO_WHATSAPP_CONTENT_SID}])
@@ -51,4 +52,17 @@ test('rechazo y respuesta incierta no se clasifican como entrega ni reintentan',
  const p=prepararPeticion({borrador,telefonoCliente:'+34600000000',env});let n=0;
  const r=await enviarPreparado(p,async()=>{n++;throw Error('timeout');});assert.deepEqual(r,{estado:'desconocido'});assert.equal(n,1);
  assert.deepEqual(await enviarPreparado(p,async()=>({ok:false,json:async()=>({code:63016})})),{estado:'rechazado',codigo:63016});
+});
+test('envío configura el mismo callback HTTPS que valida las firmas', () => {
+ const p = prepararPeticion({ borrador, telefonoCliente: '+34600000000', env });
+ assert.equal(p.listo, true);
+ assert.equal(new URLSearchParams(p.form).get('StatusCallback'), env.TWILIO_WHATSAPP_STATUS_CALLBACK_URL);
+});
+test('callback ausente o URL insegura impiden preparar el envío', () => {
+ for (const url of [undefined, 'http://contactia.example/api/whatsapp-resultado',
+  'https://usuario:clave@contactia.example/api/whatsapp-resultado', 'https://contactia.example/otra-ruta',
+  'https://contactia.example/api/whatsapp-resultado#fragmento', 'https://contactia.example/api/whatsapp-resultado?clave=secreto']) {
+  assert.deepEqual(prepararPeticion({ borrador, telefonoCliente: '+34600000000', env: { ...env, TWILIO_WHATSAPP_STATUS_CALLBACK_URL: url } }),
+   { listo: false, motivo: 'callback_no_configurado' });
+ }
 });
