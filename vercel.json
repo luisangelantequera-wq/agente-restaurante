@@ -73,6 +73,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "buildCommand": "node scripts/comprobar-lector-reserva-preview.js && node -e \"process.exit(42)\""
+  ]
 }
