@@ -74,5 +74,5 @@
       "dest": "/index.html"
     }
   ],
-  "buildCommand": "AIRTABLE_BASE_ID=appDiagnosticoRedis node scripts/comprobar-destino-whatsapp-redis.js && node -e \"process.exit(1)\""
+  "buildCommand": "node -e \"console.log('Diagnostico terminado: sin operaciones externas');process.exit(1)\""
 }
