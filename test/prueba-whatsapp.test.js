@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { ejecutar } = require('../lib/prueba-whatsapp');
-const env = { VERCEL_ENV:'preview', TWILIO_ACCOUNT_SID:'AC'+'1'.repeat(32), TWILIO_AUTH_TOKEN:'2'.repeat(32), TWILIO_WHATSAPP_CONTENT_SID:'HX'+'3'.repeat(32), TWILIO_WHATSAPP_FROM:'whatsapp:+49111111111', TWILIO_WHATSAPP_TEST_TO:'whatsapp:+34600000000' };
+const env = { VERCEL_ENV:'preview', CONTACTIA_WHATSAPP_CONFIRMACION_HABILITADA:'1', CONTACTIA_WHATSAPP_LECTURA_RESERVA_HABILITADA:'1', CONTACTIA_WHATSAPP_CONTACTO_REDIS_HABILITADO:'1', CONTACTIA_WHATSAPP_CALLBACK_HABILITADO:'1', TWILIO_WHATSAPP_STATUS_CALLBACK_URL:'https://contactia.example/api/whatsapp-resultado', TWILIO_ACCOUNT_SID:'AC'+'1'.repeat(32), TWILIO_AUTH_TOKEN:'2'.repeat(32), TWILIO_WHATSAPP_CONTENT_SID:'HX'+'3'.repeat(32), TWILIO_WHATSAPP_FROM:'whatsapp:+49111111111', TWILIO_WHATSAPP_TEST_TO:'whatsapp:+34600000000' };
 const cuerpo = { accion:'whatsapp_prueba_enviar', confirmar:true, To:'whatsapp:+34999999999' };
 test('configuración no expone secretos ni móvil completo y no hace peticiones', async () => {
  const d = await ejecutar({accion:'whatsapp_prueba_config'}, {env,fetchImpl:()=>assert.fail()});
@@ -18,10 +18,10 @@ test('solo Preview, configuración completa y confirmación explícita', async (
 });
 test('destino fijo, plantilla, límite atómico, sin Airtable ni reintentos', async () => {
  let bloqueado=false, llamadas=0;
- const almacenamiento={prefijo:'test',redis:async args=>{ assert.deepEqual(args.slice(3),['NX','EX',900]); if(bloqueado)return null; bloqueado=true; return 'OK'; }};
+ const almacenamiento={prefijo:'test',redis:async args=>{ if(args[1] !== 'test:whatsapp-prueba:limite') return 'OK'; assert.deepEqual(args.slice(3),['NX','EX',900]); if(bloqueado)return null; bloqueado=true; return 'OK'; }};
  const fetchImpl=async (url,o)=>{
   llamadas++; assert.ok(url.startsWith('https://api.twilio.com/')); assert.equal(o.redirect,'error');
-  const b=new URLSearchParams(o.body); assert.equal(b.get('To'),env.TWILIO_WHATSAPP_TEST_TO); assert.equal(b.get('ContentSid'),env.TWILIO_WHATSAPP_CONTENT_SID); assert.equal(b.has('Body'),false);
+  const b=new URLSearchParams(o.body); assert.equal(b.get('To'),env.TWILIO_WHATSAPP_TEST_TO); assert.equal(b.get('ContentSid'),env.TWILIO_WHATSAPP_CONTENT_SID); assert.equal(b.has('Body'),false); assert.equal(b.get('StatusCallback'),env.TWILIO_WHATSAPP_STATUS_CALLBACK_URL);
   return {ok:true,json:async()=>({sid:'MM'+'4'.repeat(32),status:'queued'})};
  };
  const d=await ejecutar(cuerpo,{env,almacenamiento,fetchImpl}); assert.equal(d.ok,true); assert.match(d.mensaje,/todavía no acredita/);
@@ -41,7 +41,15 @@ test('endpoint exige sesión antes de la prueba', async () => {
   const res={setHeader(){},end(s){this.d=JSON.parse(s);}};
   await api({method:'POST',headers:{'content-type':'application/json'},body:cuerpo},res);
   assert.equal(res.statusCode,401);
+  await api({method:'POST',headers:{'content-type':'application/json'},body:{accion:'whatsapp_prueba_estado'}},res);
+  assert.equal(res.statusCode,401);
  } finally {for(const [k,v] of Object.entries(anterior)){if(v===undefined)delete process.env[k];else process.env[k]=v;}}
+});
+test('seguimiento apagado o callback inválido impide contactar con Twilio', async () => {
+  for (const cambio of [{ CONTACTIA_WHATSAPP_CALLBACK_HABILITADO: '0' }, { TWILIO_WHATSAPP_STATUS_CALLBACK_URL: 'http://invalido.example' }]) {
+    const r = await ejecutar(cuerpo, { env: { ...env, ...cambio }, fetchImpl: () => assert.fail('No enviar'), almacenamiento: { redis: () => assert.fail('No reservar envío') } });
+    assert.equal(r.status, 503);
+  }
 });
 test('distingue ausencia, vacío y formato; tolera espacios exteriores sin revelar valores', async () => {
  for (const [valor,motivo] of [[undefined,/No llega/],['  ',/vacía/],['whatsapp:numero-invalido',/formato/]]) {

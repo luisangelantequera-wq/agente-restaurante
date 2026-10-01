@@ -27,3 +27,16 @@ document.getElementById("salir").addEventListener("click", async () => {
   catch (e) { resultado.textContent = e.message; }
 });
 configurar().catch(() => {});
+
+document.getElementById("estado").addEventListener("click", async () => {
+  const salida = document.getElementById("seguimiento");
+  salida.textContent = "Consultando entrega…";
+  try {
+    const d = await solicitar({ accion: "whatsapp_prueba_estado" });
+    salida.textContent = !d.disponible ? "No hay seguimiento de prueba disponible." :
+      d.entrega_confirmada ? "Entrega confirmada por el aviso firmado de Twilio." :
+      d.callback_recibido ? "Aviso firmado recibido. Estado: " + d.estado :
+      "Twilio aceptó el envío. Todavía no hemos recibido su aviso firmado. No repita el envío.";
+  } catch (e) { salida.textContent = e.message; }
+});
+
