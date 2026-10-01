@@ -73,5 +73,6 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ]
+  ],
+  "installCommand": "npm install && node scripts/comprobar-lector-reserva-preview.js"
 }
