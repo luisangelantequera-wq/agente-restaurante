@@ -34,3 +34,13 @@ Para consultar requiere las tres banderas de confirmación, lectura y contacto R
 El 1 de octubre de 2026 la consulta de configuración de Vercel confirmó `ssoProtection.enabled:true` y `deploymentType:all_except_custom_domains`. No se cambió esa protección. El acceso de Twilio al callback todavía no está verificado.
 
 Tras añadir esta inspección, 427 pruebas locales pasan. Se prueban sesión obligatoria, bloqueo en producción y con banderas apagadas, reservas no elegibles, intentos previos, contactos ya resueltos y ausencia de datos privados en las respuestas. Se actualiza también el diagnóstico manual del lector para admitir el nuevo campo de resumen `whatsapp_contacto_pendiente`; no se ejecutó contra Airtable real.
+
+## Acceso de automatización al callback
+
+`lib/url-callback-whatsapp.js` construye una única URL compartida por el proveedor y la validación de firmas. La nueva bandera `CONTACTIA_WHATSAPP_CALLBACK_BYPASS_HABILITADO=1` añade el secreto del sistema `VERCEL_AUTOMATION_BYPASS_SECRET` como parámetro `x-vercel-protection-bypass`. Se mantiene en `TWILIO_WHATSAPP_STATUS_CALLBACK_URL` la URL base sin consultas: `https://agente-restaurante-git-prototipo-voz-reservas-projects-46f41d07.vercel.app/api/whatsapp-resultado`.
+
+El modo de automatización está restringido por código a Preview, ese hostname y esa ruta exacta, sin puertos, credenciales, fragmentos ni consultas previas. La URL completa, incluyendo el secreto, se usa tanto en `StatusCallback` como al comprobar la firma oficial de Twilio. No se reconstruye a partir de cabeceras entrantes. Una firma falsa se rechaza antes de acceder a reservas o Redis.
+
+Vercel ya muestra un secreto de automatización configurado como variable de sistema. No se ha mostrado, regenerado o copiado al repositorio. Esta etapa añade soporte; la nueva bandera no se ha activado todavía. 431 pruebas locales pasan, con secretos ficticios. No se ha realizado una prueba externa con ese secreto ni enviado WhatsApp.
+
+La activación supone que, al enviar un mensaje, Twilio recibirá el secreto en la URL del callback. El secreto de Vercel tiene alcance de proyecto, no está limitado por Vercel a esta ruta; la restricción de ruta y host está en nuestro código. No imprimir ni compartir la URL completa, el formulario del proveedor o sus credenciales. La bandera de envío y las restantes barreras siguen siendo independientes. Falta comprobar el acceso externo tras autorizar la configuración; superar la protección de Vercel por sí solo no acredita procesamiento del callback ni entrega real.
