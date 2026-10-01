@@ -74,5 +74,5 @@
       "dest": "/index.html"
     }
   ],
-  "buildCommand": "node -e \"if(process.env.VERCEL_ENV!=='preview')process.exit(1);require('./scripts/comprobar-destino-whatsapp-redis').comprobar().then(r=>{console.log('CONTACTIA_DESTINO_REDIS_OK '+JSON.stringify(r));process.exit(1)}).catch(()=>{console.error('CONTACTIA_DESTINO_REDIS_FALLO');process.exit(1)})\""
+  "buildCommand": "node scripts/comprobar-destino-whatsapp-redis.js && node -e \"process.exit(1)\""
 }
