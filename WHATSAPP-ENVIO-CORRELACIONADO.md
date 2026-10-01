@@ -44,3 +44,20 @@ El modo de automatización está restringido por código a Preview, ese hostname
 Vercel ya muestra un secreto de automatización configurado como variable de sistema. No se ha mostrado, regenerado o copiado al repositorio. Esta etapa añade soporte; la nueva bandera no se ha activado todavía. 431 pruebas locales pasan, con secretos ficticios. No se ha realizado una prueba externa con ese secreto ni enviado WhatsApp.
 
 La activación supone que, al enviar un mensaje, Twilio recibirá el secreto en la URL del callback. El secreto de Vercel tiene alcance de proyecto, no está limitado por Vercel a esta ruta; la restricción de ruta y host está en nuestro código. No imprimir ni compartir la URL completa, el formulario del proveedor o sus credenciales. La bandera de envío y las restantes barreras siguen siendo independientes. Falta comprobar el acceso externo tras autorizar la configuración; superar la protección de Vercel por sí solo no acredita procesamiento del callback ni entrega real.
+
+## Activación autorizada y comprobación externa del 1 de octubre
+
+El usuario autorizó expresamente el acceso de automatización. La comprobación a las 21:40 Europe/Madrid confirmó que las seis variables de callback se habían guardado como Config únicamente en Preview y con rama `prototipo-voz`: bypass, URL base y las cuatro banderas de recepción, lectura y contacto. Todos los valores de bandera son `1`; la URL base no contiene el secreto. No se añadió ni activó `CONTACTIA_WHATSAPP_ENVIO_CORRELACIONADO_HABILITADO`.
+
+Se redesplegó el commit `d7bb62e22739714ad8f9540ee3fa83c6a8db58f8` como Preview, sin promoverlo a producción. Despliegue `dpl_7ee3FgJYmg1TZEsfhmQ7B9dJAW6R`, estado READY. La protección general de acceso y las reglas del firewall permanecen activas.
+
+Prueba externa mediante POST de un formulario ficticio con firma inválida, sin sesiones de navegador ni envíos a Twilio:
+
+| Solicitud | Respuesta observada |
+| --- | --- |
+| Sin secreto de automatización | HTTP 302; redirección al acceso de Vercel |
+| Con secreto existente en el parámetro de automatización | HTTP 403; texto `Forbidden`, cabecera `X-Vercel-Mitigated: deny` |
+
+El segundo rechazo no es la respuesta JSON de la validación de firma de Contactia. Por tanto, el acceso externo al callback sigue pendiente: se observa una denegación de la capa de seguridad de Vercel. El panel muestra Bot Protection y mitigaciones del sistema activas; no se ha atribuido el rechazo a una regla concreta ni se ha alterado el firewall para sortearlo. Estas pruebas no demuestran que una solicitud originada por Twilio reciba el mismo tratamiento, ni acreditan una entrega real.
+
+Mensajes enviados: cero. No se consultaron ni modificaron reservas en estas pruebas. El secreto no se ha guardado en el repositorio ni mostrado en resultados; la copia temporal usada para la comprobación se eliminó. Próximo paso: identificar el bloqueo del firewall y preparar, si procede, un acceso limitado al callback antes de una prueba real autorizada.
