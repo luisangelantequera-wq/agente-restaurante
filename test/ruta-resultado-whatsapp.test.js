@@ -48,8 +48,32 @@ test('método, tipo, longitud y cuerpo ya procesado se rechazan antes de acceder
   const ruta = crearRuta({ entorno: () => env, fabrica: () => { servicios++; } });
   for (const [cambio, codigo] of [[{ method: 'GET' }, 405], [{ headers: { 'content-type': 'application/json' } }, 415],
     [{ headers: { 'content-type': 'application/x-www-form-urlencoded', 'content-length': String(MAX_BYTES + 1) } }, 413],
-    [{ body: {} }, 400]]) {
+    [{ body: { MessageStatus: ['delivered', 'failed'] } }, 400]]) {
     const r = Object.assign(req(), cambio); const res = await invocar(ruta, r); assert.equal(res.codigo, codigo); r.destroy();
+  }
+  assert.equal(servicios, 0);
+});
+test('formulario decodificado por Vercel conserva firma, Unicode y campos futuros', async () => {
+  let servicios = 0;
+  const ruta = crearRuta({ entorno: () => env, fabrica: () => {
+    servicios++;
+    return async (r, res) => {
+      assert.deepEqual(Object.fromEntries(new URLSearchParams(r.body)), parametros);
+      return res.status(200).json({ recibido: true });
+    };
+  } });
+  const r = req([]); r.body = { ...parametros };
+  assert.equal((await invocar(ruta, r)).codigo, 200);
+  assert.equal(servicios, 1);
+  r.destroy();
+});
+test('formulario de Vercel con firma falsa o campos alterados no construye servicios', async () => {
+  let servicios = 0;
+  const ruta = crearRuta({ entorno: () => env, fabrica: () => { servicios++; } });
+  const falsa = req([]); falsa.body = { ...parametros }; falsa.headers['x-twilio-signature'] = 'falsa';
+  const alterada = req([]); alterada.body = { ...parametros, CampoNuevo: 'cambiado' };
+  for (const r of [falsa, alterada]) {
+    assert.equal((await invocar(ruta, r)).codigo, 403); r.destroy();
   }
   assert.equal(servicios, 0);
 });
