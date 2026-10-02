@@ -1,0 +1,17 @@
+{
+  "friendly_name": "contactia_confirmacion_reserva_es",
+  "language": "es",
+  "variables": {
+    "1": "Restaurante Sol",
+    "2": "viernes, 2 de octubre de 2026",
+    "3": "15:00",
+    "4": "4",
+    "5": "TERRAZA",
+    "6": "SOL-EJEMPLO-0001"
+  },
+  "types": {
+    "twilio/text": {
+      "body": "No hemos podido entregarle el correo de confirmación. Su reserva en {{1}} está confirmada para el {{2}}, a las {{3}}, para {{4}} personas, en {{5}}. Localizador: {{6}}. No necesita volver a confirmar. Gracias por reservar con nosotros."
+    }
+  }
+}

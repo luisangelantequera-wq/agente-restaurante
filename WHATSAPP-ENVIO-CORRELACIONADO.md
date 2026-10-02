@@ -70,3 +70,24 @@ La página administrativa de prueba permite ahora enviar la plantilla ficticia e
 Las dos pruebas externas de este entorno fueron denegadas por la regla AI Bots de Vercel (ruta y cliente Python confirmados en Firewall/Traffic). La prueba manual del usuario desde Windows llegó a Contactia y devolvió 400 «Se requiere el cuerpo original». Esto no demuestra aún entrega real de Twilio.
 
 La ruta admite ahora formularios decodificados por el runtime Node de Vercel, con valores exclusivamente de texto; rechaza arrays, objetos anidados y cuerpos excesivos. Conserva todos los parámetros, incluidos campos futuros, y valida la firma oficial de Twilio con la URL completa antes de componer servicios. También admite el formulario textual y el stream original. No añade envíos ni habilita la bandera de envío correlacionado. Pasan 433 pruebas locales; pendiente repetir la prueba manual tras el despliegue: la firma falsa debe recibir 403 «Aviso no validado».
+
+
+## Entrega real comprobada el 2 de octubre de 2026
+
+El usuario confirmó la recepción en su teléfono del recordatorio ficticio en inglés enviado manualmente desde la página de prueba. La página mostró «Entrega confirmada por el aviso firmado de Twilio». Esto acredita el envío manual y la recepción de un callback firmado correlacionado con la prueba aislada. No acredita una confirmación de reserva real, la aprobación de una plantilla propia ni el funcionamiento fuera de la ventana de atención de 24 horas.
+
+El intento anterior del 1 de octubre terminó en `undelivered`, código `63016`. Tras escribir «Hola» al remitente de prueba y repetir manualmente la prueba al día siguiente, el mensaje llegó. La hora `3:00 PM` pertenece a la cita ficticia incluida en la plantilla; no es la hora del envío ni revela un error de zona horaria de Contactia.
+
+## Plantilla española preparada, pendiente de alta y aprobación
+
+La propuesta `contactia_confirmacion_reserva_es` conserva exactamente el texto y las seis variables de `lib/confirmacion-whatsapp.js`. El archivo `config/plantilla-whatsapp-confirmacion-es.json` es un borrador para Content API, con ejemplos ficticios, no un SID aprobado. Se propone solicitar la categoría `UTILITY`; la decisión de categoría y aprobación corresponde a Meta.
+
+Para utilizar una plantilla personalizada se requiere un remitente WhatsApp registrado. La documentación de Twilio indica que el Sandbox solo permite sus plantillas preaprobadas; el flujo Try out WhatsApp también utiliza plantillas de prueba. Self Sign-up exige una cuenta Twilio actualizada y acceso administrador al portfolio empresarial de Meta. Antes de continuar debe comprobarse el estado real de la cuenta y elegirse el número que actuará como remitente. El teléfono destinatario de las pruebas no se convierte automáticamente en remitente.
+
+Después del registro se podrá crear la plantilla, solicitar su aprobación y configurar su Content SID en `TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID` para Preview/rama `prototipo-voz`. La plantilla inglesa de prueba no debe reutilizarse como plantilla de confirmación. El borrador no se ha enviado a Twilio ni habilita envíos automáticos.
+
+Fuentes oficiales revisadas el 02/10/2026:
+- https://www.twilio.com/docs/whatsapp/sandbox
+- https://www.twilio.com/docs/whatsapp/quickstart
+- https://www.twilio.com/docs/whatsapp/self-sign-up
+- https://www.twilio.com/docs/content/create-templates-with-the-content-template-builder
