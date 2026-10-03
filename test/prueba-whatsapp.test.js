@@ -107,3 +107,13 @@ test('rechazo de credenciales conserva solo código y no reintenta ni filtra res
  assert.ok(!JSON.stringify(r).includes(env.TWILIO_AUTH_TOKEN));
  assert.equal((await ejecutar({accion:'whatsapp_prueba_credenciales'},{env:{...env,VERCEL_ENV:'production'},fetchImpl:()=>assert.fail()})).status,404);
 });
+
+test('muestra descripción del rechazo sin secretos, callback ni datos de contacto', async () => {
+ const opciones={...env, VERIFICACION_SECRET:'bypass-secreto-largo-de-prueba'};
+ let llamadas=0;
+ const r=await ejecutar(cuerpo,{env:opciones,almacenamiento:{prefijo:'test',redis:async()=> 'OK'},fetchImpl:async()=>{
+  llamadas++; return {ok:false,status:401,json:async()=>({code:20003,message:`Policy blocked. ${env.TWILIO_AUTH_TOKEN} ${env.TWILIO_ACCOUNT_SID} ${env.TWILIO_WHATSAPP_FROM} https://example.com/?secret=${opciones.VERIFICACION_SECRET}`})};
+ }});
+ assert.equal(llamadas,1); assert.equal(r.codigo,20003); assert.equal(r.http,401); assert.match(r.detalle,/Policy blocked/);
+ for (const valor of [env.TWILIO_AUTH_TOKEN,env.TWILIO_ACCOUNT_SID,env.TWILIO_WHATSAPP_FROM,opciones.VERIFICACION_SECRET,'https://example.com']) assert.ok(!JSON.stringify(r).includes(valor));
+});

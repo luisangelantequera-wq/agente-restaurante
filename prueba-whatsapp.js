@@ -3,7 +3,7 @@ const acceso = document.getElementById("acceso"), prueba = document.getElementBy
 async function solicitar(datos) {
   const r = await fetch("/api/centro-conversaciones", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(datos) });
   const d = await r.json();
-  if (!r.ok) throw new Error((d.error || "No se pudo completar la solicitud.") + (Number.isInteger(d.codigo) ? ` Código de Twilio: ${d.codigo}.` : ""));
+  if (!r.ok) throw new Error((d.error || "No se pudo completar la solicitud.") + (Number.isInteger(d.codigo) ? ` Código de Twilio: ${d.codigo}.` : "") + (d.detalle ? ` Descripción de Twilio: ${d.detalle}` : ""));
   return d;
 }
 async function configurar() {
