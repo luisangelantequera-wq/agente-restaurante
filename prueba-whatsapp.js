@@ -40,3 +40,13 @@ document.getElementById("estado").addEventListener("click", async () => {
       "Twilio aceptó el envío. Todavía no hemos recibido su aviso firmado. No repita el envío.";
   } catch (e) { salida.textContent = e.message; }
 });
+
+document.getElementById("credenciales").addEventListener("click", async () => {
+  const boton = document.getElementById("credenciales"), salida = document.getElementById("diagnostico-credenciales");
+  boton.disabled = true; salida.textContent = "Comprobando credenciales desde Vercel…";
+  try {
+    const d = await solicitar({ accion: "whatsapp_prueba_credenciales" });
+    salida.textContent = `${d.mensaje}${Number.isInteger(d.codigo) ? ` Código de Twilio: ${d.codigo}.` : ''}${d.estado_cuenta ? ` Estado de cuenta: ${d.estado_cuenta}.` : ''} Cuenta: ${d.cuenta}. Rama: ${d.rama}. Versión: ${d.version}. Despliegue: ${d.despliegue}.`;
+  } catch (e) { salida.textContent = e.message; }
+  finally { boton.disabled = false; }
+});

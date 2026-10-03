@@ -263,7 +263,7 @@ module.exports = async (req, res) => {
     return responder(res, 401, { ok: false, error: "Sesión no válida o caducada." });
   }
 
-  if (["whatsapp_prueba_config", "whatsapp_prueba_enviar", "whatsapp_prueba_estado"].includes(cuerpo.accion)) {
+  if (["whatsapp_prueba_config", "whatsapp_prueba_enviar", "whatsapp_prueba_estado", "whatsapp_prueba_credenciales"].includes(cuerpo.accion)) {
     const { status, ...datos } = await require("../lib/prueba-whatsapp").ejecutar(cuerpo);
     return responder(res, status, datos);
   }

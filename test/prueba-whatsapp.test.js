@@ -68,7 +68,7 @@ test('endpoint exige sesión antes de la prueba', async () => {
   const res={setHeader(){},end(s){this.d=JSON.parse(s);}};
   await api({method:'POST',headers:{'content-type':'application/json'},body:cuerpo},res);
   assert.equal(res.statusCode,401);
-  await api({method:'POST',headers:{'content-type':'application/json'},body:{accion:'whatsapp_prueba_estado'}},res);
+  await api({method:'POST',headers:{'content-type':'application/json'},body:{accion:'whatsapp_prueba_credenciales'}},res);
   assert.equal(res.statusCode,401);
  } finally {for(const [k,v] of Object.entries(anterior)){if(v===undefined)delete process.env[k];else process.env[k]=v;}}
 });
@@ -85,4 +85,25 @@ test('distingue ausencia, vacío y formato; tolera espacios exteriores sin revel
  }
  const r=await ejecutar({accion:'whatsapp_prueba_config'},{env:{...env,TWILIO_WHATSAPP_TEST_TO:' '+env.TWILIO_WHATSAPP_TEST_TO+'\n'}});
  assert.equal(r.preparado,true); assert.equal(r.destino,'•••• 0000');
+});
+
+test('consulta credenciales con GET sin Redis, mensaje ni fuga del Auth Token', async () => {
+ let llamadas = 0;
+ const r = await ejecutar({accion:'whatsapp_prueba_credenciales'}, {env, almacenamiento:{redis:()=>assert.fail()}, fetchImpl:async(url, opciones)=>{
+  llamadas++; assert.equal(url, `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}.json`);
+  assert.equal(opciones.method,'GET'); assert.equal(opciones.redirect,'error'); assert.equal(opciones.body,undefined);
+  assert.equal(Buffer.from(opciones.headers.Authorization.slice(6),'base64').toString(), `${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`);
+  return {ok:true,status:200,json:async()=>({sid:env.TWILIO_ACCOUNT_SID,status:'active',auth_token:env.TWILIO_AUTH_TOKEN})};
+ }});
+ assert.equal(llamadas,1); assert.equal(r.credenciales_aceptadas,true); assert.equal(r.estado_cuenta,'active');
+ assert.ok(!JSON.stringify(r).includes(env.TWILIO_AUTH_TOKEN)); assert.ok(!JSON.stringify(r).includes(env.TWILIO_ACCOUNT_SID));
+});
+test('rechazo de credenciales conserva solo código y no reintenta ni filtra respuesta', async () => {
+ let llamadas=0;
+ const r=await ejecutar({accion:'whatsapp_prueba_credenciales'}, {env,fetchImpl:async()=>{
+  llamadas++;return {ok:false,status:401,json:async()=>({code:20003,message:env.TWILIO_AUTH_TOKEN})};
+ }});
+ assert.equal(llamadas,1); assert.equal(r.codigo,20003); assert.equal(r.credenciales_aceptadas,false);
+ assert.ok(!JSON.stringify(r).includes(env.TWILIO_AUTH_TOKEN));
+ assert.equal((await ejecutar({accion:'whatsapp_prueba_credenciales'},{env:{...env,VERCEL_ENV:'production'},fetchImpl:()=>assert.fail()})).status,404);
 });
