@@ -35,3 +35,7 @@ Pendientes: prueba real con reserva en Preview, integración automática despué
 ## Verificación
 
 54 pruebas específicas superadas: prueba vinculada a reserva, emisor correlacionado, prueba manual ficticia, revisión de lectura, recepción firmada, consentimiento y adaptador de Twilio. El flujo real vinculado requiere la prueba del usuario descrita arriba.
+
+## Diagnóstico del programador
+
+El botón «Comprobar correo y programador (sin enviar)» consulta solo el detalle operativo de la reserva y cuatro comandos Redis de lectura: pausa, TTL de pausa, última ejecución y fecha de la reserva en la cola. No consulta Resend, no reprograma, no libera pausas y no envía avisos. Muestra fechas en Europe/Madrid y omite identificadores de correo, contactos y secretos.

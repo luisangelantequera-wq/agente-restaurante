@@ -97,8 +97,24 @@ test('lector acotado realiza GET y rechaza registros duplicados y paginación',a
 test('acciones de reserva requieren sesión de Contactia',async()=>{
  const api=require('../api/centro-conversaciones');const anteriores={VERCEL_ENV:process.env.VERCEL_ENV,CONTACTIA_CENTRO_SECRET:process.env.CONTACTIA_CENTRO_SECRET};
  try{process.env.VERCEL_ENV='preview';process.env.CONTACTIA_CENTRO_SECRET='x'.repeat(40);
- for(const accion of ['whatsapp_reserva_revisar','whatsapp_reserva_enviar','whatsapp_reserva_estado']){
+ for(const accion of ['whatsapp_reserva_revisar','whatsapp_reserva_enviar','whatsapp_reserva_estado','whatsapp_reserva_diagnostico']){
   const res={setHeader(){},end(s){this.d=JSON.parse(s);}};
   await api({method:'POST',headers:{'content-type':'application/json'},body:{accion,localizador}},res);assert.equal(res.statusCode,401);
  }}finally{for(const[k,v]of Object.entries(anteriores)){if(v===undefined)delete process.env[k];else process.env[k]=v;}}
+});
+
+test('diagnóstico de correo y cola solo lee y no revela contenido, SID ni credenciales',async()=>{
+ const e=escenario();e.registro.fields.aviso_cliente_detalle=JSON.stringify({estado:'aceptado',motivo:'aceptado_proveedor',id_envio:'12345678-1234-1234-1234-123456789abc',iniciado:'2026-10-03T21:00:00Z'});
+ const lecturas=[];
+ e.opciones.conexion={prefijo:'test',redis:async args=>{
+  lecturas.push(args);assert.ok(['GET','TTL','ZSCORE'].includes(args[0]));
+  if(args[0]==='TTL')return 120;
+  if(args[0]==='ZSCORE')return String(ahora()+900000);
+  if(args[1].endsWith(':pausa'))return '1';
+  return JSON.stringify({fecha:'2026-10-03T20:00:00Z',no_mostrar:e.env.AIRTABLE_API_KEY});
+ }};
+ const r=await ejecutar({accion:'whatsapp_reserva_diagnostico',localizador},e.opciones);
+ assert.equal(r.modo,'solo_lectura');assert.equal(r.cola_pausada,true);assert.equal(r.programado,true);assert.equal(r.correo_estado,'aceptado');assert.equal(r.id_correo_registrado,true);
+ assert.equal(r.comprobaciones,0);assert.equal(r.mensajes_enviados,0);assert.equal(r.escrituras,0);assert.equal(e.envios(),0);assert.equal(lecturas.length,4);
+ for(const v of [e.env.AIRTABLE_API_KEY,e.env.TWILIO_AUTH_TOKEN,e.registro.fields.telefono,'12345678-1234-1234-1234-123456789abc'])assert.ok(!JSON.stringify(r).includes(v));
 });

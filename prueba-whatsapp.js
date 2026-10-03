@@ -100,3 +100,15 @@ document.getElementById('estado-reserva').addEventListener('click', async () => 
       d.motivo ? motivoReserva(d) : `Estado de esta reserva: ${d.estado}. Entrega todavía no confirmada. No repita el envío.`;
   } catch(e) { salida.textContent = e.message; }
 });
+
+document.getElementById('diagnostico-reserva').addEventListener('click', async () => {
+  const boton = document.getElementById('diagnostico-reserva'), salida = document.getElementById('reserva-resultado');
+  boton.disabled = true; salida.textContent = 'Consultando correo y programador…';
+  try {
+    const d = await solicitar({accion:'whatsapp_reserva_diagnostico',localizador:localizadorReserva.value});
+    if (d.motivo) { salida.textContent = motivoReserva(d); return; }
+    const fecha = valor => valor ? new Date(valor).toLocaleString('es-ES',{timeZone:'Europe/Madrid'}) : 'Sin registro';
+    salida.textContent = `Correo: ${d.correo_estado}. Motivo: ${d.correo_motivo}. Referencia del correo: ${d.id_correo_registrado ? 'registrada' : 'no registrada'}. Inicio: ${fecha(d.correo_iniciado)}. Última comprobación: ${fecha(d.correo_comprobado)}. Comprobaciones: ${d.comprobaciones}. Cola pausada: ${d.cola_pausada ? 'Sí' : 'No'}${d.pausa_segundos ? ` (${Math.ceil(d.pausa_segundos / 60)} minutos restantes)` : ''}. Reserva en cola: ${d.programado ? 'Sí' : 'No'}. Próxima ejecución prevista: ${fecha(d.proxima_ejecucion)}. Última ejecución del programador: ${fecha(d.ultima_ejecucion)}.`;
+  } catch(e) { salida.textContent = e.message; }
+  finally { boton.disabled = false; }
+});

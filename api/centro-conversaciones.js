@@ -268,7 +268,7 @@ module.exports = async (req, res) => {
     return responder(res, status, datos);
   }
 
-  if (["whatsapp_reserva_revisar", "whatsapp_reserva_enviar", "whatsapp_reserva_estado"].includes(cuerpo.accion)) {
+  if (["whatsapp_reserva_revisar", "whatsapp_reserva_enviar", "whatsapp_reserva_estado", "whatsapp_reserva_diagnostico"].includes(cuerpo.accion)) {
     const { status, ...datos } = await require("../lib/prueba-reserva-whatsapp").ejecutar(cuerpo);
     return responder(res, status, datos);
   }
