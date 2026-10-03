@@ -50,3 +50,53 @@ document.getElementById("credenciales").addEventListener("click", async () => {
   } catch (e) { salida.textContent = e.message; }
   finally { boton.disabled = false; }
 });
+
+let revisionReserva = null;
+const botonReserva = document.getElementById("enviar-reserva"), localizadorReserva = document.getElementById("localizador");
+const motivosReserva = {
+  reserva_no_encontrada: 'No se encontró la reserva.',
+  reserva_sin_autorizacion_o_no_confirmada: 'La reserva debe estar confirmada y tener autorización de WhatsApp registrada.',
+  telefono_distinto_del_movil_de_pruebas: 'El teléfono de la reserva debe coincidir con el móvil de pruebas.',
+  reserva_pasada: 'La fecha y hora de la reserva ya han pasado.',
+  correo_sin_fallo_elegible: 'El correo no tiene un fallo que justifique esta confirmación por WhatsApp.',
+  whatsapp_no_pendiente: 'Esta reserva no tiene una confirmación pendiente por WhatsApp.',
+  correo_no_requiere_whatsapp: 'El correo no requiere confirmación alternativa por WhatsApp.',
+  sin_autorizacion_registrada: 'Falta la autorización del cliente para este envío.',
+  aceptacion_registrada: 'Ya existe un envío aceptado. Compruebe su entrega.',
+  intento_previo: 'Ya existe un intento. Revise el seguimiento antes de continuar.',
+  envio_ya_reclamado: 'Ya se ha intentado enviar esta confirmación. No se repetirá.',
+  reserva_cambiada_vuelva_a_revisar: 'Los datos han cambiado. Revise de nuevo la reserva.',
+  canal_desactivado: 'El envío vinculado a reservas todavía está desactivado.',
+  plantilla_propia_pendiente: 'Falta configurar la plantilla aprobada del idioma de la reserva.'
+};
+function motivoReserva(d) { return motivosReserva[d.motivo] || `Revisión pendiente: ${d.motivo || d.estado}.`; }
+localizadorReserva.addEventListener('input', () => { revisionReserva = null; botonReserva.disabled = true; });
+document.getElementById('revisar-reserva').addEventListener('submit', async e => {
+  e.preventDefault(); revisionReserva = null; botonReserva.disabled = true;
+  const salida = document.getElementById('reserva-resumen'); salida.textContent = 'Revisando reserva…';
+  try {
+    const d = await solicitar({accion:'whatsapp_reserva_revisar',localizador:localizadorReserva.value});
+    if (!d.listo) { salida.textContent = motivoReserva(d); return; }
+    revisionReserva = d; botonReserva.disabled = !d.envio_habilitado;
+    salida.textContent = `Destino: ${d.destino}. ${d.texto}${d.envio_habilitado ? '' : ' El envío vinculado a reservas todavía está desactivado.'}`;
+  } catch(e) { salida.textContent = e.message; }
+});
+botonReserva.addEventListener('click', async () => {
+  if (!revisionReserva || !window.confirm(`¿Enviar la confirmación de la reserva ${revisionReserva.localizador} al móvil ${revisionReserva.destino}?`)) return;
+  const r = revisionReserva; revisionReserva = null; botonReserva.disabled = true;
+  const salida = document.getElementById('reserva-resultado'); salida.textContent = 'Enviando confirmación…';
+  try {
+    const d = await solicitar({accion:'whatsapp_reserva_enviar',localizador:r.localizador,huella:r.huella,confirmar:true});
+    salida.textContent = d.estado === 'aceptado' ? `Twilio ha aceptado la confirmación de esta reserva. Compruebe su entrega.${d.seguimiento_pendiente ? ' El seguimiento requiere revisión.' : ''}` :
+      d.estado === 'rechazado' ? 'Twilio ha rechazado el envío. No se reintentará automáticamente.' :
+      d.estado === 'desconocido' ? 'No se pudo conocer el resultado. Compruebe WhatsApp y el seguimiento; no repita el envío.' : motivoReserva(d);
+  } catch(e) { salida.textContent = e.message; }
+});
+document.getElementById('estado-reserva').addEventListener('click', async () => {
+  const salida = document.getElementById('reserva-resultado'); salida.textContent = 'Consultando entrega de la reserva…';
+  try {
+    const d = await solicitar({accion:'whatsapp_reserva_estado',localizador:localizadorReserva.value});
+    salida.textContent = d.entrega_confirmada ? `Entrega de esta reserva confirmada por el aviso firmado de Twilio. ${d.contacto_resuelto ? 'Contacto de la reserva resuelto.' : 'La actualización del contacto sigue pendiente.'}` :
+      d.motivo ? motivoReserva(d) : `Estado de esta reserva: ${d.estado}. Entrega todavía no confirmada. No repita el envío.`;
+  } catch(e) { salida.textContent = e.message; }
+});

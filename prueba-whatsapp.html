@@ -2,6 +2,11 @@
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contactia · Prueba WhatsApp</title><link rel="stylesheet" href="/prueba-whatsapp.css"><script src="/prueba-whatsapp.js" defer></script></head>
 <body><main><h1>Prueba de WhatsApp</h1><p>Envío manual al móvil de pruebas configurado. Los datos son ficticios y no corresponden a una reserva real.</p>
 <form id="acceso"><label for="clave">Clave del centro de Contactia</label><input id="clave" type="password" autocomplete="current-password" required><button>Acceder</button></form>
-<section id="prueba" hidden><p id="config"></p><p id="mensaje-prueba"></p><button id="credenciales">Comprobar credenciales (sin enviar)</button><p id="diagnostico-credenciales" role="status"></p><button id="enviar" disabled>Enviar un WhatsApp de prueba</button><button id="estado">Comprobar entrega</button><button id="salir">Cerrar sesión</button><p>Máximo un intento cada 15 minutos. Compruebe el mensaje en su móvil.</p><p id="seguimiento" role="status"></p></section>
+<section id="prueba" hidden><p id="config"></p><p id="mensaje-prueba"></p><button id="credenciales">Comprobar credenciales (sin enviar)</button><p id="diagnostico-credenciales" role="status"></p><button id="enviar" disabled>Enviar un WhatsApp de prueba</button><button id="estado">Comprobar entrega</button><button id="salir">Cerrar sesión</button><p>Máximo un intento cada 15 minutos. Compruebe el mensaje en su móvil.</p><p id="seguimiento" role="status"></p>
+<hr><h2>WhatsApp de una reserva</h2>
+<p>Introduzca el localizador de una reserva de Preview. El envío requiere autorización del cliente y un fallo elegible del correo. En esta prueba, el teléfono debe coincidir con el móvil de pruebas.</p>
+<form id="revisar-reserva"><label for="localizador">Localizador de la reserva</label><input id="localizador" type="text" maxlength="80" required autocomplete="off"><button>Revisar reserva sin enviar</button></form>
+<p id="reserva-resumen" role="status"></p><button id="enviar-reserva" disabled>Enviar confirmación de esta reserva</button><button id="estado-reserva">Comprobar entrega de esta reserva</button><p id="reserva-resultado" role="status" aria-live="polite"></p>
+</section>
 <p>Esta página realiza una prueba manual. No crea reservas ni activa confirmaciones automáticas.</p>
 <p id="resultado" role="status" aria-live="polite"></p></main></body></html>

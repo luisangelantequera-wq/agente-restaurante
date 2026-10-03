@@ -1,1 +1,10 @@
-body{font:18px/1.6 system-ui,sans-serif;background:#f3f6f8;color:#183041;margin:0;padding:24px}main{max-width:680px;margin:40px auto;background:white;padding:32px;border-radius:16px}label,input{display:block}input{box-sizing:border-box;width:100%;padding:12px;margin:8px 0 16px;font:inherit}button{font:inherit;padding:12px 18px;margin:6px 6px 6px 0;cursor:pointer;border:1px solid #526879;border-radius:8px;background:#183f59;color:white}button:disabled{opacity:.5;cursor:default}#resultado{overflow-wrap:anywhere}
+:root { font-family: system-ui, sans-serif; color: #17213b; background: #f5f7fb; }
+body { margin: 0; padding: 24px; }
+main { max-width: 780px; margin: 0 auto; background: white; padding: 28px; border-radius: 12px; }
+h1, h2 { line-height: 1.2; }
+p { line-height: 1.6; overflow-wrap: anywhere; }
+label { display: block; margin-bottom: 8px; }
+input { box-sizing: border-box; padding: 10px; margin: 0 8px 12px 0; max-width: 100%; font: inherit; }
+button { padding: 10px 14px; margin: 0 8px 10px 0; font: inherit; cursor: pointer; }
+button:disabled { cursor: default; opacity: .55; }
+hr { margin: 28px 0; border: 0; border-top: 1px solid #dce1ec; }
