@@ -3,6 +3,33 @@ const assert = require('node:assert/strict');
 const { ejecutar } = require('../lib/prueba-whatsapp');
 const env = { VERCEL_ENV:'preview', CONTACTIA_WHATSAPP_CONFIRMACION_HABILITADA:'1', CONTACTIA_WHATSAPP_LECTURA_RESERVA_HABILITADA:'1', CONTACTIA_WHATSAPP_CONTACTO_REDIS_HABILITADO:'1', CONTACTIA_WHATSAPP_CALLBACK_HABILITADO:'1', TWILIO_WHATSAPP_STATUS_CALLBACK_URL:'https://contactia.example/api/whatsapp-resultado', TWILIO_ACCOUNT_SID:'AC'+'1'.repeat(32), TWILIO_AUTH_TOKEN:'2'.repeat(32), TWILIO_WHATSAPP_CONTENT_SID:'HX'+'3'.repeat(32), TWILIO_WHATSAPP_FROM:'whatsapp:+49111111111', TWILIO_WHATSAPP_TEST_TO:'whatsapp:+34600000000' };
 const cuerpo = { accion:'whatsapp_prueba_enviar', confirmar:true, To:'whatsapp:+34999999999' };
+test('plantilla española usa sus seis variables del servidor y muestra el mismo ejemplo', async () => {
+ const opciones = {...env, TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID:'HX'+'a'.repeat(32)};
+ const ejemplo = require('../config/plantilla-whatsapp-confirmacion-es.json');
+ const config = await ejecutar({accion:'whatsapp_prueba_config'}, {env:opciones, fetchImpl:()=>assert.fail()});
+ assert.equal(config.preparado,true); assert.match(config.textoEjemplo,/9 de octubre/);
+ let llamadas=0;
+ const d=await ejecutar({...cuerpo, ContentVariables:'datos del cliente', ContentSid:env.TWILIO_WHATSAPP_CONTENT_SID}, {
+  env:opciones, almacenamiento:{prefijo:'test',redis:async()=> 'OK'},
+  fetchImpl:async (_url,o)=>{
+   llamadas++; const b=new URLSearchParams(o.body);
+   assert.equal(b.get('ContentSid'),opciones.TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID);
+   assert.deepEqual(JSON.parse(b.get('ContentVariables')),ejemplo.variables);
+   assert.equal(b.get('From'),env.TWILIO_WHATSAPP_FROM);
+   assert.equal(b.get('To'),env.TWILIO_WHATSAPP_TEST_TO);
+   return {ok:true,json:async()=>({sid:'MM'+'4'.repeat(32)})};
+  }
+ });
+ assert.equal(d.ok,true); assert.equal(llamadas,1);
+});
+test('SID español inválido impide envío sin recurrir a la plantilla inglesa', async () => {
+ const opciones={...env,TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID:'invalido'};
+ const config=await ejecutar({accion:'whatsapp_prueba_config'},{env:opciones});
+ assert.equal(config.preparado,false);
+ assert.equal(config.diagnostico[0].variable,'TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID');
+ const d=await ejecutar(cuerpo,{env:opciones,fetchImpl:()=>assert.fail(),almacenamiento:{redis:()=>assert.fail()}});
+ assert.equal(d.status,503);
+});
 test('configuración no expone secretos ni móvil completo y no hace peticiones', async () => {
  const d = await ejecutar({accion:'whatsapp_prueba_config'}, {env,fetchImpl:()=>assert.fail()});
  assert.equal(d.preparado,true); assert.equal(d.destino,'•••• 0000');

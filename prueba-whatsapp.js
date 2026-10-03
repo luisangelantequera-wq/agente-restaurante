@@ -10,6 +10,7 @@ async function configurar() {
   const d = await solicitar({ accion: "whatsapp_prueba_config" });
   acceso.hidden = true; prueba.hidden = false; enviar.disabled = !d.preparado;
   document.getElementById("config").textContent = d.preparado ? `Destino configurado: ${d.destino}` : `${(d.diagnostico || []).map(x => `${x.variable}: ${x.motivo}`).join(" ")} Versión: ${d.version}.`;
+  document.getElementById("mensaje-prueba").textContent = d.textoEjemplo ? `Prueba ficticia (${d.plantilla}): ${d.textoEjemplo}` : 'Se enviará la plantilla de prueba anterior, con una cita ficticia en inglés.';
 }
 acceso.addEventListener("submit", async e => {
   e.preventDefault(); resultado.textContent = "Comprobando acceso…";
@@ -39,4 +40,3 @@ document.getElementById("estado").addEventListener("click", async () => {
       "Twilio aceptó el envío. Todavía no hemos recibido su aviso firmado. No repita el envío.";
   } catch (e) { salida.textContent = e.message; }
 });
-
