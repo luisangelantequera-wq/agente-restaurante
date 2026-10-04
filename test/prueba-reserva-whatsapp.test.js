@@ -106,6 +106,12 @@ test('acciones de reserva requieren sesión de Contactia',async()=>{
 test('diagnóstico de correo y cola solo lee y no revela contenido, SID ni credenciales',async()=>{
  const e=escenario();e.registro.fields.aviso_cliente_detalle=JSON.stringify({estado:'aceptado',motivo:'aceptado_proveedor',id_envio:'12345678-1234-1234-1234-123456789abc',iniciado:'2026-10-03T21:00:00Z'});
  const lecturas=[];let aviso='La clave de Resend no permite consultar entregas. Revise sus permisos.';
+ e.env.RESEND_API_KEY='re_secreto_para_pruebas';let http=200,referencia='12345678-1234-1234-1234-123456789abc';
+ e.opciones.fetchImpl=async(url,o)=>{
+  assert.equal(url,'https://api.resend.com/emails/12345678-1234-1234-1234-123456789abc');
+  assert.equal(o.method,'GET');assert.equal(o.redirect,'error');assert.equal(o.headers.Authorization,`Bearer ${e.env.RESEND_API_KEY}`);
+  return {ok:http===200,status:http,json:async()=>({id:referencia,last_event:'bounced',to:e.registro.fields.telefono,html:e.env.RESEND_API_KEY})};
+ };
  e.opciones.conexion={prefijo:'test',redis:async args=>{
   lecturas.push(args);assert.ok(['GET','TTL','ZSCORE'].includes(args[0]));
   if(args[0]==='TTL')return 120;
@@ -117,8 +123,13 @@ test('diagnóstico de correo y cola solo lee y no revela contenido, SID ni crede
  assert.equal(r.modo,'solo_lectura');assert.equal(r.cola_pausada,true);assert.equal(r.programado,true);assert.equal(r.correo_estado,'aceptado');assert.equal(r.id_correo_registrado,true);
  assert.equal(r.comprobaciones,0);assert.equal(r.mensajes_enviados,0);assert.equal(r.escrituras,0);assert.equal(e.envios(),0);assert.equal(lecturas.length,4);
  assert.equal(r.ultimo_aviso,aviso);assert.equal(r.ultimo_comprobados,0);
+ assert.equal(r.consulta_resend,'aceptada');assert.equal(r.evento_resend,'bounced');
  aviso=e.env.AIRTABLE_API_KEY;
  const sinFiltrar=await ejecutar({accion:'whatsapp_reserva_diagnostico',localizador},e.opciones);
  assert.equal(sinFiltrar.ultimo_aviso,null);
- for(const v of [e.env.AIRTABLE_API_KEY,e.env.TWILIO_AUTH_TOKEN,e.registro.fields.telefono,'12345678-1234-1234-1234-123456789abc'])assert.ok(!JSON.stringify(r).includes(v));
+ http=403;const rechazado=await ejecutar({accion:'whatsapp_reserva_diagnostico',localizador},e.opciones);
+ assert.equal(rechazado.consulta_resend,'permisos_rechazados');assert.equal(rechazado.evento_resend,null);
+ http=200;referencia='otra';const distinto=await ejecutar({accion:'whatsapp_reserva_diagnostico',localizador},e.opciones);
+ assert.equal(distinto.consulta_resend,'referencia_no_coincide');assert.equal(distinto.evento_resend,null);
+ for(const v of [e.env.RESEND_API_KEY,e.env.AIRTABLE_API_KEY,e.env.TWILIO_AUTH_TOKEN,e.registro.fields.telefono,'12345678-1234-1234-1234-123456789abc'])assert.ok(!JSON.stringify(r).includes(v));
 });
