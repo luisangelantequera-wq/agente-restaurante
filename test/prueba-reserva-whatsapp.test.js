@@ -97,7 +97,7 @@ test('lector acotado realiza GET y rechaza registros duplicados y paginación',a
 test('acciones de reserva requieren sesión de Contactia',async()=>{
  const api=require('../api/centro-conversaciones');const anteriores={VERCEL_ENV:process.env.VERCEL_ENV,CONTACTIA_CENTRO_SECRET:process.env.CONTACTIA_CENTRO_SECRET};
  try{process.env.VERCEL_ENV='preview';process.env.CONTACTIA_CENTRO_SECRET='x'.repeat(40);
- for(const accion of ['whatsapp_reserva_revisar','whatsapp_reserva_enviar','whatsapp_reserva_estado','whatsapp_reserva_diagnostico']){
+ for(const accion of ['whatsapp_reserva_revisar','whatsapp_reserva_enviar','whatsapp_reserva_estado','whatsapp_reserva_diagnostico','whatsapp_reserva_actualizar_correo']){
   const res={setHeader(){},end(s){this.d=JSON.parse(s);}};
   await api({method:'POST',headers:{'content-type':'application/json'},body:{accion,localizador}},res);assert.equal(res.statusCode,401);
  }}finally{for(const[k,v]of Object.entries(anteriores)){if(v===undefined)delete process.env[k];else process.env[k]=v;}}
@@ -132,4 +132,43 @@ test('diagnóstico de correo y cola solo lee y no revela contenido, SID ni crede
  http=200;referencia='otra';const distinto=await ejecutar({accion:'whatsapp_reserva_diagnostico',localizador},e.opciones);
  assert.equal(distinto.consulta_resend,'referencia_no_coincide');assert.equal(distinto.evento_resend,null);
  for(const v of [e.env.RESEND_API_KEY,e.env.AIRTABLE_API_KEY,e.env.TWILIO_AUTH_TOKEN,e.registro.fields.telefono,'12345678-1234-1234-1234-123456789abc'])assert.ok(!JSON.stringify(r).includes(v));
+});
+
+function correoAceptado(e) {
+ const d=JSON.parse(e.registro.fields.aviso_cliente_detalle);
+ Object.assign(d,{estado:'aceptado',motivo:'aceptado_proveedor',id_envio:'12345678-1234-1234-1234-123456789abc',iniciado:new Date(ahora()-1800000).toISOString(),actualizado:new Date(ahora()-1800000).toISOString()});
+ e.registro.fields.aviso_cliente_estado='aceptado';e.registro.fields.aviso_cliente_detalle=JSON.stringify(d);e.env.RESEND_API_KEY='re_ficticia';
+}
+test('actualiza un rebote real sin enviar mensajes y retira la revisión de correo',async()=>{
+ const e=escenario();correoAceptado(e);let escrituras=0,colas=0;
+ e.opciones.conexion.actualizar=async(id,d)=>{colas++;assert.equal(id,e.registro.id);assert.equal(d.estado,'rechazado');assert.equal(d.contacto.fase,'whatsapp_pendiente');};
+ e.opciones.fetchImpl=async(url,o)=>{
+  if(o.method==='PATCH') {escrituras++;assert.ok(url.endsWith('/RESERVAS/recPrueba'));const f=JSON.parse(o.body).fields;assert.deepEqual(Object.keys(f).sort(),['aviso_cliente_detalle','aviso_cliente_estado']);assert.equal(f.aviso_cliente_estado,'rechazado');Object.assign(e.registro.fields,f);return {ok:true};}
+  assert.ok(url.startsWith('https://api.resend.com/emails/'));return {ok:true,json:async()=>({id:'12345678-1234-1234-1234-123456789abc',last_event:'bounced',to:'no devolver'})};
+ };
+ const r=await ejecutar({accion:'whatsapp_reserva_actualizar_correo',localizador},e.opciones);
+ assert.equal(r.comprobados,1);assert.equal(r.correo_estado,'rechazado');assert.equal(r.mensajes_enviados,0);assert.equal(e.envios(),0);assert.equal(escrituras,1);assert.equal(colas,1);
+});
+test('comprobación manual no escribe tras cambio concurrente ni ante rechazo de Resend',async()=>{
+ for(const variante of ['cambio','rechazo']) {
+  const e=escenario();correoAceptado(e);let escrituras=0;
+  e.opciones.conexion.actualizar=async()=>{throw Error('No debe escribir cola');};
+  e.opciones.fetchImpl=async(url,o)=>{
+   if(o.method==='PATCH'){escrituras++;throw Error('No debe guardar');}
+   if(variante==='rechazo')return {ok:false,status:403};
+   e.registro.fields.aviso_cliente_detalle=JSON.stringify({...JSON.parse(e.registro.fields.aviso_cliente_detalle),comprobaciones:1});
+   return {ok:true,json:async()=>({id:'12345678-1234-1234-1234-123456789abc',last_event:'bounced'})};
+  };
+  const r=await ejecutar({accion:'whatsapp_reserva_actualizar_correo',localizador},e.opciones);
+  assert.equal(escrituras,0);assert.equal(e.envios(),0);
+  if(variante==='cambio')assert.equal(r.status,503);else {assert.equal(r.comprobados,0);assert.ok(r.aviso.includes('permisos'));}
+ }
+});
+test('comprobación manual bloquea reservas ajenas, canceladas y sin consentimiento',async()=>{
+ for(const cambio of [{telefono:'+34699999999'},{estado:'cancelada'},{aviso_cliente_detalle:'{}'}]) {
+  const e=escenario();correoAceptado(e);Object.assign(e.registro.fields,cambio);
+  e.opciones.fetchImpl=async()=>{throw Error('No debe consultar proveedor');};
+  const r=await ejecutar({accion:'whatsapp_reserva_actualizar_correo',localizador},e.opciones);
+  assert.equal(r.listo,false);assert.equal(r.mensajes_enviados,0);assert.equal(e.envios(),0);
+ }
 });

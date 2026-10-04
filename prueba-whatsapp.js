@@ -112,3 +112,17 @@ document.getElementById('diagnostico-reserva').addEventListener('click', async (
   } catch(e) { salida.textContent = e.message; }
   finally { boton.disabled = false; }
 });
+
+document.getElementById('actualizar-correo-reserva').addEventListener('click', async () => {
+  const boton = document.getElementById('actualizar-correo-reserva'), salida = document.getElementById('reserva-resultado');
+  revisionReserva = null; botonReserva.disabled = true; boton.disabled = true;
+  salida.textContent = 'Consultando y guardando el estado real del correo…';
+  try {
+    const d = await solicitar({accion:'whatsapp_reserva_actualizar_correo',localizador:localizadorReserva.value});
+    if (d.motivo) { salida.textContent = motivoReserva(d); return; }
+    salida.textContent = d.aviso || (d.comprobados === 1
+      ? `Estado del correo actualizado: ${d.correo_estado}. No se ha enviado ningún mensaje. Pulse «Revisar reserva sin enviar» para continuar.`
+      : `Correo: ${d.correo_estado}. No hay una comprobación pendiente dentro del plazo de seguimiento. No se ha enviado ningún mensaje.`);
+  } catch(e) { salida.textContent = e.message; }
+  finally { boton.disabled = false; }
+});
