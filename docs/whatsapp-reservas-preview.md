@@ -28,9 +28,9 @@ Ruta: `/prueba-whatsapp.html`, sesión del centro de Contactia. Las acciones `wh
 
 ## Límites pendientes
 
-Esta versión incorpora envío manual autenticado. El alta de reservas y el programador no llaman al emisor de WhatsApp automáticamente. Producción no expone estas acciones.
+El envío manual autenticado quedó validado el 4 de octubre: correo rebotado, WhatsApp recibido y entrega confirmada por callback firmado. Producción no expone estas acciones.
 
-Pendientes: prueba real con reserva en Preview, integración automática después de validarla, plantillas aprobadas en inglés/francés, logo por restaurante mediante plantilla multimedia independiente y onboarding empresarial de restaurantes.
+Pendientes: prueba real del envío automático en Preview, plantillas aprobadas en inglés/francés, logo por restaurante mediante plantilla multimedia independiente y onboarding empresarial de restaurantes.
 
 ## Verificación
 
@@ -38,4 +38,16 @@ Pendientes: prueba real con reserva en Preview, integración automática despué
 
 ## Diagnóstico del programador
 
-El botón «Comprobar correo y programador (sin enviar)» consulta solo el detalle operativo de la reserva y cuatro comandos Redis de lectura: pausa, TTL de pausa, última ejecución y fecha de la reserva en la cola. No consulta Resend, no reprograma, no libera pausas y no envía avisos. Muestra fechas en Europe/Madrid y omite identificadores de correo, contactos y secretos.
+El botón «Comprobar correo y programador (sin enviar)» consulta solo el detalle operativo de la reserva y cuatro comandos Redis de lectura: pausa, TTL de pausa, última ejecución y fecha de la reserva en la cola. También consulta Resend si hay una referencia válida, sin guardar ni exponer el contenido de su respuesta. No reprograma, no libera pausas y no envía avisos. Muestra fechas en Europe/Madrid y omite identificadores de correo, contactos y secretos.
+
+## Envío automático de Preview
+
+Activación explícita: `CONTACTIA_WHATSAPP_AUTOMATICO_HABILITADO=1`, exclusivamente en Preview de `prototipo-voz`, además de las cinco banderas existentes. El programador de Apps Script sigue atendiendo la cola existente; no se añade un Cron de Vercel.
+
+Cuando la consulta a Resend acredita `bounced` o `failed`, el programador guarda una tarea operativa en `aviso_cliente_detalle` junto con el fallo del correo. Solo se prepara para una reserva futura, confirmada, con autorización y teléfono idéntico a `TWILIO_WHATSAPP_TEST_TO`. No actúa ante falta de configuración, quejas, supresión ni una entrega de correo acreditada.
+
+La cola conserva esa tarea hasta ejecutar el paso de WhatsApp. Una interrupción después de enviar recupera la correlación del SID mediante el control exclusivo existente y nunca repite el mensaje. Rechazos, resultados desconocidos e intentos previos sin resultado quedan en `revision`; no se reenvían automáticamente. Las tareas caducan a las 24 horas del inicio del aviso, antes de la caducidad del control de duplicados de siete días. No se escanean ni recuperan reservas históricas.
+
+Prueba real pendiente: crear una nueva reserva futura con `bounced@resend.dev`, móvil fijo de pruebas y consentimiento; esperar la primera comprobación de correo (15 minutos más el intervalo del programador), sin pulsar envío manual. Comprobar recepción y entrega firmada mediante «Comprobar entrega de esta reserva».
+
+Verificación del cambio: 78 pruebas superadas, incluido endpoint del programador → consulta de rebote → tarea persistida → envío único → correlación; interrupciones antes/después del envío, bloqueo de otros móviles, reservas canceladas, falta de consentimiento y respuestas inciertas.

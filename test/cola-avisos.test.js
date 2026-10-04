@@ -12,14 +12,24 @@ async function entorno(fn, opciones = {}) {
   const datos = { estado: 'confirmada', fecha: '2099-01-01', aviso_cliente_estado: 'aceptado', aviso_cliente_detalle: JSON.stringify(d), ...opciones.campos };
   const contador = { airtable: 0, resend: 0, parches: [], pausa: 0, envios: [], aceptaciones: new Set() };
   let pausado = false, bloqueo = null;
+  const seguimiento = new Map();
   const respuesta = result => ({ ok: true, json: async () => ({ result }) });
   try {
     Object.assign(process.env, { VERCEL_ENV: 'preview', CONTACTIA_AVISOS_SECRET: 'x'.repeat(40), KV_REST_API_URL: 'https://simulado.upstash.io', KV_REST_API_TOKEN: 'simulado', AIRTABLE_BASE_ID: 'appSimulada', AIRTABLE_API_KEY: 'simulada', RESEND_API_KEY: 'simulada' });
+    if (opciones.automatico) Object.assign(process.env, {
+      CONTACTIA_WHATSAPP_AUTOMATICO_HABILITADO:'1',
+      ...Object.fromEntries(require('../lib/envio-correlacionado-whatsapp').BANDERAS.map(k=>[k,'1'])),
+      TWILIO_WHATSAPP_TEST_TO:'whatsapp:+34646023624', TWILIO_WHATSAPP_FROM:'whatsapp:+34644390123',
+      TWILIO_ACCOUNT_SID:'AC'+'1'.repeat(32), TWILIO_AUTH_TOKEN:'2'.repeat(32),
+      TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID:'HX'+'1'.repeat(32),
+      TWILIO_WHATSAPP_STATUS_CALLBACK_URL:'https://contactia.example/api/whatsapp-resultado'
+    });
     global.fetch = async (url, req = {}) => {
       if (url.includes('upstash.io')) {
         if (opciones.redisCaido) throw Error('sin servicio');
         const a = JSON.parse(req.body);
-        if (a[0] === 'GET') return respuesta(pausado ? '1' : null);
+        if (a[0] === 'GET') return respuesta(opciones.automatico && !a[1].endsWith(':pausa') ? seguimiento.get(a[1]) || null : pausado ? '1' : null);
+        if (a[0] === 'SET' && opciones.automatico && !a[1].includes(':ejecucion') && !a[1].endsWith(':pausa')) { if (seguimiento.has(a[1])) return respuesta(null); seguimiento.set(a[1], a[2]); return respuesta('OK'); }
         if (a[0] === 'SET') { if (a[1].endsWith(':pausa')) { pausado = true; contador.pausa = a.at(-1); }
           if (opciones.mutex && a[1].endsWith(':ejecucion')) { if (bloqueo) return respuesta(null); bloqueo = a[2]; }
           return respuesta('OK'); }
@@ -32,6 +42,9 @@ async function entorno(fn, opciones = {}) {
         }
         if (opciones.mutex && a[0] === 'EVAL' && String(a[1]).includes("redis.call('get'")) {
           if (bloqueo === a[4]) { bloqueo = null; return respuesta(1); } return respuesta(0);
+        }
+        if (opciones.automatico && a[1] === require('../lib/seguimiento-whatsapp').COMPARAR_Y_GUARDAR) {
+          if (seguimiento.get(a[3]) !== a[4]) return respuesta(0); seguimiento.set(a[3], a[5]); return respuesta(1);
         }
         return respuesta(1); // Liberación del mutex.
       }
@@ -58,7 +71,8 @@ async function entorno(fn, opciones = {}) {
           contador.aceptaciones.add(req.headers['Idempotency-Key']);
           return { ok: true, text: async () => JSON.stringify({ id: d.id_envio }) };
         }
-        return { ok: true, json: async () => ({ id: d.id_envio, last_event: 'delivered' }) }; }
+        return { ok: true, json: async () => ({ id: d.id_envio, last_event: opciones.automatico ? 'bounced' : 'delivered' }) }; }
+      if (opciones.automatico && url.includes('api.twilio.com')) { contador.whatsapp = (contador.whatsapp || 0) + 1; assert.equal(new URLSearchParams(req.body).get('To'), 'whatsapp:+34646023624'); return { ok: true, json: async () => ({sid:'MM'+'3'.repeat(32)}) }; }
       throw Error('Destino inesperado');
     };
     const invocar = async (accion = "ejecutar_programados") => {
@@ -234,3 +248,14 @@ test('dos programadores simultáneos ante un reintento envían un solo correo', 
   onAirtable:async()=>{if(primeraLectura){primeraLectura=false;iniciarLectura();await bloqueoLectura;}}
  });
 });
+
+
+test('endpoint completo consulta rebote, persiste tarea, envía WhatsApp una vez y vacía la cola', async () => entorno(async ({ invocar, contador, cola, datos }) => {
+  const r = await invocar(); assert.equal(r.codigo, 200); assert.equal(r.datos.comprobados, 1);
+  assert.equal(r.datos.whatsapp_aceptados, 1); assert.equal(contador.whatsapp, 1); assert.equal(cola.size, 0);
+  assert.equal(datos.estado, 'confirmada'); assert.equal(JSON.parse(datos.aviso_cliente_detalle).whatsapp_automatico.estado, 'aceptado');
+  assert.equal(contador.parches.length, 2); assert.ok(contador.parches.every(p => Object.keys(p).every(k => k.startsWith('aviso_cliente_'))));
+  assert.equal((await invocar()).datos.sin_trabajo, true); assert.equal(contador.whatsapp, 1);
+}, { trabajo:true, recuperacion:true, automatico:true, campos:{ fecha:'2099-01-01', hora:'15:00', personas:2, telefono:'+34646023624',
+  id_reserva:'SOL-20990101-PRUEBA', restaurante:['recRestaurante'], aviso_cliente_detalle:JSON.stringify({...d, zona:'TERRAZA', whatsapp_autorizado:true,
+    consentimiento_whatsapp:{autorizado:true, finalidad:'confirmacion_si_falla_correo', registrado:new Date(ahora-3600000).toISOString()}}) } }));
