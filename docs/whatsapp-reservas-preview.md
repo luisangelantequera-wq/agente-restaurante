@@ -51,3 +51,5 @@ La cola conserva esa tarea hasta ejecutar el paso de WhatsApp. Una interrupción
 Prueba real pendiente: crear una nueva reserva futura con `bounced@resend.dev`, móvil fijo de pruebas y consentimiento; esperar la primera comprobación de correo (15 minutos más el intervalo del programador), sin pulsar envío manual. Comprobar recepción y entrega firmada mediante «Comprobar entrega de esta reserva».
 
 Verificación del cambio: 78 pruebas superadas, incluido endpoint del programador → consulta de rebote → tarea persistida → envío único → correlación; interrupciones antes/después del envío, bloqueo de otros móviles, reservas canceladas, falta de consentimiento y respuestas inciertas.
+
+Activación registrada el 4 de octubre de 2026: la variable automática queda configurada en Preview para `prototipo-voz`. El despliegue posterior incorpora esta configuración; la recepción real de una reserva nueva sigue pendiente de la prueba descrita arriba.
