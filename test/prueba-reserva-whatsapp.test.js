@@ -105,16 +105,20 @@ test('acciones de reserva requieren sesión de Contactia',async()=>{
 
 test('diagnóstico de correo y cola solo lee y no revela contenido, SID ni credenciales',async()=>{
  const e=escenario();e.registro.fields.aviso_cliente_detalle=JSON.stringify({estado:'aceptado',motivo:'aceptado_proveedor',id_envio:'12345678-1234-1234-1234-123456789abc',iniciado:'2026-10-03T21:00:00Z'});
- const lecturas=[];
+ const lecturas=[];let aviso='La clave de Resend no permite consultar entregas. Revise sus permisos.';
  e.opciones.conexion={prefijo:'test',redis:async args=>{
   lecturas.push(args);assert.ok(['GET','TTL','ZSCORE'].includes(args[0]));
   if(args[0]==='TTL')return 120;
   if(args[0]==='ZSCORE')return String(ahora()+900000);
   if(args[1].endsWith(':pausa'))return '1';
-  return JSON.stringify({fecha:'2026-10-03T20:00:00Z',no_mostrar:e.env.AIRTABLE_API_KEY});
+  return JSON.stringify({fecha:'2026-10-03T20:00:00Z',comprobados:0,aviso,no_mostrar:e.env.AIRTABLE_API_KEY});
  }};
  const r=await ejecutar({accion:'whatsapp_reserva_diagnostico',localizador},e.opciones);
  assert.equal(r.modo,'solo_lectura');assert.equal(r.cola_pausada,true);assert.equal(r.programado,true);assert.equal(r.correo_estado,'aceptado');assert.equal(r.id_correo_registrado,true);
  assert.equal(r.comprobaciones,0);assert.equal(r.mensajes_enviados,0);assert.equal(r.escrituras,0);assert.equal(e.envios(),0);assert.equal(lecturas.length,4);
+ assert.equal(r.ultimo_aviso,aviso);assert.equal(r.ultimo_comprobados,0);
+ aviso=e.env.AIRTABLE_API_KEY;
+ const sinFiltrar=await ejecutar({accion:'whatsapp_reserva_diagnostico',localizador},e.opciones);
+ assert.equal(sinFiltrar.ultimo_aviso,null);
  for(const v of [e.env.AIRTABLE_API_KEY,e.env.TWILIO_AUTH_TOKEN,e.registro.fields.telefono,'12345678-1234-1234-1234-123456789abc'])assert.ok(!JSON.stringify(r).includes(v));
 });
