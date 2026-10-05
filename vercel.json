@@ -63,6 +63,10 @@
       "dest": "/api/centro-conversaciones.js?canal=whatsapp_resultado"
     },
     {
+      "src": "/api/llamada-seguimiento",
+      "dest": "/api/centro-conversaciones.js?canal=llamada_seguimiento"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1.js"
     },

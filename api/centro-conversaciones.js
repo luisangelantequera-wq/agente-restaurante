@@ -203,6 +203,9 @@ module.exports = async (req, res) => {
   if (canal === 'whatsapp_resultado') {
     return require('../lib/ruta-resultado-whatsapp').crearRuta()(req, res);
   }
+  if (canal === 'llamada_seguimiento') {
+    return require('../lib/ruta-llamada-seguimiento').crearRuta()(req, res);
+  }
   if (["ejecutar_programados", "inspeccionar_programados"].includes(req.query?.accion)) {
     return require("../lib/endpoint-avisos-programados")(req, res);
   }
@@ -263,6 +266,13 @@ module.exports = async (req, res) => {
     return responder(res, 401, { ok: false, error: "Sesión no válida o caducada." });
   }
 
+  if (["llamada_reserva_revisar", "llamada_reserva_iniciar", "llamada_reserva_estado"].includes(cuerpo.accion)) {
+    try {
+      const { status, ...datos } = await require('../lib/llamada-seguimiento').servicio().ejecutar(cuerpo);
+      return responder(res, status, datos);
+    } catch { return responder(res, 503, { ok: false, error: 'No se pudo completar la operación. Consulte el resultado antes de volver a llamar.' }); }
+  }
+
   if (["whatsapp_prueba_config", "whatsapp_prueba_enviar", "whatsapp_prueba_estado", "whatsapp_prueba_credenciales"].includes(cuerpo.accion)) {
     const { status, ...datos } = await require("../lib/prueba-whatsapp").ejecutar(cuerpo);
     return responder(res, status, datos);
@@ -297,7 +307,11 @@ module.exports = async (req, res) => {
   if (cuerpo.accion === "listar_avisos") {
     try {
       const { leerAirtable } = require("../lib/revision-retenciones");
-      const filas = await leerAirtable("RESERVAS", ["id_reserva", "fecha", "hora", "personas", "estado", "aviso_cliente_estado", "aviso_cliente_detalle"],
+      const llamadas = require('../lib/llamada-seguimiento');
+      const conLlamadas = llamadas.configuracion(process.env);
+      const camposAvisos = ["id_reserva", "fecha", "hora", "personas", "estado", "aviso_cliente_estado", "aviso_cliente_detalle"];
+      if (conLlamadas) camposAvisos.push('restaurante', 'anonimizada', 'telefono');
+      const filas = await leerAirtable("RESERVAS", camposAvisos,
         "AND(OR({aviso_cliente_estado}='pendiente',{aviso_cliente_estado}='rechazado',{aviso_cliente_estado}='demorado'),{estado}='confirmada')");
       const avisos = filas.map(r => {
         let detalle = {};
@@ -308,6 +322,19 @@ module.exports = async (req, res) => {
           contacto: require("../lib/contacto-alternativo").resumenContacto(detalle),
           motivo: motivos[detalle.motivo] || "Revisar resultado del aviso", actualizado: detalle.actualizado || "" };
       });
+      if (conLlamadas) {
+        const almacen = llamadas.servicio().almacen();
+        for (let i=0; i<filas.length; i++) {
+          const resultado = await almacen.porReserva(filas[i].id);
+          if (resultado && resultado.huella === llamadas.huella(filas[i], process.env)) {
+            const textos = {contactado:'Contacto resuelto: recepción confirmada mediante la tecla 1',
+              sin_confirmacion:'Llamada finalizada sin confirmación. Revisión pendiente',
+              revision:'Resultado incierto. No repetir la llamada; revisar seguimiento',
+              preparado:'Intento reservado. Resultado pendiente de revisión',aceptado:'Llamada aceptada por Twilio. Esperando confirmación'};
+            avisos[i].contacto = `${textos[resultado.estado] || 'Llamada pendiente de revisión'}. Llamadas realizadas: ${resultado.contacto.intentos_llamada}/3. Política: mantener la reserva. Prueba manual; reintentos automáticos desactivados.`;
+          }
+        }
+      }
       return responder(res, 200, { ok: true, avisos, seguimiento: "" });
     } catch {
       return responder(res, 503, { ok: false, error: "No se pudieron consultar los avisos pendientes." });

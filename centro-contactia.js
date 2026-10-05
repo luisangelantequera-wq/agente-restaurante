@@ -102,7 +102,14 @@
         const titulo = document.createElement("h3");
         titulo.textContent = `${aviso.localizador} · ${aviso.fecha} · ${aviso.hora} · ${aviso.personas} personas`;
         const info = document.createElement("p");
-        info.textContent = `${aviso.motivo}. Intentos: ${aviso.intentos}. ${aviso.actualizado ? formatearFecha(aviso.actualizado) : ""}`;
+        const motivo = String(aviso.motivo || '').replace('; ', ' = ');
+        const intentos = String(aviso.intentos).padStart(2, '0');
+        const fechaAviso = new Date(aviso.actualizado);
+        const fechaTexto = Number.isFinite(+fechaAviso) && aviso.actualizado
+          ? new Intl.DateTimeFormat('es-ES', {day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Madrid'}).format(fechaAviso) : 'Sin fecha';
+        const horaTexto = Number.isFinite(+fechaAviso) && aviso.actualizado
+          ? new Intl.DateTimeFormat('es-ES', {hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',timeZone:'Europe/Madrid'}).format(fechaAviso) : 'Sin hora';
+        info.textContent = `${motivo} = Intentos de correo: ${intentos} = ${fechaTexto} = ${horaTexto}`;
         fila.append(titulo, info);
         if (aviso.contacto) {
           const contacto = document.createElement("p");
