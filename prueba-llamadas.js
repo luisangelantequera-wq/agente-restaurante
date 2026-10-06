@@ -26,7 +26,7 @@ llamar.addEventListener('click',async()=>{
   }catch(e){salida.textContent=e.message+' Consulte el resultado antes de continuar.';}
 });
 document.getElementById('estado').addEventListener('click',async()=>{
-  try{const d=await solicitar({accion:'llamada_reserva_estado',localizador:localizador.value});salida.textContent=d.contactado?'Recepción del aviso confirmada mediante la tecla 1 y petición firmada de Twilio. Contacto resuelto.':`Estado: ${d.estado}. Llamadas realizadas: ${d.llamadas}/3. No hay confirmación de recepción.${d.siguiente ? ' Próximo reintento: '+new Date(d.siguiente).toLocaleString('es-ES',{timeZone:'Europe/Madrid'})+'.' : d.automatico && d.llamadas>=3 ? ' Intentos agotados. La reserva se mantiene confirmada; requiere revisión.' : ''}`;}catch(e){salida.textContent=e.message;}
+  try{const d=await solicitar({accion:'llamada_reserva_estado',localizador:localizador.value});salida.textContent=d.contactado?(d.canal==='whatsapp'?'Entrega de WhatsApp confirmada mediante petición firmada de Twilio. Contacto resuelto.':'Recepción del aviso confirmada mediante la tecla 1 y petición firmada de Twilio. Contacto resuelto.'):`Estado: ${d.estado}. Llamadas realizadas: ${d.llamadas}/3. No hay confirmación de recepción.${d.siguiente ? ' Próximo reintento: '+new Date(d.siguiente).toLocaleString('es-ES',{timeZone:'Europe/Madrid'})+'.' : d.automatico && d.llamadas>=3 ? ' Intentos agotados. La reserva se mantiene confirmada; requiere revisión.' : ''}`;}catch(e){salida.textContent=e.message;}
 });
 
 reintentos.addEventListener('click',async()=>{

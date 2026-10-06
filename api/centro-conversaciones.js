@@ -310,7 +310,7 @@ module.exports = async (req, res) => {
       const llamadas = require('../lib/llamada-seguimiento');
       const conLlamadas = llamadas.configuracion(process.env);
       const camposAvisos = ["id_reserva", "fecha", "hora", "personas", "estado", "aviso_cliente_estado", "aviso_cliente_detalle"];
-      if (conLlamadas) camposAvisos.push('restaurante', 'anonimizada', 'telefono');
+      if (conLlamadas) camposAvisos.push('restaurante', 'anonimizada', 'telefono', 'mensaje');
       const filas = await leerAirtable("RESERVAS", camposAvisos,
         "AND(OR({aviso_cliente_estado}='pendiente',{aviso_cliente_estado}='rechazado',{aviso_cliente_estado}='demorado'),{estado}='confirmada')");
       const avisos = filas.map(r => {
@@ -325,8 +325,17 @@ module.exports = async (req, res) => {
       if (conLlamadas) {
         const almacen = llamadas.servicio().almacen();
         for (let i=0; i<filas.length; i++) {
+          let detalle = {}; try { detalle = JSON.parse(filas[i].fields.aviso_cliente_detalle || '{}'); } catch {}
+          const whatsapp = detalle.whatsapp_autorizado === true ? await require('../lib/contacto-whatsapp-voz').revisarContacto(filas[i]) : null;
+          if (whatsapp?.estado === 'entregado') {
+            avisos[i].contacto = 'Contacto resuelto = WhatsApp entregado, confirmado mediante petición firmada de Twilio = No hay llamadas pendientes';
+            continue;
+          }
+          if (whatsapp?.estado === 'fallido') avisos[i].contacto = 'WhatsApp no entregado, confirmado mediante petición firmada de Twilio = Llamada pendiente de revisión e inicio';
+          else if (whatsapp) avisos[i].contacto = whatsapp.estado === 'pendiente' ? 'WhatsApp pendiente de entrega = Esperando resultado antes de llamar' : 'Resultado de WhatsApp incierto = Revisión pendiente antes de llamar';
           const resultado = await almacen.porReserva(filas[i].id);
-          if (resultado && resultado.huella === llamadas.huella(filas[i], process.env)) {
+          if (resultado && resultado.huella === llamadas.huella(filas[i], process.env) &&
+              (!whatsapp || whatsapp.estado === 'fallido' || resultado.contacto.fase === 'resuelto')) {
             const textos = {contactado:'Contacto resuelto: recepción confirmada mediante la tecla 1',
               sin_confirmacion:'Llamada finalizada sin confirmación. Revisión pendiente',
               revision:'Resultado incierto. No repetir la llamada; revisar seguimiento',
@@ -337,7 +346,7 @@ module.exports = async (req, res) => {
               resultado.contacto.fase === 'resuelto' ? 'No quedan llamadas pendientes.' :
               resultado.automatico ? 'Reintentos activados; consulte el seguimiento.' : 'Reintentos automáticos pendientes de activación.';
             avisos[i].contacto = `${textos[resultado.estado] || 'Llamada pendiente de revisión'}. Llamadas realizadas: ${resultado.contacto.intentos_llamada}/3. Política: mantener la reserva. ${final}`;
-            const avisoRestaurante = require('../lib/aviso-restaurante').prepararAviso(filas[i], resultado);
+            const avisoRestaurante = require('../lib/aviso-restaurante').prepararAviso(filas[i], resultado, {whatsapp});
             if (avisoRestaurante) {
               avisos[i].contacto = avisoRestaurante.resumen;
               avisos[i].aviso_restaurante = avisoRestaurante;
