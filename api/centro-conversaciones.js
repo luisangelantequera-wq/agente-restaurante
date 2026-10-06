@@ -266,7 +266,7 @@ module.exports = async (req, res) => {
     return responder(res, 401, { ok: false, error: "Sesión no válida o caducada." });
   }
 
-  if (["llamada_reserva_revisar", "llamada_reserva_iniciar", "llamada_reserva_estado"].includes(cuerpo.accion)) {
+  if (["llamada_reserva_revisar", "llamada_reserva_iniciar", "llamada_reserva_estado", "llamada_reserva_reintentos"].includes(cuerpo.accion)) {
     try {
       const { status, ...datos } = await require('../lib/llamada-seguimiento').servicio().ejecutar(cuerpo);
       return responder(res, status, datos);

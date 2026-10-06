@@ -1,6 +1,26 @@
-# Primera llamada de seguimiento en Preview
+# Llamadas de seguimiento en Preview
 
-Implementación del 5 de octubre de 2026. Esta fase permite revisar una reserva e iniciar **una llamada manual** al móvil fijo de pruebas. No activa llamadas desde el programador ni reintentos automáticos. La política existente de tres llamadas, separación de dos horas y horario 10:00–20:00 se conserva; en esta primera prueba solo se permite un intento.
+Actualizado el 6 de octubre de 2026. Exclusivo de Preview, rama `prototipo-voz`, y del móvil fijo `TWILIO_VOICE_TEST_TO`. Primera llamada manual; los reintentos se activan expresamente después de una llamada sin confirmación. No se llama a otras reservas ni se activan tareas históricas al desplegar.
+
+## Prueba manual y reintentos
+
+En `prueba-llamadas.html`, revisar la reserva y realizar el primer intento manual. Si termina sin pulsar 1, revisar de nuevo y pulsar «Activar los reintentos pendientes». Este botón no llama inmediatamente: habilita los intentos restantes hasta un máximo de tres en total. El mismo programador de Apps Script, `comprobarAvisosContactia`, ejecuta los reintentos vencidos. Debe estar instalado y ejecutándose periódicamente; sin él no se realizan llamadas automáticas.
+
+Se conservan dos horas entre inicios de llamadas y el horario 10:00–20:00 de Europe/Madrid. Una llamada fuera de horario pasa al siguiente intervalo permitido. La página muestra la siguiente fecha. Si el primer intento fue a las 19:12, el segundo será a partir de las 10:00 del día siguiente y el tercero a partir de las 12:00, siempre que la reserva siga vigente y no haya expirado la ventana de prueba de 24 horas desde el inicio del aviso de correo. Las llamadas reales pueden demorarse hasta la siguiente ejecución del programador.
+
+La tecla 1, acreditada mediante petición firmada de Twilio, resuelve el contacto y detiene los siguientes intentos. Contestar, un buzón de voz o un estado `completed` no acreditan recepción. Después de tres llamadas sin confirmación se conserva la reserva y se marca el contacto sin resolver, con revisión/aviso al restaurante pendiente; no se envía todavía un aviso al restaurante.
+
+## Control y persistencia
+
+La cola Redis contiene referencias UUID y fechas; no teléfonos ni textos. Cada reserva conserva una única raíz de seguimiento y hasta tres intentos con UUID y CallSid propios. Los reintentos se reclaman con CAS antes del POST a Twilio; las respuestas inciertas o interrupciones conservan el bloqueo y requieren revisión. Una repetición del programador no duplica un POST. Se comprueban reserva, teléfono autorizado y huella antes de cada envío y al descolgar. Cambiar/cancelar/anonimizar la reserva, entregar el correo o expirar el plazo impide el siguiente intento. Las notificaciones tardías de intentos previos no reabren un contacto resuelto; una confirmación firmada tardía resuelve la raíz actual.
+
+La reserva debe estar confirmada y ser futura, el correo rechazado por rebote/fallo de entrega, y constar una negativa explícita a WhatsApp. El móvil de voz no necesita coincidir con el móvil de prueba de WhatsApp. No se modifica la configuración de WhatsApp.
+
+La locución termina con «Para indicar que ha recibido este aviso, pulse 1». Tras pulsar 1 dice «Gracias por confirmar su reserva». La hora se locuta como «15 horas» o «15 horas y 30 minutos».
+
+## Verificación
+
+Pruebas de la primera llamada, dos reintentos, límite de tres, concurrencia, horario/nocturnidad, confirmación en segundo intento, callbacks tardíos, cancelación, cambio de móvil, entrega de correo, vencimiento y timeout. Validación real: primer intento con tecla 1 resuelto; nueva reserva descolgada sin tecla 1 queda `sin_confirmacion`, una llamada. Los dos reintentos reales quedan pendientes de activar y observar.
 
 ## Requisitos y configuración
 
@@ -11,25 +31,5 @@ Implementación del 5 de octubre de 2026. Esta fase permite revisar una reserva 
 - Credenciales Twilio y `CONTACTIA_AVISOS_SECRET` existentes. Se usa Redis con el prefijo de la base de Preview.
 - El callback usa el alias fijo de Preview y reutiliza la opción existente de bypass de WhatsApp cuando está habilitada. Nunca toma Host de una solicitud ni imprime secretos.
 
-## Prueba real pendiente
 
-1. Acceder a `/prueba-llamadas.html` con la sesión administrativa.
-2. Usar una reserva confirmada, futura, de pruebas; correo rebotado y respuesta explícita «No» a WhatsApp. Debe haber iniciado el aviso hace menos de 24 horas. Por ahora solo español.
-3. Revisar sin llamar. El navegador recibe el texto, destino enmascarado y una huella; no recibe el teléfono completo ni claves.
-4. Dentro del horario permitido, pulsar «Llamar al móvil de pruebas» y confirmar. La reserva se relee tras adquirir el bloqueo.
-5. Descolgar, escuchar los datos y pulsar 1. Esa tecla acusa recibo del aviso; no reconfirma ni cambia la reserva.
-6. Consultar el resultado y actualizar avisos en el Centro. Una petición firmada de Twilio con la tecla 1 resuelve el contacto.
-
-## Seguimiento
-
-No se graban audios ni transcripciones. Redis conserva referencias, HMAC de la reserva, SID y plan de contacto por siete días; no almacena el texto de la locución ni teléfonos. Airtable conserva el estado de la reserva. El Centro combina el resultado de esta prueba en Redis con la reserva vigente; un cambio de datos invalida el resultado anterior.
-
-`completed` por sí solo no acredita recepción: puede haber buzón de voz. Sin tecla 1, ocupado, no contesta o fallo quedan pendientes de revisión y no se reintentan. Una respuesta incierta o una interrupción después de iniciar también conserva el bloqueo de envío. Los callbacks revalidan cuenta, firma, SID, teléfonos y huella; al descolgar se releen los datos para evitar locutar una reserva cancelada o modificada. Duplicados y eventos fuera de orden no incrementan intentos ni reabren contactos resueltos.
-
-No hay recuperación automática de reservas históricas ni llamadas a otros clientes. Antes de ampliar esta prueba hacen falta la validación real, gestión de reintentos y plazos, conciliación de resultados inciertos y conexión del resultado de WhatsApp con el seguimiento telefónico.
-
-## Validaciones anteriores
-
-El 5 de octubre el usuario acreditó en Preview: correo rebotado con WhatsApp automático entregado, correo entregado sin WhatsApp adicional y correo rebotado con negativa a WhatsApp sin ningún mensaje. El último caso aparece en el Centro como llamada pendiente y conserva la reserva.
-
-El formato de avisos se actualiza a «Correo devuelto = contactar por otra vía = Intentos de correo: 01 = fecha = hora», con hora de Madrid. Los intentos de llamada se muestran por separado.
+No se graban audios ni transcripciones. El seguimiento en Redis dura siete días. El Centro combina el resultado de Redis con la reserva vigente; un cambio en los datos invalida el resultado anterior. El aviso automático al restaurante y la integración del fallo de WhatsApp con la llamada siguen pendientes.

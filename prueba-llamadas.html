@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contactia · Prueba de seguimiento telefónico</title><link rel="stylesheet" href="prueba-whatsapp.css"></head>
 <body><main><h1>Prueba de seguimiento telefónico</h1>
-<p>La reserva sigue confirmada. Esta prueba llama una sola vez al móvil de pruebas. No realiza reintentos automáticos.</p>
+<p>La reserva sigue confirmada. La primera llamada es manual. Si no se confirma la recepción, puede activar hasta dos reintentos automáticos, separados por dos horas y dentro del horario de 10:00 a 20:00.</p>
 <form id="acceso"><label for="clave">Clave administrativa</label><input id="clave" type="password" autocomplete="current-password" required><button>Acceder</button></form>
 <form id="revision"><label for="localizador">Localizador de la reserva</label><input id="localizador" required maxlength="80"><button>Revisar sin llamar</button></form>
-<p id="resumen" role="status"></p><button id="llamar" disabled>Llamar al móvil de pruebas</button><button id="estado">Comprobar resultado</button><p id="resultado" role="status"></p>
+<p id="resumen" role="status"></p><button id="llamar" disabled>Llamar al móvil de pruebas</button><button id="reintentos" disabled>Activar los reintentos pendientes</button><button id="estado">Comprobar resultado</button><p id="resultado" role="status"></p>
 <p>Durante la llamada, pulse 1 para indicar que ha recibido el aviso. Esto no cambia la reserva. Si no hay confirmación, quedará pendiente de revisión.</p>
 <script src="prueba-llamadas.js"></script></main></body></html>
