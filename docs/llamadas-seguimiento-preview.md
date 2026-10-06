@@ -7,7 +7,7 @@ Implementación del 5 de octubre de 2026. Esta fase permite revisar una reserva 
 - Rama `prototipo-voz`, entorno Preview. Producción y otras ramas rechazan las acciones y el callback.
 - `CONTACTIA_LLAMADAS_PRUEBA_HABILITADAS=1`, solo después de configurar el número.
 - `TWILIO_VOICE_FROM`: número de origen con capacidad de voz en la cuenta Twilio (comprobar en Phone Numbers → Active numbers antes de activar; no se presupone que el emisor de WhatsApp permita voz).
-- `TWILIO_VOICE_TEST_TO`: móvil de pruebas en formato internacional; debe coincidir exactamente con el destino de WhatsApp quitando `whatsapp:`.
+- `TWILIO_VOICE_TEST_TO`: móvil autorizado de pruebas en formato internacional. Puede ser distinto del destino de WhatsApp; la reserva y todos los callbacks deben coincidir exactamente con este móvil.
 - Credenciales Twilio y `CONTACTIA_AVISOS_SECRET` existentes. Se usa Redis con el prefijo de la base de Preview.
 - El callback usa el alias fijo de Preview y reutiliza la opción existente de bypass de WhatsApp cuando está habilitada. Nunca toma Host de una solicitud ni imprime secretos.
 

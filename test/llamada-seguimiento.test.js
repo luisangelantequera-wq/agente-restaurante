@@ -108,3 +108,12 @@ test('rutas de voz preceden a la ruta genérica y comparten función',()=>{
   const rutas=require('../vercel.json').routes, voz=rutas.findIndex(r=>r.src==='/api/llamada-seguimiento'), generica=rutas.findIndex(r=>r.src==='/api/(.*)');
   assert.ok(voz>=0 && voz<generica);assert.equal(rutas[voz].dest,'/api/centro-conversaciones.js?canal=llamada_seguimiento');
 });
+
+test('voz usa su móvil fijo aunque WhatsApp tenga otro destino; bloquea otro teléfono de reserva',async()=>{
+  const e=escenario();e.opciones.env.TWILIO_WHATSAPP_TEST_TO='whatsapp:+34699999999';
+  const d=await e.s.ejecutar({accion:'llamada_reserva_revisar',localizador:e.registro.fields.id_reserva});
+  assert.equal(d.listo,true);assert.equal(e.posts(),0);
+  e.registro.fields.telefono='+34699999999';
+  const bloqueado=await e.s.ejecutar({accion:'llamada_reserva_revisar',localizador:e.registro.fields.id_reserva});
+  assert.equal(bloqueado.motivo,'telefono_distinto_del_movil_de_pruebas');assert.equal(e.posts(),0);
+});
