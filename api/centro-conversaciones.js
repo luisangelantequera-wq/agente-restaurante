@@ -331,7 +331,12 @@ module.exports = async (req, res) => {
               sin_confirmacion:'Llamada finalizada sin confirmación. Revisión pendiente',
               revision:'Resultado incierto. No repetir la llamada; revisar seguimiento',
               preparado:'Intento reservado. Resultado pendiente de revisión',aceptado:'Llamada aceptada por Twilio. Esperando confirmación'};
-            avisos[i].contacto = `${textos[resultado.estado] || 'Llamada pendiente de revisión'}. Llamadas realizadas: ${resultado.contacto.intentos_llamada}/3. Política: mantener la reserva. Prueba manual; reintentos automáticos desactivados.`;
+            const siguiente = resultado.automatico && resultado.estado === 'sin_confirmacion' && resultado.contacto.fase === 'llamada_pendiente' && resultado.siguiente;
+            const final = resultado.contacto.fase === 'sin_contacto' ? 'Intentos agotados o plazo finalizado. Aviso al restaurante pendiente de envío.' :
+              siguiente ? `Próximo reintento: ${new Date(siguiente).toLocaleString('es-ES', {timeZone:'Europe/Madrid'})}.` :
+              resultado.contacto.fase === 'resuelto' ? 'No quedan llamadas pendientes.' :
+              resultado.automatico ? 'Reintentos activados; consulte el seguimiento.' : 'Reintentos automáticos pendientes de activación.';
+            avisos[i].contacto = `${textos[resultado.estado] || 'Llamada pendiente de revisión'}. Llamadas realizadas: ${resultado.contacto.intentos_llamada}/3. Política: mantener la reserva. ${final}`;
           }
         }
       }
