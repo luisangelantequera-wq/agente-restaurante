@@ -337,6 +337,11 @@ module.exports = async (req, res) => {
               resultado.contacto.fase === 'resuelto' ? 'No quedan llamadas pendientes.' :
               resultado.automatico ? 'Reintentos activados; consulte el seguimiento.' : 'Reintentos automáticos pendientes de activación.';
             avisos[i].contacto = `${textos[resultado.estado] || 'Llamada pendiente de revisión'}. Llamadas realizadas: ${resultado.contacto.intentos_llamada}/3. Política: mantener la reserva. ${final}`;
+            const avisoRestaurante = require('../lib/aviso-restaurante').prepararAviso(filas[i], resultado);
+            if (avisoRestaurante) {
+              avisos[i].contacto = avisoRestaurante.resumen;
+              avisos[i].aviso_restaurante = avisoRestaurante;
+            }
           }
         }
       }

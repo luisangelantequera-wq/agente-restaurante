@@ -31,5 +31,12 @@ Pruebas de la primera llamada, dos reintentos, límite de tres, concurrencia, ho
 - Credenciales Twilio y `CONTACTIA_AVISOS_SECRET` existentes. Se usa Redis con el prefijo de la base de Preview.
 - El callback usa el alias fijo de Preview y reutiliza la opción existente de bypass de WhatsApp cuando está habilitada. Nunca toma Host de una solicitud ni imprime secretos.
 
-
 No se graban audios ni transcripciones. El seguimiento en Redis dura siete días. El Centro combina el resultado de Redis con la reserva vigente; un cambio en los datos invalida el resultado anterior. El aviso automático al restaurante y la integración del fallo de WhatsApp con la llamada siguen pendientes.
+
+## Aviso pendiente para el restaurante
+
+El Centro prepara un aviso de revisión cuando el seguimiento vigente queda en `sin_contacto`, con resultado `no_se_ha_podido_contactar` y aviso al restaurante pendiente. Se comprueba la raíz de la reserva y su huella: cancelaciones, anonimización, cambios de datos, una recepción confirmada o una reserva pasada impiden mostrar el borrador. No se hacen consultas adicionales a proveedores ni se cambia Airtable.
+
+El resumen usa «No se ha podido confirmar la recepción del aviso = Llamadas: 03/03 = Reserva confirmada = Revisión del restaurante pendiente». Si el cierre es por plazo y hubo menos intentos, se muestra el número real y no se afirma que se hayan agotado tres llamadas.
+
+«Ver aviso al restaurante · pendiente de envío» ofrece asunto y texto con localizador, fecha, hora, personas, zona, motivo de fallo del correo, situación de WhatsApp y llamadas realizadas. La negativa del cliente a WhatsApp se identifica como falta de autorización, no como fallo del proveedor. El botón «Copiar aviso» copia el borrador sin enviarlo ni marcarlo como entregado. No incluye teléfono, correo del cliente, referencias de proveedor ni secretos; el restaurante debe consultar la ficha de la reserva. Falta configurar y validar el canal de envío al restaurante antes de automatizarlo.

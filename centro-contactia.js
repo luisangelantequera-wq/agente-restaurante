@@ -116,6 +116,33 @@
           contacto.textContent = aviso.contacto;
           fila.append(contacto);
         }
+        if (aviso.aviso_restaurante?.estado === 'pendiente_envio') {
+          const borrador = aviso.aviso_restaurante;
+          const detalle = document.createElement('details');
+          const etiqueta = document.createElement('summary');
+          etiqueta.textContent = 'Ver aviso al restaurante · pendiente de envío';
+          const asunto = document.createElement('p');
+          asunto.textContent = borrador.asunto;
+          const texto = document.createElement('p');
+          texto.style.whiteSpace = 'pre-wrap';
+          texto.textContent = borrador.texto;
+          const copiar = document.createElement('button');
+          copiar.type = 'button';
+          copiar.textContent = 'Copiar aviso';
+          const estadoCopia = document.createElement('p');
+          estadoCopia.setAttribute('role', 'status');
+          copiar.addEventListener('click', async () => {
+            copiar.disabled = true;
+            try {
+              await navigator.clipboard.writeText(`${borrador.asunto}\n\n${borrador.texto}`);
+              estadoCopia.textContent = 'Aviso copiado. Sigue pendiente de envío al restaurante.';
+            } catch {
+              estadoCopia.textContent = 'No se pudo copiar. Seleccione el texto del aviso para copiarlo.';
+            } finally { copiar.disabled = false; }
+          });
+          detalle.append(etiqueta, asunto, texto, copiar, estadoCopia);
+          fila.append(detalle);
+        }
         listaAvisos.appendChild(fila);
       }
     } catch (error) {
