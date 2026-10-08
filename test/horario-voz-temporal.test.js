@@ -1,0 +1,21 @@
+const test=require('node:test'), assert=require('node:assert/strict');
+const {validar}=require('../lib/llamada-seguimiento');
+const {siguienteAccion,registrarEvento}=require('../lib/contacto-alternativo');
+test('excepción nocturna limitada a reserva, móvil, Preview y ventana; reintentos conservan horario',()=>{
+  const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'prototipo-voz',CONTACTIA_LLAMADAS_PRUEBA_HABILITADAS:'1',TWILIO_VOICE_TEST_TO:'+34644390123',CONTACTIA_AVISOS_SECRET:'x'.repeat(40)};
+  const registro={id:'recPrueba',fields:{estado:'confirmada',restaurante:['recSol'],id_reserva:'SOL-20261018-0A2EF5B844',fecha:'2026-10-18',hora:'14:00',personas:2,telefono:env.TWILIO_VOICE_TEST_TO,aviso_cliente_detalle:JSON.stringify({estado:'rechazado',motivo:'correo_rebotado',iniciado:'2026-10-08T15:20:00Z',whatsapp_autorizado:false})}};
+  const ahora=Date.parse('2026-10-08T21:45:00+02:00');
+  const r=validar(registro,env,ahora);assert.equal(r.dentro_horario,true);assert.equal(Date.parse(r.proxima),ahora);assert.equal(r.plan.politica.hasta,'20:00');
+  assert.equal(validar(registro,env,Date.parse('2026-10-08T21:37:59+02:00')).dentro_horario,false);
+  assert.equal(validar(registro,env,Date.parse('2026-10-08T22:30:00+02:00')).dentro_horario,false);
+  assert.equal(validar(registro,{...env,VERCEL_ENV:'production'},ahora).dentro_horario,false);
+  assert.equal(validar(registro,{...env,VERCEL_GIT_COMMIT_REF:'main'},ahora).dentro_horario,false);
+  const otro={...registro,fields:{...registro.fields,id_reserva:'SOL-20261018-OTRA'}};
+  assert.equal(validar(otro,env,ahora).dentro_horario,false);
+  const movil={...registro,fields:{...registro.fields,telefono:'+34622222222'}};
+  assert.equal(validar(movil,{...env,TWILIO_VOICE_TEST_TO:movil.fields.telefono},ahora).dentro_horario,false);
+  const curso=registrarEvento(r.plan,{id:'primera',tipo:'llamada_iniciada'},ahora);
+  const pendiente=registrarEvento(curso,{id:'fin',tipo:'llamada_sin_respuesta'},ahora+60000);
+  const siguiente=siguienteAccion(pendiente,{ahora:ahora+60000,llamadasDisponibles:true,limite:Date.parse('2026-10-09T15:20:00Z')});
+  assert.equal(new Date(siguiente.fecha).toISOString().slice(0,16),'2026-10-09T08:00');
+});
