@@ -8,8 +8,7 @@ import json
 import os
 import time
 
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, RunContext, cli, function_tool
-from livekit.plugins import deepgram, openai, cartesia
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, RunContext, cli, function_tool, inference
 
 AGENT_NAME = "contactia-cartesia-prueba"
 server = AgentServer()
@@ -69,19 +68,13 @@ class RecepcionistaPrueba(Agent):
 
 @server.rtc_session(agent_name=AGENT_NAME)
 async def contactia(ctx: JobContext):
-    if not os.getenv("CARTESIA_VOICE_ID"):
-        raise RuntimeError("Falta CARTESIA_VOICE_ID para español de España")
     await ctx.connect()
     # Las salas son privadas, de un solo cliente. Se espera al navegador.
     browser = await ctx.wait_for_participant()
     session = AgentSession(
-        stt=deepgram.STT(model="nova-3", language="es"),
-        llm=openai.LLM(model="gpt-4.1-mini"),
-        tts=cartesia.TTS(
-            model="sonic-3",
-            voice=os.environ["CARTESIA_VOICE_ID"],
-            language="es",
-        ),
+        stt=inference.STT(model="deepgram/nova-3", language="es"),
+        llm=inference.LLM(model="openai/gpt-4.1-mini"),
+        tts=inference.TTS(model="rime/coda", voice="lark", language="es"),
     )
     @session.on("metrics_collected")
     def on_metrics(ev):
@@ -99,6 +92,7 @@ async def contactia(ctx: JobContext):
     await session.start(
         agent=RecepcionistaPrueba(ctx, browser.identity),
         room=ctx.room,
+        record=False,  # Desactivar audio, transcripciones, trazas y logs en Agent Insights.
     )
     await session.say(
         "Bienvenido a Restaurante Sol. Esta es una prueba con datos ficticios. "
