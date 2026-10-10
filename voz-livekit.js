@@ -58,7 +58,7 @@
     loading = true; btn.disabled = true; status.textContent = "Iniciando sesión privada…";
     try {
       const key = code.value;
-      const response = await fetch("/api/livekit-prueba", {
+      const response = await fetch("/api/voz-sesion?motor=livekit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug: "restaurante-sol", clave: key })
