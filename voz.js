@@ -2,7 +2,7 @@
   const parametros = new URLSearchParams(window.location.search);
   const rutaSol = /^\/r\/restaurante-sol\/?$/.test(window.location.pathname);
 
-  if (parametros.get("voz") !== "1" || !rutaSol) {
+  if (parametros.get("voz") !== "1" || !rutaSol || parametros.get("motor") === "livekit") {
     return;
   }
 
