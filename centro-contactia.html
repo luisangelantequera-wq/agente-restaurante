@@ -33,6 +33,13 @@
     </section>
 
     <section id="centro" class="oculto" aria-live="polite">
+      <section class="panel" aria-labelledby="tituloConsultaManual">
+        <h2 id="tituloConsultaManual">Consultas manuales durante las pruebas</h2>
+        <p>Entrar y cambiar filtros no consulta Airtable. Actualice solo el apartado que necesite.</p>
+        <p>Comprobar avisos pendientes solo revisa el estado: no envía mensajes ni inicia llamadas. Con la cola vacía no consulta Airtable.</p>
+        <button id="comprobarProgramados" class="boton-secundario" type="button">Comprobar avisos pendientes</button>
+        <p id="estadoProgramados" role="status"></p>
+      </section>
       <section class="panel revision-reservas" aria-labelledby="tituloRevisionReservas">
         <h2 id="tituloRevisionReservas">Reservas pendientes de comprobar</h2>
         <p>Operaciones cuyo guardado no pudo completarse con certeza. Comprobar consulta Airtable y solo resuelve los casos con evidencia suficiente.</p>
@@ -82,7 +89,7 @@
           </select>
         </div>
         <button id="actualizar" class="boton-principal boton-actualizar" type="button">
-          Actualizar
+          Actualizar conversaciones
         </button>
       </div>
 
@@ -121,3 +128,4 @@
   <script src="/centro-contactia.js" defer></script>
 </body>
 </html>
+

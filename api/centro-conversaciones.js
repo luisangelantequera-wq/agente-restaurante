@@ -266,6 +266,10 @@ module.exports = async (req, res) => {
     return responder(res, 401, { ok: false, error: "Sesión no válida o caducada." });
   }
 
+  if (cuerpo.accion === "validar_sesion") {
+    return responder(res, 200, { ok: true, sesion: true });
+  }
+
   if (["llamada_reserva_revisar", "llamada_reserva_iniciar", "llamada_reserva_estado", "llamada_reserva_reintentos"].includes(cuerpo.accion)) {
     try {
       const { status, ...datos } = await require('../lib/llamada-seguimiento').servicio().ejecutar(cuerpo);
@@ -424,3 +428,4 @@ module.exports.disponibleEnEsteEntorno = disponibleEnEsteEntorno;
 module.exports.filtrosValidos = filtrosValidos;
 module.exports.obtenerConversacionesAirtable = obtenerConversacionesAirtable;
 module.exports.config = { api: { bodyParser: false } };
+

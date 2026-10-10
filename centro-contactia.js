@@ -378,8 +378,6 @@
       }).format(new Date())}`;
       renderizarConversaciones();
       mostrarCentro();
-      await cargarRetenciones();
-      await cargarAvisos();
     } catch (error) {
       if (error.status === 401) {
         mostrarAcceso("La sesión ha caducado. Introduzca de nuevo la clave.");
@@ -400,7 +398,7 @@
       clave.value = "";
       errorAcceso.textContent = "";
       mostrarCentro();
-      await cargarConversaciones();
+      indicarCargaManual();
     } catch (error) {
       errorAcceso.textContent = error.message;
       clave.select();
@@ -422,9 +420,11 @@
   actualizarAvisos.addEventListener("click", cargarAvisos);
   actualizarRetenciones.addEventListener("click", cargarRetenciones);
   actualizar.addEventListener("click", cargarConversaciones);
-  filtroRevision.addEventListener("change", cargarConversaciones);
-  filtroIdioma.addEventListener("change", cargarConversaciones);
-  filtroResultado.addEventListener("change", cargarConversaciones);
+  for (const filtro of [filtroRevision, filtroIdioma, filtroResultado]) {
+    filtro.addEventListener("change", () => {
+      estadoCarga.textContent = "Filtros modificados. Pulse Actualizar conversaciones para consultar.";
+    });
+  }
   cerrarDetalle.addEventListener("click", () => {
     audioActivo?.pause();
     detalle.close();
@@ -436,5 +436,33 @@
     }
   });
 
-  cargarConversaciones();
+  function indicarCargaManual() {
+    estadoCarga.textContent = "Pulse Actualizar conversaciones para consultar.";
+    estadoAvisos.textContent = "Pulse Actualizar avisos para consultar.";
+    estadoRetenciones.textContent = "Pulse Actualizar operaciones para consultar.";
+  }
+
+  const comprobarProgramados = document.querySelector("#comprobarProgramados");
+  const estadoProgramados = document.querySelector("#estadoProgramados");
+  comprobarProgramados.addEventListener("click", async () => {
+    comprobarProgramados.disabled = true;
+    estadoProgramados.textContent = "Comprobando avisos pendientes…";
+    try {
+      const datos = await solicitar({ accion: "inspeccionar_programados" });
+      estadoProgramados.textContent = datos.pausado
+        ? "Comprobaciones en pausa. No se ha consultado Airtable."
+        : `Pendientes de comprobar: ${datos.vencidos}. Vigentes: ${datos.vigentes}. Desactualizados: ${datos.desactualizados}. Consultas a Airtable: ${datos.consultas_airtable}. No se ha enviado ningún mensaje.`;
+    } catch (error) {
+      estadoProgramados.textContent = error.message;
+      if (error.status === 401) mostrarAcceso("La sesión ha caducado.");
+    } finally { comprobarProgramados.disabled = false; }
+  });
+
+  solicitar({ accion: "validar_sesion" }).then(() => {
+    mostrarCentro();
+    indicarCargaManual();
+  }).catch(error => {
+    mostrarAcceso(error.status === 401 ? "" : error.message);
+  });
 })();
+

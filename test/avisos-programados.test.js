@@ -74,9 +74,11 @@ test('endpoint no actúa en Production ni con un programador ya ejecutándose', 
     process.env.VERCEL_ENV = 'production'; await handler({ method: 'GET', headers: {} }, res);
     assert.equal(respuestas.at(-1).codigo, 404);
     Object.assign(process.env, { VERCEL_ENV: 'preview', CONTACTIA_AVISOS_SECRET: 'x'.repeat(40), KV_REST_API_URL: 'https://simulado.upstash.io', KV_REST_API_TOKEN: 'simulado', AIRTABLE_BASE_ID: 'appSimulada', AIRTABLE_API_KEY: 'simulada', RESEND_API_KEY: 'simulada' });
+    process.env.CONTACTIA_PROGRAMADOR_AUTOMATICO = 'true';
     let llamadas = 0;
     global.fetch = async (_url, req) => { llamadas++; assert.equal(JSON.parse(req.body)[0], 'SET'); return { ok: true, json: async () => ({ result: null }) }; };
     await handler({ method: 'GET', headers: { authorization: 'Bearer ' + 'x'.repeat(40) } }, res);
     assert.equal(llamadas, 1); assert.deepEqual(respuestas.at(-1).d, { en_curso: true });
   } finally { global.fetch = fetchOriginal; for (const k of Object.keys(process.env)) if (!(k in anterior)) delete process.env[k]; Object.assign(process.env, anterior); }
 });
+
