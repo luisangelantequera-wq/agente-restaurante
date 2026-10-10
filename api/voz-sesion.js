@@ -90,6 +90,10 @@ function crearIdentificadorSeguridad(req, apiKey) {
 
 
 module.exports = async (req, res) => {
+  // Acceso a la prueba LiveKit sin crear una 13ª función Vercel.
+  if (new URL(req.url || "/", "https://contactia.net").searchParams.get("motor") === "livekit") {
+    return require("../lib/livekit-prueba")(req, res);
+  }
   if (!entornoVozHabilitado()) {
     return responderJson(res, 404, {
       ok: false,
