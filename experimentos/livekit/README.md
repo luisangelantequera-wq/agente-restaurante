@@ -13,7 +13,7 @@ Contactia continúa decidiendo disponibilidad, retenciones y confirmación.
 
 ## Arquitectura y ubicación
 
-- `api/livekit-prueba.js`: emite JWT de sala privada exclusivamente en Preview.
+- `api/voz-sesion.js?motor=livekit` con `lib/livekit-prueba.js`: emite JWT de sala privada exclusivamente en Preview.
   Requiere clave de ensayo y configuración; no inicia ninguna llamada telefónica.
 - `voz-livekit.js`: interfaz web `/r/restaurante-sol?voz=1&motor=livekit`.
   La conexión LiveKit se realiza desde el navegador al servidor LiveKit.
