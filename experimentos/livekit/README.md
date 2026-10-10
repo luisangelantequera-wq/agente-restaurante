@@ -1,4 +1,4 @@
-# Prueba LiveKit + Deepgram + OpenAI + Cartesia (aislada de producción)
+# Prueba LiveKit Inference + Deepgram + OpenAI + Rime Alondra (aislada de producción)
 
 **Estado: implementado en rama de laboratorio; no probado extremo a extremo ni desplegado.**
 La rama `main` y la rama `prototipo-voz` no se modifican.
@@ -7,7 +7,7 @@ La rama `main` y la rama `prototipo-voz` no se modifican.
 
 Medir una reserva completa en Restaurante Sol. Comparamos el motor de voz
 actual con un agente LiveKit que escucha (Deepgram Nova-3), entiende
-(OpenAI GPT-4.1 mini), habla (Cartesia Sonic-3 en español peninsular)
+(OpenAI GPT-4.1 mini), habla (Rime Coda, voz Alondra/lark en español)
 y **consulta obligatoriamente** el motor actual de Contactia mediante RPC.
 Contactia continúa decidiendo disponibilidad, retenciones y confirmación.
 
@@ -34,11 +34,10 @@ Contactia continúa decidiendo disponibilidad, retenciones y confirmación.
    `LIVEKIT_PRUEBA_ACCESS_CODE` (una contraseña aleatoria de 20 caracteres o más).
    Nunca poner valores secretos en GitHub ni el navegador.
 3. Configurar en el worker **separado**:
-   `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`,
-   `OPENAI_API_KEY`, `DEEPGRAM_API_KEY`, `CARTESIA_API_KEY`
-   y `CARTESIA_VOICE_ID`. La última es el ID **real** de la voz
-   de Cartesia elegida y validada para español de España; no usar una voz
-   en inglés por defecto.
+   `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
+   **No hacen falta claves propias de OpenAI, Deepgram o Rime**:
+   el worker usa LiveKit Inference con el proyecto de LiveKit.
+   La voz elegida es `rime/coda` con ID `lark` (Alondra).
 4. En un entorno Python 3.11+ instalar `requirements.txt` y ejecutar
    `python agent.py dev` desde `experimentos/livekit/` (para producción
    de agentes se requiere un worker desplegado de manera permanente).
@@ -57,8 +56,11 @@ activado o no haya un agente LiveKit conectado.
 
 ## Privacidad y límites
 
-- El worker no escribe transcripciones ni audio a ficheros. Los mensajes
-  pasan por los servicios de terceros para poder completar la conversación.
+- El worker establece `record=False` para impedir la subida de audio,
+  transcripciones, trazas y logs de sesión a Agent Insights. Los mensajes
+  siguen siendo procesados por terceros para completar la conversación.
+  **Rime no dispone de un endpoint específico de la UE**; antes de emplear
+  clientes reales será necesaria una decisión sobre residencia de datos.
 - El cliente web reutiliza el motor Contactia, que puede registrar
   conversaciones o realizar acciones reales. Usar **exclusivamente datos
   sintéticos** y una base de pruebas; antes de ensayos con datos reales,
@@ -91,3 +93,13 @@ fuera tiempo de síntesis de Cartesia.
 No avanzar a producción sin una sesión real satisfactoria, validación de
 cancelaciones y correcciones, controles de privacidad y costes, y una
 comparación numérica con el prototipo anterior.
+
+## Servicios seleccionados (LiveKit Inference)
+
+- STT: `deepgram/nova-3`, idioma `es`.
+- LLM: `openai/gpt-4.1-mini`.
+- TTS: `rime/coda`, voz `lark`, idioma `es`.
+
+**No comprar servicios externos por ahora.** El plan Build incluye créditos
+limitados para modelos; los precios de Rime Coda pueden cambiar y no
+significan que la sesión completa sea gratuita.
