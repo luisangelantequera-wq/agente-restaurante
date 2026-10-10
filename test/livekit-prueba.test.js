@@ -3,7 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { _pruebas } = require("../api/livekit-prueba");
+const { _pruebas } = require("../lib/livekit-prueba");
 const { firmarToken, codigoCorrecto, AGENT } = _pruebas;
 const decode = (x) => JSON.parse(Buffer.from(x, "base64url").toString("utf8"));
 
