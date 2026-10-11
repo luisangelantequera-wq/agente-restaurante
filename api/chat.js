@@ -2338,6 +2338,18 @@ async function enviarAvisoRestaurante({
 
 // 7️⃣ HANDLER PRINCIPAL
 module.exports = async (req, res) => {
+  // La rama LiveKit es solo de ensayo. Ninguna reserva ni mensaje real se escribe.
+  const ensayo = require("../lib/livekit-contactia-sandbox");
+  if (ensayo.esRamaEnsayo()) {
+    if (ensayo.habilitado(req)) {
+      return ensayo.responderChat(req, res, validarHorarioRestaurante);
+    }
+    return responder(res, 403, {
+      ok: false,
+      error: "Esta rama es exclusivamente de pruebas; el motor real está bloqueado."
+    });
+  }
+
 
   if (req.method !== "POST") {
 
