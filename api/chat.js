@@ -4939,6 +4939,7 @@ const prefijoReserva = normalizarPrefijoReserva(
 
 
 module.exports._seguridad = {
+  fechaReservaDentroDeRango,
   camposHorarioParaZona,
   debeAplicarAntelacionCliente,
   describirHorarioReservas,
