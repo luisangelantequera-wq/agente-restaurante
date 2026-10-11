@@ -2342,7 +2342,7 @@ module.exports = async (req, res) => {
   const ensayo = require("../lib/livekit-contactia-sandbox");
   if (ensayo.esRamaEnsayo()) {
     if (ensayo.habilitado(req)) {
-      return ensayo.responderChat(req, res, validarHorarioRestaurante);
+      return ensayo.responderChat(req, res, validarHorarioRestaurante, fechaReservaDentroDeRango);
     }
     return responder(res, 403, {
       ok: false,
