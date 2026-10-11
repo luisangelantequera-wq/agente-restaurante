@@ -28,7 +28,7 @@ function response() {
 }
 function call(req) {
   const res = response();
-  responderChat(req, res, _seguridad.validarHorarioRestaurante);
+  responderChat(req, res, _seguridad.validarHorarioRestaurante, _seguridad.fechaReservaDentroDeRango);
   return res;
 }
 function withTrial(fn) {
@@ -46,9 +46,15 @@ function withTrial(fn) {
     }
   }
 }
+function martesFuturo() {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 8);
+  while (d.getUTCDay() !== 2) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 const base = {
   personas: 2,
-  fecha: "2099-01-06", // Martes, fecha deliberadamente futura.
+  fecha: martesFuturo(),
   hora: "14:00",
   zona_preferida: "INTERIOR"
 };
@@ -94,4 +100,11 @@ test("se rechazan todas las operaciones de escritura", () => withTrial(() => {
     assert.equal(res.statusCode, 403, accion);
     assert.equal(res.data.ok, false);
   }
+}));
+
+
+test("el ensayo rechaza fechas fuera de los 730 días permitidos", () => withTrial(() => {
+  const outside = call(request("verificar", { ...base, fecha: "2099-01-06" }));
+  assert.equal(outside.statusCode, 400);
+  assert.match(outside.data.error, /730/);
 }));
