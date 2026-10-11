@@ -50,4 +50,11 @@
     "mesas ficticias. NO consulta Airtable, NO crea reservas, NO envía correos. " +
     "Utilice solamente datos inventados.";
   document.body.prepend(aviso);
+  const textoPanel = document.querySelector("#voice-panel p");
+  if (textoPanel) {
+    textoPanel.textContent =
+      "ENSAYO PRIVADO: use únicamente nombres, teléfonos y correos inventados. " +
+      "No se consulta Airtable ni se guarda una reserva. En modo dev, " +
+      "PowerShell puede mostrar transcripciones de la conversación.";
+  }
 })();
