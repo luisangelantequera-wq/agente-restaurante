@@ -18,6 +18,9 @@
   access.append(code);
   panel.insertBefore(access, panel.querySelector(".voice-controls"));
   btn.textContent = "Iniciar prueba LiveKit + Alondra";
+  if (params.get("ensayo") === "contactia") {
+    status.textContent = "Ensayo Contactia: mesas ficticias y sin reservas reales.";
+  }
 
   async function loadClient() {
     if (window.LivekitClient) return window.LivekitClient;
@@ -81,7 +84,7 @@
       await active.connect(config.url, config.token);
       // Solo se registra la función RPC del motor actual; la IA no accede
       // directamente a Airtable ni puede inventar confirmaciones.
-      active.registerRpcMethod("contactia.procesar_turno", async (data) => {
+      active.localParticipant.registerRpcMethod("contactia.procesar_turno", async (data) => {
         const p = JSON.parse(data.payload || "{}");
         const msg = String(p.mensaje || "").trim();
         if (!msg || msg.length > 1000 || !window.ContactiaVozBridge?.procesarTurno)
