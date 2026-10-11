@@ -7,8 +7,11 @@ deben verificarse por separado antes de usar datos reales.
 import json
 import os
 import time
+from dotenv import load_dotenv
 
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, RunContext, cli, function_tool, inference
+
+load_dotenv(".env.local")
 
 AGENT_NAME = "contactia-cartesia-prueba"
 server = AgentServer()
