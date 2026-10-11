@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contactia — prueba privada de Alondra</title>
+<link rel="stylesheet" href="/prueba-livekit.css">
+</head>
+<body>
+<main>
+  <h1>Contactia — prueba de voz Alondra</h1>
+  <p class="warning"><strong>Simulación privada.</strong> No se consulta Airtable, no se crea ninguna reserva ni se envían notificaciones. Use únicamente datos inventados. La llamada puede consumir créditos de LiveKit Inference.</p>
+  <p>Conexión: LiveKit · Deepgram Nova-3 · OpenAI GPT-4.1 mini · Rime Coda (voz Alondra).</p>
+  <label for="clave">Contraseña de prueba de Vercel (LIVEKIT_PRUEBA_ACCESS_CODE)</label>
+  <input id="clave" type="password" autocomplete="off" placeholder="Contraseña privada" />
+  <div class="controls">
+    <button id="accion" type="button">Iniciar prueba con Alondra</button>
+    <button id="detener" type="button" disabled>Detener</button>
+  </div>
+  <p id="estado" role="status" aria-live="polite">Prueba preparada. El agente debe seguir ejecutándose en PowerShell.</p>
+  <p id="metricas">Latencia y coste: consulte las métricas numéricas en PowerShell y el consumo de LiveKit Cloud.</p>
+  <p>Para probar la conversación, diga «Quiero hacer una reserva» y siga las preguntas. Al terminar, escuchará expresamente que no se ha creado ninguna reserva.</p>
+  <a href="/r/restaurante-sol?voz=1">Volver al prototipo anterior</a>
+</main>
+<script src="/prueba-livekit.js"></script>
+</body>
+</html>
