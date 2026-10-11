@@ -17,7 +17,7 @@
   code.type = "password"; code.autocomplete = "off"; code.placeholder = "Clave de Preview";
   access.append(code);
   panel.insertBefore(access, panel.querySelector(".voice-controls"));
-  btn.textContent = "Iniciar prueba LiveKit + Cartesia";
+  btn.textContent = "Iniciar prueba LiveKit + Alondra";
 
   async function loadClient() {
     if (window.LivekitClient) return window.LivekitClient;
@@ -39,7 +39,7 @@
     document.querySelectorAll("audio[data-livekit-contactia]").forEach(el => el.remove());
     document.getElementById("user-input").disabled = false;
     document.getElementById("send-btn").disabled = false;
-    btn.disabled = false; btn.textContent = "Iniciar prueba LiveKit + Cartesia";
+    btn.disabled = false; btn.textContent = "Iniciar prueba LiveKit + Alondra";
     btn.setAttribute("aria-pressed", "false");
     status.textContent = message;
     if (connectedAt) {
@@ -81,7 +81,7 @@
       await active.connect(config.url, config.token);
       // Solo se registra la función RPC del motor actual; la IA no accede
       // directamente a Airtable ni puede inventar confirmaciones.
-      active.localParticipant.registerRpcMethod("contactia.procesar_turno", async (data) => {
+      active.registerRpcMethod("contactia.procesar_turno", async (data) => {
         const p = JSON.parse(data.payload || "{}");
         const msg = String(p.mensaje || "").trim();
         if (!msg || msg.length > 1000 || !window.ContactiaVozBridge?.procesarTurno)
