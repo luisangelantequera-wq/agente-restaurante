@@ -152,6 +152,11 @@ async function consultarZonasActivas(restauranteRecordId) {
 
 
 module.exports = async (req, res) => {
+  const ensayo = require("../lib/livekit-contactia-sandbox");
+  if (ensayo.esRamaEnsayo()) {
+    return ensayo.responderRestaurante(req, res);
+  }
+
   if (req.method !== "GET") {
     return responder(res, 405, {
       ok: false,
