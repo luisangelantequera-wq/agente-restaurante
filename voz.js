@@ -352,12 +352,20 @@
     audioGoogle.src = urlAudioGoogle;
 
     await new Promise((resolve, reject) => {
-      audioGoogle.onended = resolve;
-      audioGoogle.onerror = () => reject(
-        new Error("El navegador no pudo reproducir la voz de Google.")
-      );
-      audioGoogle.play().catch(reject);
+      audioGoogle.onended = () => {
+        avisarActividad("fin-asistente");
+        resolve();
+      };
+      audioGoogle.onerror = () => {
+        avisarActividad("fin-asistente");
+        reject(new Error("El navegador no pudo reproducir la voz de Google."));
+      };
+      audioGoogle.play().catch(error => {
+        avisarActividad("fin-asistente");
+        reject(error);
+      });
       audioGoogle.addEventListener("playing", () => {
+        avisarActividad("inicio-asistente");
         const ahora = performance.now();
         const segundosGoogle = ((ahora - inicioGoogle) / 1000).toFixed(1);
         const tiempoEntender = Number.isFinite(metricas.entenderMs)
