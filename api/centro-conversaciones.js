@@ -1,3 +1,4 @@
+const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedido("centro");
 const {
   borrarSesionContactia,
   centroContactiaConfigurado,
@@ -172,7 +173,7 @@ async function obtenerConversacionesAirtable(filtros) {
   });
   const url = "https://api.airtable.com/v0/" +
     `${process.env.AIRTABLE_BASE_ID}/${encodeURIComponent(tabla)}?${parametros}`;
-  const respuesta = await fetch(url, {
+  const respuesta = await fetchAirtableContado(url, {
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`
     }
