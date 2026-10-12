@@ -2,6 +2,7 @@ const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedid
 // ============================================================
 
 const crypto = require("crypto");
+const { crearLecturaAlternativas } = require("../lib/lectura-alternativas");
 const { desdeEntorno: almacenRetenciones, ErrorRetencion } = require("../lib/retenciones-mesas");
 const {
   calcularPrivacidadHastaDesdeAhora,
@@ -424,6 +425,34 @@ function mesaAdmitePersonas(mesa, personas, margenCapacidad) {
 
 
 // 4️⃣ BUSCAR MESA O COMBINACIÓN DISPONIBLE
+// Una sola fórmula para la consulta normal y las alternativas: misma
+// consideración de reservas confirmadas, ocupadas, con retraso o cobradas.
+function formulaReservasDia(fecha) {
+  return `AND(` +
+    `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
+    `OR(` +
+    `LOWER(TRIM({estado}))='confirmada',` +
+    `LOWER(TRIM({estado}))='ocupada',` +
+    `LOWER(TRIM({estado}))='con retraso',` +
+    `LOWER(TRIM({estado}))='cobrada'` +
+    `)` +
+    `)`;
+}
+
+async function revisarRetencionesAntesDeLeer(restauranteRecordId, retenciones) {
+  if (!retenciones) return;
+  // Si una operación anterior estaba pendiente, hay que revisar su estado.
+  // Fallar aquí nunca libera un bloqueo de Upstash por suposición.
+  try {
+    const { crearServicioRevision, leerAirtable } =
+      require("../lib/revision-retenciones");
+    await crearServicioRevision({ almacen: retenciones, leer: leerAirtable })
+      .revisarRestaurante(restauranteRecordId);
+  } catch {
+    console.error("Revisión automática de retenciones pendiente; se mantienen los bloqueos.");
+  }
+}
+
 async function buscarAsignacionDisponible(
   restaurante_id,
   restauranteRecordId,
@@ -435,19 +464,21 @@ async function buscarAsignacionDisponible(
   reservaExcluirId = null,
   devolverTodas = false,
   zonaPreferidaId = null,
-  incluirRetenciones = true
+  incluirRetenciones = true,
+  // Usar solo al calcular sugerencias, nunca para confirmar una reserva.
+  datosAlternativas = null
 ) {
 
 
   // Airtable devuelve los enlaces como identificadores rec... exactos.
   // Filtrarlos aquí evita depender de la representación textual del campo.
   const mesas = filtrarRegistrosRestaurante(
-    await listarRegistrosAirtable("MESAS"),
+    datosAlternativas ? datosAlternativas.mesas : await listarRegistrosAirtable("MESAS"),
     restauranteRecordId
   );
-  const zonasRestaurante = await obtenerZonasActivasRestaurante(
-    restauranteRecordId
-  );
+  const zonasRestaurante = datosAlternativas
+    ? datosAlternativas.zonasRestaurante
+    : await obtenerZonasActivasRestaurante(restauranteRecordId);
   const zonasActivas = new Set(
     zonasRestaurante.map((zona) => zona.id)
   );
@@ -474,19 +505,12 @@ async function buscarAsignacionDisponible(
 
   // Buscar reservas ya confirmadas
 
-const formulaReservas =
-  `AND(` +
-  `DATETIME_FORMAT({fecha},'YYYY-MM-DD')='${fecha}',` +
-  `OR(` +
-  `LOWER(TRIM({estado}))='confirmada',` +
-  `LOWER(TRIM({estado}))='ocupada',` +
-  `LOWER(TRIM({estado}))='con retraso',` +
-  `LOWER(TRIM({estado}))='cobrada'` +
-  `)` +
-  `)`;
+const formulaReservas = formulaReservasDia(fecha);
 
   const reservas = filtrarRegistrosRestaurante(
-    await listarRegistrosAirtable("RESERVAS", formulaReservas),
+    datosAlternativas
+      ? datosAlternativas.reservas
+      : await listarRegistrosAirtable("RESERVAS", formulaReservas),
     restauranteRecordId
   );
 
@@ -504,16 +528,10 @@ const formulaReservas =
   const finSolicitado = inicioSolicitado + duracion;
 
   const retenciones = almacenRetenciones();
-  if (retenciones) {
-    // Recuperación automática: no depende de abrir el centro administrativo.
-    // Una consulta fallida nunca elimina la protección ya almacenada.
-    try {
-      const { crearServicioRevision, leerAirtable } = require("../lib/revision-retenciones");
-      await crearServicioRevision({ almacen: retenciones, leer: leerAirtable })
-        .revisarRestaurante(restauranteRecordId);
-    } catch {
-      console.error("Revisión automática de retenciones pendiente; se mantienen los bloqueos.");
-    }
+  // En las alternativas la revisión ya ocurrió ANTES de cargar las reservas.
+  // Fuera de las alternativas se preserva la revisión de siempre.
+  if (!datosAlternativas) {
+    await revisarRetencionesAntesDeLeer(restauranteRecordId, retenciones);
   }
   if (retenciones && incluirRetenciones) {
     const bloqueadas = await retenciones.mesasBloqueadas(restauranteRecordId, {
@@ -620,7 +638,9 @@ const formulaReservas =
   const urlCombinaciones =
     `https://api.airtable.com/v0/` +
     `${process.env.AIRTABLE_BASE_ID}/COMBINACIONES_MESAS`;
-  const datosCombinaciones = await consultarAirtable(urlCombinaciones);
+  const datosCombinaciones = datosAlternativas
+    ? await datosAlternativas.obtenerCombinaciones()
+    : await consultarAirtable(urlCombinaciones);
   const mesasPorId = new Map(mesasOperativas.map((mesa) => [mesa.id, mesa]));
   const personasNum = Number(personas);
   const margenNum = Number(margenCapacidad || 0);
@@ -1407,6 +1427,21 @@ async function buscarHorariosAlternativos(
 
   const alternativas = [];
 
+  // Foto efímera de ESTA búsqueda de alternativas. El siguiente cliente
+  // y la confirmación definitiva hacen lecturas nuevas.
+  const lecturaAlternativas = crearLecturaAlternativas({
+    revisarRetenciones: () =>
+      revisarRetencionesAntesDeLeer(restauranteRecordId, almacenRetenciones()),
+    leerMesas: () => listarRegistrosAirtable("MESAS"),
+    leerZonas: () => obtenerZonasActivasRestaurante(restauranteRecordId),
+    leerReservas: () =>
+      listarRegistrosAirtable("RESERVAS", formulaReservasDia(fecha)),
+    leerCombinaciones: () => consultarAirtable(
+      `https://api.airtable.com/v0/` +
+      `${process.env.AIRTABLE_BASE_ID}/COMBINACIONES_MESAS`
+    )
+  });
+
   for (const candidato of candidatos) {
     const horaCandidata = candidato.hora;
     const cumpleAntelacion = antelacionMinimaReservaMinutos === null ||
@@ -1431,6 +1466,7 @@ async function buscarHorariosAlternativos(
       continue;
     }
 
+    const fotoAlternativas = await lecturaAlternativas.obtener();
     const mesaLibre = await buscarAsignacionDisponible(
       restaurante_id,
       restauranteRecordId,
@@ -1441,7 +1477,9 @@ async function buscarHorariosAlternativos(
       duracionReservaMinutos,
       reservaExcluirId,
       false,
-      zonaPreferidaId
+      zonaPreferidaId,
+      true,
+      fotoAlternativas
     );
 
     if (mesaLibre) {
