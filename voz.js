@@ -65,6 +65,12 @@
     estado.textContent = texto;
   }
 
+  function avisarActividad(tipo) {
+    window.dispatchEvent(new CustomEvent("contactia:voz-actividad", {
+      detail: { tipo }
+    }));
+  }
+
 
   function tipoGrabacionCompatible() {
     if (typeof MediaRecorder === "undefined") {
@@ -587,6 +593,15 @@
 
 
   function procesarEvento(evento) {
+    if (evento.type === "output_audio_buffer.started") {
+      avisarActividad("inicio-asistente");
+    } else if (evento.type === "output_audio_buffer.stopped") {
+      avisarActividad("fin-asistente");
+    } else if (evento.type === "input_audio_buffer.speech_started") {
+      avisarActividad("inicio-cliente");
+    } else if (evento.type === "input_audio_buffer.speech_stopped") {
+      avisarActividad("fin-cliente");
+    }
     if (
       evento.type === "response.created" &&
       evento.response?.metadata?.contactia_phase === "initial_greeting" &&
@@ -706,6 +721,7 @@
 
 
   function cerrarVoz(mensaje = "Micrófono apagado") {
+    const teniaSesion = Boolean(conexion || canal || microfono);
     finalizarSaludoInicial();
     detenerGrabacionTurno(true);
 
@@ -766,6 +782,9 @@
     botonEnviar.disabled = false;
     selectorVoz.disabled = false;
     cambiarEstado(mensaje);
+    if (teniaSesion) {
+      window.dispatchEvent(new CustomEvent("contactia:voz-finalizada"));
+    }
   }
 
 
@@ -887,6 +906,7 @@
       boton.disabled = false;
       boton.setAttribute("aria-pressed", "true");
       boton.textContent = "⏹ Detener voz";
+      window.dispatchEvent(new CustomEvent("contactia:voz-iniciada"));
       entradaTexto.disabled = true;
       botonEnviar.disabled = true;
       selectorVoz.disabled = true;
