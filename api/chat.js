@@ -3,6 +3,10 @@ const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedid
 
 const crypto = require("crypto");
 const { crearLecturaAlternativas } = require("../lib/lectura-alternativas");
+const {
+  conConfiguracionSolicitud,
+  leerConfiguracionSolicitud
+} = require("../lib/configuracion-solicitud");
 const { desdeEntorno: almacenRetenciones, ErrorRetencion } = require("../lib/retenciones-mesas");
 const {
   calcularPrivacidadHastaDesdeAhora,
@@ -284,7 +288,7 @@ async function consultarAirtable(url, opciones = {}) {
 }
 
 
-async function listarRegistrosAirtable(tabla, formula = "") {
+async function listarRegistrosAirtableSinCache(tabla, formula = "") {
   const records = [];
   let offset = "";
 
@@ -312,8 +316,20 @@ async function listarRegistrosAirtable(tabla, formula = "") {
 }
 
 
+// Solo tablas de configuración, y únicamente en el ámbito del
+// 'verificar' actual. RESERVAS nunca se memoriza.
+function listarRegistrosAirtable(tabla, formula = "") {
+  const clave = !formula && (tabla === "MESAS" || tabla === "ZONA")
+    ? "tabla:" + tabla
+    : null;
+  return leerConfiguracionSolicitud(clave, () =>
+    listarRegistrosAirtableSinCache(tabla, formula)
+  );
+}
+
+
 // 3️⃣ BUSCAR RESTAURANTE
-async function buscarRestaurante(restaurante_id) {
+async function buscarRestauranteSinCache(restaurante_id) {
 
   const formula =
     encodeURIComponent(`{id}=${Number(restaurante_id)}`);
@@ -328,6 +344,14 @@ async function buscarRestaurante(restaurante_id) {
   return datos.records?.[0] || null;
 }
 
+
+function buscarRestaurante(restaurante_id) {
+  const id = Number(restaurante_id);
+  return leerConfiguracionSolicitud(
+    Number.isInteger(id) && id > 0 ? "restaurante:" + id : null,
+    () => buscarRestauranteSinCache(restaurante_id)
+  );
+}
 
 async function obtenerZonasActivasRestaurante(restauranteRecordId) {
   return filtrarRegistrosRestaurante(
@@ -425,6 +449,16 @@ function mesaAdmitePersonas(mesa, personas, margenCapacidad) {
 
 
 // 4️⃣ BUSCAR MESA O COMBINACIÓN DISPONIBLE
+// Estas combinaciones contienen solo configuración de mesas. Las guardamos
+// durante la acción 'verificar'; al reservar se vuelven a consultar.
+function leerCombinacionesConfiguracion() {
+  return leerConfiguracionSolicitud("tabla:COMBINACIONES_MESAS",
+    () => consultarAirtable(
+      `https://api.airtable.com/v0/` +
+      `${process.env.AIRTABLE_BASE_ID}/COMBINACIONES_MESAS`
+    ));
+}
+
 // Una sola fórmula para la consulta normal y las alternativas: misma
 // consideración de reservas confirmadas, ocupadas, con retraso o cobradas.
 function formulaReservasDia(fecha) {
@@ -635,12 +669,9 @@ const formulaReservas = formulaReservasDia(fecha);
     return asignacionesMesas[0];
   }
 
-  const urlCombinaciones =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/COMBINACIONES_MESAS`;
   const datosCombinaciones = datosAlternativas
     ? await datosAlternativas.obtenerCombinaciones()
-    : await consultarAirtable(urlCombinaciones);
+    : await leerCombinacionesConfiguracion();
   const mesasPorId = new Map(mesasOperativas.map((mesa) => [mesa.id, mesa]));
   const personasNum = Number(personas);
   const margenNum = Number(margenCapacidad || 0);
@@ -756,10 +787,7 @@ async function existeAsignacionCompatible(
     return true;
   }
 
-  const urlCombinaciones =
-    `https://api.airtable.com/v0/` +
-    `${process.env.AIRTABLE_BASE_ID}/COMBINACIONES_MESAS`;
-  const datosCombinaciones = await consultarAirtable(urlCombinaciones);
+  const datosCombinaciones = await leerCombinacionesConfiguracion();
   const mesasPorId = new Map(mesasOperativas.map((mesa) => [mesa.id, mesa]));
 
   return (datosCombinaciones.records || []).some((combinacion) => {
@@ -1436,10 +1464,7 @@ async function buscarHorariosAlternativos(
     leerZonas: () => obtenerZonasActivasRestaurante(restauranteRecordId),
     leerReservas: () =>
       listarRegistrosAirtable("RESERVAS", formulaReservasDia(fecha)),
-    leerCombinaciones: () => consultarAirtable(
-      `https://api.airtable.com/v0/` +
-      `${process.env.AIRTABLE_BASE_ID}/COMBINACIONES_MESAS`
-    )
+    leerCombinaciones: () => leerCombinacionesConfiguracion()
   });
 
   for (const candidato of candidatos) {
@@ -4968,10 +4993,12 @@ const prefijoReserva = normalizarPrefijoReserva(
 // la solicitud ni datos de clientes. Conserva las exportaciones del módulo.
 const procesarChatSinMedir = module.exports;
 const { conAccion, accionDeCuerpo } = require("../lib/contador-airtable");
-module.exports = (req, res) => conAccion(
-  accionDeCuerpo(req?.body),
-  () => procesarChatSinMedir(req, res)
-);
+module.exports = (req, res) => {
+  const accion = accionDeCuerpo(req?.body);
+  return conAccion(accion, () =>
+    conConfiguracionSolicitud(accion, () => procesarChatSinMedir(req, res))
+  );
+};
 
 module.exports._seguridad = {
   camposHorarioParaZona,

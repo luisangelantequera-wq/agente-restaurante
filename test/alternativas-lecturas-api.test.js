@@ -67,7 +67,7 @@ function prepararAirtableFalso(estado) {
         fields: {
           restaurante: [RESTAURANTE_ID],
           zona: [ZONA_ID],
-          estado: "libre",
+          estado: estado.mesaFueraServicio ? "fuera de servicio" : "libre",
           nombre_mesa: "Mesa 2",
           capacidad: 2
         }
@@ -136,7 +136,11 @@ test("alternativas bloqueadas comparten lecturas pero siguen proponiendo horas l
     assert.ok(primera.body.alternativas.includes("15:00"),
       "No ofrecer mesa antes de que acabe la reserva confirmada");
     assert.equal(estado.llamadas.RESERVAS, 2,
-      "Una lectura inicial y una sola foto para todas las horas alternativas");
+      "Las reservas se leen para la comprobación inicial y las alternativas");
+    assert.equal(estado.llamadas.MESAS, 1,
+      "Las mesas se leen una sola vez durante toda la verificación");
+    assert.equal(estado.llamadas.ZONA, 1,
+      "Las zonas se leen una sola vez durante toda la verificación");
     assert.ok(estado.llamadas.COMBINACIONES_MESAS <= 1,
       "Combinaciones de mesas solo una vez durante las alternativas");
 
@@ -148,6 +152,20 @@ test("alternativas bloqueadas comparten lecturas pero siguen proponiendo horas l
     assert.equal(segunda.body.disponible, true);
     assert.equal(estado.llamadas.RESERVAS, 3,
       "La siguiente solicitud no reutiliza la foto anterior");
+    assert.equal(estado.llamadas.MESAS, 2,
+      "La segunda petición vuelve a consultar las mesas");
+    assert.equal(estado.llamadas.ZONA, 2,
+      "La segunda petición vuelve a consultar las zonas");
+
+    // Los cambios de configuración hechos directamente en Airtable
+    // deben aparecer en la petición siguiente, nunca quedarse en caché.
+    estado.mesaFueraServicio = true;
+    const tercera = await verificar(estado.fecha);
+    assert.equal(tercera.status, 200);
+    assert.equal(tercera.body.disponible, false);
+    assert.deepEqual(tercera.body.alternativas, []);
+    assert.equal(estado.llamadas.MESAS, 3);
+    assert.equal(estado.llamadas.ZONA, 3);
   } finally {
     global.fetch = previoFetch;
     for (const [clave, valor] of Object.entries(envAnterior)) {
