@@ -23,8 +23,8 @@ Caso: una mesa de 2 personas ocupada de 14:00 a 15:00 y un cliente pide las 14:1
 | ZONA | 4 | 1 |
 | MESAS | 3 | 1 |
 | RESERVAS | 2 | 2 |
-| COMBINACIONES_MESAS | 1 | 1 |
-| **Total** | **11** | **7** |
+| COMBINACIONES_MESAS | 2 | 1 |
+| **Total** | **12** | **6** |
 
 Los números son de un caso ficticio específico sin retenciones, no una predicción para todas las reservas. Las retenciones de Upstash se revisan en tiempo real como antes.
 
