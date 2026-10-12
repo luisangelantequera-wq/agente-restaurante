@@ -247,3 +247,13 @@ test("nunca colgar mientras el motor está calculando disponibilidad", async () 
   await s.avanzar(90000);
   assert.equal(s.cierresVoz(), 1);
 });
+
+test("el cierre por silencio funciona aunque esté desactivado Airtable", async () => {
+  const s = escenario();
+  s.activarVoz();
+  await s.avanzar(89999);
+  assert.equal(s.cierresVoz(), 0);
+  await s.avanzar(1);
+  assert.equal(s.cierresVoz(), 1);
+  assert.equal(s.envios.length, 0);
+});
