@@ -107,22 +107,19 @@ async function guardarEnAirtable(conversacion) {
       }]
     })
   });
-  const texto = await respuesta.text();
-  let datos;
-
-  try {
-    datos = texto ? JSON.parse(texto) : {};
-  } catch {
-    throw new Error(`Airtable devolvió una respuesta no válida. HTTP ${respuesta.status}`);
-  }
-
+  // La respuesta puede no ser JSON cuando Airtable limita la cuota.
+  // Comprobar el código antes de intentar analizar el cuerpo.
   if (!respuesta.ok) {
     const error = new Error("No se pudo guardar la conversación.");
     error.status = respuesta.status;
     throw error;
   }
-
-  return datos;
+  const texto = await respuesta.text();
+  try {
+    return texto ? JSON.parse(texto) : {};
+  } catch {
+    throw new Error("Airtable devolvió una respuesta no válida.");
+  }
 }
 
 
