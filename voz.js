@@ -366,6 +366,7 @@
       });
       audioGoogle.addEventListener("playing", () => {
         avisarActividad("inicio-asistente");
+        avisarActividad("fin-procesamiento");
         const ahora = performance.now();
         const segundosGoogle = ((ahora - inicioGoogle) / 1000).toFixed(1);
         const tiempoEntender = Number.isFinite(metricas.entenderMs)
@@ -594,6 +595,7 @@
     colaHerramientas = colaHerramientas
       .then(() => ejecutarHerramienta(llamada))
       .catch((error) => {
+        avisarActividad("fin-procesamiento");
         console.error("Error en la cola de voz:", error);
         cambiarEstado("Ha ocurrido un error. Detenga la voz y vuelva a intentarlo.");
       });
@@ -603,11 +605,13 @@
   function procesarEvento(evento) {
     if (evento.type === "output_audio_buffer.started") {
       avisarActividad("inicio-asistente");
+      avisarActividad("fin-procesamiento");
     } else if (evento.type === "output_audio_buffer.stopped") {
       avisarActividad("fin-asistente");
     } else if (evento.type === "input_audio_buffer.speech_started") {
       avisarActividad("inicio-cliente");
     } else if (evento.type === "input_audio_buffer.speech_stopped") {
+      avisarActividad("inicio-procesamiento");
       avisarActividad("fin-cliente");
     }
     if (
@@ -719,6 +723,7 @@
     }
 
     if (evento.type === "error") {
+      avisarActividad("fin-procesamiento");
       console.error("Error de OpenAI Realtime:", evento.error?.code || "desconocido");
       finalizarSaludoInicial(
         new Error("No se pudo reproducir el saludo inicial.")
@@ -960,6 +965,12 @@
       panel.hidden = false;
     }
   }, { once: true });
+
+  window.addEventListener("contactia:voz-inactividad", () => {
+    if (conexion || canal || microfono) {
+      cerrarVoz("La sesión ha finalizado tras 90 segundos sin actividad.");
+    }
+  });
 
   window.addEventListener("pagehide", () => cerrarVoz(), { once: true });
 }());
