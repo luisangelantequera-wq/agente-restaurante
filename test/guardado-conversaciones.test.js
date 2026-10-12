@@ -5,6 +5,7 @@ const { crearGestor, INACTIVIDAD_MS } = require("../lib/guardado-conversaciones"
 
 function escenario() {
   let tiempo = 0, id = 0, incidencia = false, resultado = "en_curso";
+  let vozActiva = false, cierresVoz = 0;
   const tareas = new Map();
   const turnos = [], envios = [];
   let responder = async () => ({ ok: true, status: 200 });
@@ -24,7 +25,13 @@ function escenario() {
       tareas.set(clave, { fn, vence: tiempo + ms });
       return clave;
     },
-    cancelarTemporizador(clave) { tareas.delete(clave); }
+    cancelarTemporizador(clave) { tareas.delete(clave); },
+    haySesionDeVoz: () => vozActiva,
+    alInactividadVoz() {
+      cierresVoz++;
+      vozActiva = false;
+      void gestor.cerrar("cerrada");
+    }
   });
   async function avanzar(ms) {
     const hasta = tiempo + ms;
@@ -50,12 +57,17 @@ function escenario() {
     },
     incidente() { incidencia = true; gestor.programar(); },
     resultado(nuevo) { resultado = nuevo; gestor.programar(); },
-    responder(fn) { responder = fn; }
+    responder(fn) { responder = fn; },
+    activarVoz() {
+      vozActiva = true;
+      gestor.reanudar();
+    },
+    cierresVoz: () => cierresVoz
   };
 }
 
-test("inactividad predefinida de dos minutos", () => {
-  assert.equal(INACTIVIDAD_MS, 120000);
+test("inactividad predefinida de noventa segundos", () => {
+  assert.equal(INACTIVIDAD_MS, 90000);
 });
 
 test("saludo inicial no genera escritura si no hay cliente", async () => {
@@ -83,11 +95,11 @@ test("durante conversación activa se guarda una sola vez al colgar", async () =
   assert.equal(s.envios.length, 1, "dos eventos de desconexión no duplican");
 });
 
-test("dos minutos sin actividad guardan una única copia", async () => {
+test("noventa segundos sin actividad guardan una única copia", async () => {
   const s = escenario();
   s.gestor.habilitar();
   s.agregar("cliente");
-  await s.avanzar(119999);
+  await s.avanzar(89999);
   assert.equal(s.envios.length, 0);
   await s.avanzar(1);
   assert.equal(s.envios.length, 1);
@@ -119,7 +131,7 @@ test("voz continua suspende el temporizador de silencio", async () => {
   await s.avanzar(240000);
   assert.equal(s.envios.length, 0);
   s.gestor.hablaTerminada("cliente");
-  await s.avanzar(119999);
+  await s.avanzar(89999);
   assert.equal(s.envios.length, 0);
   await s.avanzar(1);
   assert.equal(s.envios.length, 1);
@@ -187,4 +199,51 @@ test("la confirmación final no se solapa con un guardado anterior en curso", as
   for (let i = 0; i < 8; i++) await Promise.resolve();
   assert.equal(s.envios.length, 2);
   assert.equal(s.envios.at(-1).datos.estado, "finalizada");
+});
+
+test("la llamada de voz se cuelga tras noventa segundos sin sonido", async () => {
+  const s = escenario();
+  s.gestor.habilitar();
+  s.activarVoz();
+  s.agregar("cliente", "Para mañana");
+  s.gestor.hablaIniciada("asistente");
+  await s.avanzar(180000);
+  assert.equal(s.cierresVoz(), 0, "nunca colgar mientras habla Alondra");
+  s.gestor.hablaTerminada("asistente");
+  await s.avanzar(89999);
+  assert.equal(s.cierresVoz(), 0);
+  assert.equal(s.envios.length, 0);
+  await s.avanzar(1);
+  assert.equal(s.cierresVoz(), 1);
+  assert.equal(s.envios.length, 1);
+  assert.equal(s.envios[0].datos.estado, "cerrada");
+  await s.avanzar(300000);
+  assert.equal(s.cierresVoz(), 1);
+  assert.equal(s.envios.length, 1);
+});
+
+test("la llamada se cierra por silencio aunque el cliente nunca hable", async () => {
+  const s = escenario();
+  s.gestor.habilitar();
+  s.activarVoz();
+  await s.avanzar(90000);
+  assert.equal(s.cierresVoz(), 1);
+  assert.equal(s.envios.length, 0, "saludo inicial sin cliente no se escribe");
+});
+
+test("nunca colgar mientras el motor está calculando disponibilidad", async () => {
+  const s = escenario();
+  s.gestor.habilitar();
+  s.activarVoz();
+  s.agregar("cliente", "Mañana a las dos");
+  s.gestor.hablaIniciada("procesamiento");
+  await s.avanzar(4 * 60000);
+  assert.equal(s.cierresVoz(), 0);
+  s.gestor.hablaIniciada("asistente");
+  s.gestor.hablaTerminada("procesamiento");
+  await s.avanzar(180000);
+  assert.equal(s.cierresVoz(), 0);
+  s.gestor.hablaTerminada("asistente");
+  await s.avanzar(90000);
+  assert.equal(s.cierresVoz(), 1);
 });
