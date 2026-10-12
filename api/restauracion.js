@@ -1,3 +1,4 @@
+const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedido("backups");
 const crypto = require("crypto");
 const { descifrarCopia } = require("../lib/backup");
 const { registrarAuditoria } = require("../lib/auditoria");
@@ -104,7 +105,7 @@ async function cargarCopia(archivo) {
 
 
 async function consultarAirtable(url, opciones = {}) {
-  const respuesta = await fetch(url, {
+  const respuesta = await fetchAirtableContado(url, {
     ...opciones,
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
