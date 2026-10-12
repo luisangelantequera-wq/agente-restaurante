@@ -1,3 +1,4 @@
+const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedido("conversaciones");
 const {
   prepararConversacionPersistente
 } = require("../lib/centro-conversaciones");
@@ -73,7 +74,7 @@ async function guardarEnAirtable(conversacion) {
     "CONVERSACIONES";
   const url = `https://api.airtable.com/v0/` +
     `${process.env.AIRTABLE_BASE_ID}/${encodeURIComponent(tabla)}`;
-  const respuesta = await fetch(url, {
+  const respuesta = await fetchAirtableContado(url, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
