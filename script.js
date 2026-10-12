@@ -2717,6 +2717,9 @@ async function procesarTurnoVoz(texto, opciones = {}) {
 
   try {
     await procesarMensaje(mensaje, { origen: "voz" });
+    if (paso === "finalizado") {
+      void guardarConversacionRemota("finalizada");
+    }
   } finally {
     contextoTurnoVoz = null;
     observadoresMensajes.delete(observar);
@@ -2786,7 +2789,11 @@ sendButton.addEventListener(
 
     input.value = "";
 
-    procesarMensaje(texto);
+    void procesarMensaje(texto).then(() => {
+      if (paso === "finalizado") {
+        void guardarConversacionRemota("finalizada");
+      }
+    });
   }
 );
 
