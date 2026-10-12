@@ -87,6 +87,8 @@ const registroConversacion = window.ContactiaCentroConversaciones
 // Los datos se anonimizarán con las mismas reglas que antes.
 const gestorGuardadoConversacion =
   window.ContactiaGuardadoConversaciones.crearGestor({
+    estadoAlQuedarInactivo: () =>
+      paso === "finalizado" ? "finalizada" : "cerrada",
     preparar(estado) {
       return window.ContactiaCentroConversaciones
         .prepararConversacionPersistente(
