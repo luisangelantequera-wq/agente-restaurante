@@ -181,3 +181,41 @@ test("rechaza cualquier intento de incluir audio", async () => {
     }
   }
 });
+
+
+test("la cuota agotada de Airtable se comunica como 429 para frenar reintentos", async () => {
+  const previos = {
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    AIRTABLE_API_KEY: process.env.AIRTABLE_API_KEY,
+    AIRTABLE_BASE_ID: process.env.AIRTABLE_BASE_ID
+  };
+  const fetchOriginal = global.fetch;
+  let consultas = 0;
+  process.env.VERCEL_ENV = "preview";
+  process.env.AIRTABLE_API_KEY = "clave-ficticia";
+  process.env.AIRTABLE_BASE_ID = "appBaseFicticia";
+  global.fetch = async () => {
+    consultas += 1;
+    return {
+      ok: false,
+      status: 429,
+      text: async () => "Airtable rate limit: quota exceeded"
+    };
+  };
+  try {
+    const resultado = await ejecutar({
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: conversacionPrueba()
+    });
+    assert.equal(resultado.status, 429);
+    assert.equal(resultado.body.ok, false);
+    assert.equal(consultas, 1);
+  } finally {
+    global.fetch = fetchOriginal;
+    for (const [key, value] of Object.entries(previos)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});

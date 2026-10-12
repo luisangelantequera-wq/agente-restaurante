@@ -65,6 +65,12 @@
     estado.textContent = texto;
   }
 
+  function avisarActividad(tipo) {
+    window.dispatchEvent(new CustomEvent("contactia:voz-actividad", {
+      detail: { tipo }
+    }));
+  }
+
 
   function tipoGrabacionCompatible() {
     if (typeof MediaRecorder === "undefined") {
@@ -346,12 +352,21 @@
     audioGoogle.src = urlAudioGoogle;
 
     await new Promise((resolve, reject) => {
-      audioGoogle.onended = resolve;
-      audioGoogle.onerror = () => reject(
-        new Error("El navegador no pudo reproducir la voz de Google.")
-      );
-      audioGoogle.play().catch(reject);
+      audioGoogle.onended = () => {
+        avisarActividad("fin-asistente");
+        resolve();
+      };
+      audioGoogle.onerror = () => {
+        avisarActividad("fin-asistente");
+        reject(new Error("El navegador no pudo reproducir la voz de Google."));
+      };
+      audioGoogle.play().catch(error => {
+        avisarActividad("fin-asistente");
+        reject(error);
+      });
       audioGoogle.addEventListener("playing", () => {
+        avisarActividad("inicio-asistente");
+        avisarActividad("fin-procesamiento");
         const ahora = performance.now();
         const segundosGoogle = ((ahora - inicioGoogle) / 1000).toFixed(1);
         const tiempoEntender = Number.isFinite(metricas.entenderMs)
@@ -580,6 +595,7 @@
     colaHerramientas = colaHerramientas
       .then(() => ejecutarHerramienta(llamada))
       .catch((error) => {
+        avisarActividad("fin-procesamiento");
         console.error("Error en la cola de voz:", error);
         cambiarEstado("Ha ocurrido un error. Detenga la voz y vuelva a intentarlo.");
       });
@@ -587,6 +603,17 @@
 
 
   function procesarEvento(evento) {
+    if (evento.type === "output_audio_buffer.started") {
+      avisarActividad("inicio-asistente");
+      avisarActividad("fin-procesamiento");
+    } else if (evento.type === "output_audio_buffer.stopped") {
+      avisarActividad("fin-asistente");
+    } else if (evento.type === "input_audio_buffer.speech_started") {
+      avisarActividad("inicio-cliente");
+    } else if (evento.type === "input_audio_buffer.speech_stopped") {
+      avisarActividad("inicio-procesamiento");
+      avisarActividad("fin-cliente");
+    }
     if (
       evento.type === "response.created" &&
       evento.response?.metadata?.contactia_phase === "initial_greeting" &&
@@ -696,6 +723,7 @@
     }
 
     if (evento.type === "error") {
+      avisarActividad("fin-procesamiento");
       console.error("Error de OpenAI Realtime:", evento.error?.code || "desconocido");
       finalizarSaludoInicial(
         new Error("No se pudo reproducir el saludo inicial.")
@@ -706,6 +734,7 @@
 
 
   function cerrarVoz(mensaje = "Micrófono apagado") {
+    const teniaSesion = Boolean(conexion || canal || microfono);
     finalizarSaludoInicial();
     detenerGrabacionTurno(true);
 
@@ -766,6 +795,9 @@
     botonEnviar.disabled = false;
     selectorVoz.disabled = false;
     cambiarEstado(mensaje);
+    if (teniaSesion) {
+      window.dispatchEvent(new CustomEvent("contactia:voz-finalizada"));
+    }
   }
 
 
@@ -887,6 +919,7 @@
       boton.disabled = false;
       boton.setAttribute("aria-pressed", "true");
       boton.textContent = "⏹ Detener voz";
+      window.dispatchEvent(new CustomEvent("contactia:voz-iniciada"));
       entradaTexto.disabled = true;
       botonEnviar.disabled = true;
       selectorVoz.disabled = true;
@@ -932,6 +965,12 @@
       panel.hidden = false;
     }
   }, { once: true });
+
+  window.addEventListener("contactia:voz-inactividad", () => {
+    if (conexion || canal || microfono) {
+      cerrarVoz("La sesión ha finalizado tras 90 segundos sin actividad.");
+    }
+  });
 
   window.addEventListener("pagehide", () => cerrarVoz(), { once: true });
 }());

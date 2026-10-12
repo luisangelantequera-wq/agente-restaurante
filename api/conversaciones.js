@@ -107,22 +107,19 @@ async function guardarEnAirtable(conversacion) {
       }]
     })
   });
-  const texto = await respuesta.text();
-  let datos;
-
-  try {
-    datos = texto ? JSON.parse(texto) : {};
-  } catch {
-    throw new Error(`Airtable devolvió una respuesta no válida. HTTP ${respuesta.status}`);
-  }
-
+  // La respuesta puede no ser JSON cuando Airtable limita la cuota.
+  // Comprobar el código antes de intentar analizar el cuerpo.
   if (!respuesta.ok) {
-    throw new Error(
-      datos?.error?.message || `Error de Airtable. HTTP ${respuesta.status}`
-    );
+    const error = new Error("No se pudo guardar la conversación.");
+    error.status = respuesta.status;
+    throw error;
   }
-
-  return datos;
+  const texto = await respuesta.text();
+  try {
+    return texto ? JSON.parse(texto) : {};
+  } catch {
+    throw new Error("Airtable devolvió una respuesta no válida.");
+  }
 }
 
 
@@ -186,6 +183,14 @@ module.exports = async (req, res) => {
     await guardarEnAirtable(conversacion);
     return responder(res, 200, { ok: true, guardada: true });
   } catch (error) {
+    if (error.status === 429) {
+      // No insistir cuando Airtable supera la cuota mensual.
+      res.setHeader("Retry-After", "86400");
+      return responder(res, 429, {
+        ok: false,
+        error: "Airtable ha agotado temporalmente su cuota de API."
+      });
+    }
     console.error("ERROR CENTRO CONVERSACIONES:", error.message);
     return responder(res, 500, {
       ok: false,
