@@ -54,6 +54,7 @@ let datosListaEspera = null;
 let capturaGuiadaEstricta = false;
 let idiomaConversacion = "es";
 let registroConversacionesRemotoHabilitado = false;
+let sesionVozActiva = false;
 let ultimoCorreoConfirmacionEnviado = null;
 let retencionActiva = null;
 
@@ -89,6 +90,10 @@ const gestorGuardadoConversacion =
   window.ContactiaGuardadoConversaciones.crearGestor({
     estadoAlQuedarInactivo: () =>
       paso === "finalizado" ? "finalizada" : "cerrada",
+    haySesionDeVoz: () => sesionVozActiva,
+    alInactividadVoz() {
+      window.dispatchEvent(new CustomEvent("contactia:voz-inactividad"));
+    },
     preparar(estado) {
       return window.ContactiaCentroConversaciones
         .prepararConversacionPersistente(
@@ -146,6 +151,7 @@ function programarGuardadoConversacion() {
 }
 
 window.addEventListener("contactia:voz-iniciada", () => {
+  sesionVozActiva = true;
   gestorGuardadoConversacion.reanudar();
 });
 window.addEventListener("contactia:voz-actividad", (evento) => {
@@ -162,6 +168,7 @@ window.addEventListener("contactia:voz-actividad", (evento) => {
   }
 });
 window.addEventListener("contactia:voz-finalizada", () => {
+  sesionVozActiva = false;
   if (registroConversacionesRemotoHabilitado) {
     void gestorGuardadoConversacion.cerrar(
       paso === "finalizado" ? "finalizada" : "cerrada"
