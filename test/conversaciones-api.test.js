@@ -199,9 +199,7 @@ test("la cuota agotada de Airtable se comunica como 429 para frenar reintentos",
     return {
       ok: false,
       status: 429,
-      text: async () => JSON.stringify({
-        error: { message: "API billing plan limit exceeded" }
-      })
+      text: async () => "Airtable rate limit: quota exceeded"
     };
   };
   try {
