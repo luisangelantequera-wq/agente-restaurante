@@ -160,6 +160,23 @@ button:focus-visible {
   color: white;
 }
 
+/* Los botones de la cabecera son blancos sobre azul; dentro de los
+   paneles blancos necesitan contraste propio para seguir siendo visibles. */
+.panel .boton-secundario {
+  border: 1px solid #a8b8d3;
+  background: #eef3fb;
+  color: var(--azul);
+}
+
+.panel .boton-secundario:hover {
+  background: #dae6fa;
+}
+
+.panel .boton-secundario:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .mensaje-error {
   min-height: 22px;
   margin: 14px 0 0 !important;
