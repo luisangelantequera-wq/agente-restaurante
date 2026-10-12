@@ -143,6 +143,30 @@ function programarGuardadoConversacion() {
   gestorGuardadoConversacion.programar();
 }
 
+window.addEventListener("contactia:voz-iniciada", () => {
+  gestorGuardadoConversacion.reanudar();
+});
+window.addEventListener("contactia:voz-actividad", (evento) => {
+  if (evento.detail?.tipo === "inicio-cliente") {
+    gestorGuardadoConversacion.hablaIniciada("cliente");
+  } else if (evento.detail?.tipo === "fin-cliente") {
+    gestorGuardadoConversacion.hablaTerminada("cliente");
+  } else if (evento.detail?.tipo === "inicio-asistente") {
+    gestorGuardadoConversacion.hablaIniciada("asistente");
+  } else if (evento.detail?.tipo === "fin-asistente") {
+    gestorGuardadoConversacion.hablaTerminada("asistente");
+  } else {
+    gestorGuardadoConversacion.actividad();
+  }
+});
+window.addEventListener("contactia:voz-finalizada", () => {
+  if (registroConversacionesRemotoHabilitado) {
+    void gestorGuardadoConversacion.cerrar(
+      paso === "finalizado" ? "finalizada" : "cerrada"
+    );
+  }
+});
+
 
 function obtenerTokenGestionInicial() {
   const parametrosHash = new URLSearchParams(
@@ -2717,9 +2741,6 @@ async function procesarTurnoVoz(texto, opciones = {}) {
 
   try {
     await procesarMensaje(mensaje, { origen: "voz" });
-    if (paso === "finalizado") {
-      void guardarConversacionRemota("finalizada");
-    }
   } finally {
     contextoTurnoVoz = null;
     observadoresMensajes.delete(observar);
@@ -2789,11 +2810,7 @@ sendButton.addEventListener(
 
     input.value = "";
 
-    void procesarMensaje(texto).then(() => {
-      if (paso === "finalizado") {
-        void guardarConversacionRemota("finalizada");
-      }
-    });
+    void procesarMensaje(texto);
   }
 );
 
