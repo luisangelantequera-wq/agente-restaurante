@@ -271,6 +271,19 @@ module.exports = async (req, res) => {
     return responder(res, 200, { ok: true, sesion: true });
   }
 
+  if (cuerpo.accion === "consumo_airtable") {
+    try {
+      // Lectura de un único contador de Upstash, no consulta Airtable.
+      const consumo = await require("../lib/contador-airtable").leerConsumo();
+      return responder(res, 200, { ok: true, ...consumo });
+    } catch {
+      return responder(res, 503, {
+        ok: false,
+        error: "El contador no está disponible o falta configurar Upstash para esta rama."
+      });
+    }
+  }
+
   if (["llamada_reserva_revisar", "llamada_reserva_iniciar", "llamada_reserva_estado", "llamada_reserva_reintentos"].includes(cuerpo.accion)) {
     try {
       const { status, ...datos } = await require('../lib/llamada-seguimiento').servicio().ejecutar(cuerpo);
