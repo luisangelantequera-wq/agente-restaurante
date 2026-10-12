@@ -54,7 +54,6 @@ let datosListaEspera = null;
 let capturaGuiadaEstricta = false;
 let idiomaConversacion = "es";
 let registroConversacionesRemotoHabilitado = false;
-let temporizadorGuardadoConversacion = null;
 let ultimoCorreoConfirmacionEnviado = null;
 let retencionActiva = null;
 
@@ -84,67 +83,64 @@ const registroConversacion = window.ContactiaCentroConversaciones
   });
 
 
+// Un único gestor controla las escrituras: evita una llamada a Airtable por turno.
+// Los datos se anonimizarán con las mismas reglas que antes.
+const gestorGuardadoConversacion =
+  window.ContactiaGuardadoConversaciones.crearGestor({
+    preparar(estado) {
+      return window.ContactiaCentroConversaciones
+        .prepararConversacionPersistente(
+          registroConversacion.exportar({ anonimizar: false }),
+          { estado }
+        );
+    },
+    async enviar(conversacion, opciones = {}) {
+      const contenido = JSON.stringify(conversacion);
+      // keepalive tiene un límite de tamaño en el navegador. En transcripciones
+      // largas el guardado periódico ya protege los datos antes de salir.
+      const keepalive = opciones.keepalive === true &&
+        new Blob([contenido]).size <= 60000;
+      try {
+        const respuesta = await fetch("/api/conversaciones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: contenido,
+          keepalive
+        });
+        if (!respuesta.ok && respuesta.status !== 429) {
+          console.warn("No se pudo guardar la conversación anonimizada.");
+        }
+        return { ok: respuesta.ok, status: respuesta.status };
+      } catch {
+        console.warn("No se pudo guardar la conversación anonimizada.");
+        return { ok: false, status: 0 };
+      }
+    }
+  });
+
 window.ContactiaConversacionActual = Object.freeze({
   exportar: (opciones) => registroConversacion.exportar(opciones),
   guardar: () => guardarConversacionRemota(),
   id: registroConversacion.idConversacion,
   marcarAudioDisponible(idTurno) {
     const marcado = registroConversacion.marcarAudioDisponible(idTurno);
-
-    if (marcado) {
-      guardarConversacionRemota();
-    }
-
+    if (marcado) programarGuardadoConversacion();
     return marcado;
   },
   pasoPermiteAudio: () =>
     window.ContactiaCentroConversaciones.pasoPermiteAudio(paso)
 });
 
-
-async function guardarConversacionRemota(
-  estado = "en_curso",
-  opciones = {}
-) {
-  if (!registroConversacionesRemotoHabilitado) {
-    return;
-  }
-
-  const estadoEfectivo = estado === "en_curso" && paso === "finalizado"
-    ? "finalizada"
-    : estado;
-  const conversacion = window.ContactiaCentroConversaciones
-    .prepararConversacionPersistente(
-      registroConversacion.exportar({ anonimizar: false }),
-      { estado: estadoEfectivo }
-    );
-
-  try {
-    const respuesta = await fetch("/api/conversaciones", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(conversacion),
-      keepalive: opciones.keepalive === true
-    });
-
-    if (!respuesta.ok) {
-      console.warn("No se pudo guardar la conversación anonimizada.");
-    }
-  } catch (error) {
-    console.warn("No se pudo guardar la conversación anonimizada.");
-  }
+function guardarConversacionRemota(estado = "en_curso", opciones = {}) {
+  return gestorGuardadoConversacion.guardarAhora(
+    estado === "en_curso" && paso === "finalizado"
+      ? "finalizada" : estado,
+    opciones
+  );
 }
 
-
 function programarGuardadoConversacion() {
-  if (!registroConversacionesRemotoHabilitado) {
-    return;
-  }
-
-  clearTimeout(temporizadorGuardadoConversacion);
-  temporizadorGuardadoConversacion = setTimeout(() => {
-    guardarConversacionRemota();
-  }, 1200);
+  gestorGuardadoConversacion.programar();
 }
 
 
@@ -364,6 +360,9 @@ async function cargarRestauranteActivo() {
     registroConversacionesRemotoHabilitado =
       datos.registro_conversaciones_habilitado === true;
     aplicarRestauranteActivo(restaurante);
+    if (registroConversacionesRemotoHabilitado) {
+      gestorGuardadoConversacion.habilitar();
+    }
     return true;
   } catch (error) {
     console.error("Error al cargar el restaurante:", error);
@@ -2863,7 +2862,8 @@ window.addEventListener("pagehide", () => {
     return;
   }
 
-  clearTimeout(temporizadorGuardadoConversacion);
-  guardarConversacionRemota("cerrada", { keepalive: true });
+  void gestorGuardadoConversacion.cerrar(
+    paso === "finalizado" ? "finalizada" : "cerrada"
+  );
 });
 
