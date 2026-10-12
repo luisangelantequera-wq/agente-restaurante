@@ -26,6 +26,74 @@
   const listaRetenciones = document.querySelector("#listaRetenciones");
   const estadoRetenciones = document.querySelector("#estadoRetenciones");
   const actualizarRetenciones = document.querySelector("#actualizarRetenciones");
+  const consultarConsumoAirtable = document.querySelector("#consultarConsumoAirtable");
+  const estadoConsumoAirtable = document.querySelector("#estadoConsumoAirtable");
+  const resumenConsumoAirtable = document.querySelector("#resumenConsumoAirtable");
+  const nombresFuentes = Object.freeze({
+    reservas: "Reservas y disponibilidad",
+    configuracion: "Datos de restaurantes",
+    conversaciones: "Guardado de conversaciones",
+    centro: "Lectura de conversaciones",
+    backups: "Copias y restauraciones",
+    privacidad: "Privacidad",
+    avisos: "Avisos programados",
+    retenciones: "Comprobación de bloqueos",
+    auditoria: "Auditoría",
+    whatsapp: "Avisos WhatsApp",
+    seguimiento: "Seguimiento telefónico"
+  });
+
+  function mostrarCifrasConsumo(etiqueta, valor) {
+    const texto = document.createElement("p");
+    const destacado = document.createElement("strong");
+    destacado.textContent = etiqueta + ": ";
+    texto.append(destacado, document.createTextNode(String(valor)));
+    resumenConsumoAirtable.appendChild(texto);
+  }
+
+  function mostrarDistribucionConsumo(titulo, datos, nombres = {}) {
+    const filas = Object.entries(datos || {}).sort((a, b) => b[1] - a[1]);
+    const cabecera = document.createElement("h3");
+    cabecera.textContent = titulo;
+    resumenConsumoAirtable.appendChild(cabecera);
+    if (!filas.length) {
+      const vacio = document.createElement("p");
+      vacio.textContent = "Todavía no hay peticiones medidas.";
+      resumenConsumoAirtable.appendChild(vacio);
+      return;
+    }
+    const listaConsumo = document.createElement("ul");
+    for (const [clave, valor] of filas) {
+      const elemento = document.createElement("li");
+      elemento.textContent = (nombres[clave] || clave) + ": " + valor;
+      listaConsumo.appendChild(elemento);
+    }
+    resumenConsumoAirtable.appendChild(listaConsumo);
+  }
+
+  async function cargarConsumoAirtable() {
+    consultarConsumoAirtable.disabled = true;
+    estadoConsumoAirtable.textContent = "Consultando el contador (sin acceder a Airtable)…";
+    resumenConsumoAirtable.replaceChildren();
+    try {
+      const datos = await solicitar({ accion: "consumo_airtable" });
+      estadoConsumoAirtable.textContent =
+        "Mes " + datos.mes + " · Solo llamadas registradas desde esta rama de Preview.";
+      mostrarCifrasConsumo("Peticiones a Airtable", datos.total || 0);
+      mostrarCifrasConsumo("Errores de API", datos.errores || 0);
+      mostrarCifrasConsumo("Errores 429 (cuota)", datos.cuota_429 || 0);
+      mostrarDistribucionConsumo("Por función", datos.por_origen, nombresFuentes);
+      mostrarDistribucionConsumo("Por operación", datos.por_operacion);
+      mostrarDistribucionConsumo("Por tabla", datos.por_tabla);
+      mostrarDistribucionConsumo("Por método (lecturas/escrituras)", datos.por_metodo);
+    } catch (error) {
+      estadoConsumoAirtable.textContent = error.message;
+      if (error.status === 401) mostrarAcceso("La sesión ha caducado.");
+    } finally {
+      consultarConsumoAirtable.disabled = false;
+    }
+  }
+
   let cargandoRetenciones = false;
 
   async function cargarRetenciones() {
@@ -413,10 +481,13 @@
       lista.replaceChildren();
       listaRetenciones.replaceChildren();
       listaAvisos.replaceChildren();
+      resumenConsumoAirtable.replaceChildren();
+      estadoConsumoAirtable.textContent = "";
       mostrarAcceso();
     }
   });
 
+  consultarConsumoAirtable.addEventListener("click", cargarConsumoAirtable);
   actualizarAvisos.addEventListener("click", cargarAvisos);
   actualizarRetenciones.addEventListener("click", cargarRetenciones);
   actualizar.addEventListener("click", cargarConversaciones);
@@ -440,6 +511,7 @@
     estadoCarga.textContent = "Pulse Actualizar conversaciones para consultar.";
     estadoAvisos.textContent = "Pulse Actualizar avisos para consultar.";
     estadoRetenciones.textContent = "Pulse Actualizar operaciones para consultar.";
+    estadoConsumoAirtable.textContent = "Pulse Ver consumo Airtable para consultar el mes.";
   }
 
   const comprobarProgramados = document.querySelector("#comprobarProgramados");
