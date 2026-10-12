@@ -1,3 +1,4 @@
+const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedido("privacidad");
 const crypto = require("crypto");
 const {
   crearCamposListaEsperaAnonimizada,
@@ -37,7 +38,7 @@ function secretoCronValido(req) {
 
 
 async function consultarAirtable(url, opciones = {}) {
-  const respuesta = await fetch(url, {
+  const respuesta = await fetchAirtableContado(url, {
     ...opciones,
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
