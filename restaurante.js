@@ -77,6 +77,18 @@ const recursosDisponibilidad = document.getElementById(
   "recursos-disponibilidad"
 );
 const errorDisponibilidad = document.getElementById("error-disponibilidad");
+const botonEditarDatos = document.getElementById("editar-datos-restaurante");
+const dialogoDatos = document.getElementById("dialogo-datos-restaurante");
+const formularioDatos = document.getElementById("form-datos-restaurante");
+const datoNombre = document.getElementById("dato-nombre");
+const datoTelefono1 = document.getElementById("dato-telefono1");
+const datoTelefono2 = document.getElementById("dato-telefono2");
+const estadoDatos = document.getElementById("estado-datos-restaurante");
+const errorDatos = document.getElementById("error-datos-restaurante");
+const guardarDatos = document.getElementById("guardar-datos-restaurante");
+const sincronizarDatos = document.getElementById("sincronizar-datos-restaurante");
+let revisionDatosRestaurante = "";
+
 let reservasActuales = [];
 let listaEsperaActual = [];
 let mesasLibresActuales = [];
@@ -900,6 +912,118 @@ async function ejecutarAccionReserva(datos) {
   return resultado;
 }
 
+
+// Datos estables: se consultan únicamente cuando el encargado abre el
+// editor. El botón "Actualizar" de las reservas NO refresca esta memoria.
+async function peticionDatosRestaurante(accion, datos = {}) {
+  const respuesta = await fetch("/api/datos-restaurante", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ restaurante_id: restauranteId, accion, ...datos })
+  });
+  const resultado = await respuesta.json();
+  if (respuesta.status === 401) {
+    mostrarAcceso("La sesión ha caducado. Vuelve a identificarte.");
+    dialogoDatos.close();
+  }
+  if (!respuesta.ok || !resultado.ok) {
+    throw new Error(resultado.error || "No se pudo completar la operación.");
+  }
+  return resultado;
+}
+
+function rellenarDatos(datos, revision) {
+  datoNombre.value = datos.nombre || "";
+  datoTelefono1.value = datos.telefono1 || "";
+  datoTelefono2.value = datos.telefono2 || "";
+  revisionDatosRestaurante = revision;
+}
+
+function mostrarResultadoSincronizacion(resultado) {
+  rellenarDatos(resultado.datos, resultado.revision);
+  document.getElementById("nombre-restaurante").textContent =
+    resultado.datos.nombre;
+  if (resultado.memoria_sincronizada) {
+    estadoDatos.textContent = "Cambios guardados en Airtable y memoria actualizada.";
+  } else if (!resultado.memoria_activada) {
+    estadoDatos.textContent =
+      "Cambios guardados en Airtable. La memoria de prueba todavía no está activada.";
+  } else {
+    estadoDatos.textContent = "";
+    errorDatos.textContent = resultado.aviso ||
+      "Cambios guardados en Airtable. No se pudo actualizar la memoria.";
+  }
+  sincronizarDatos.hidden = !resultado.memoria_activada ||
+    resultado.memoria_sincronizada;
+}
+
+botonEditarDatos.addEventListener("click", async () => {
+  estadoDatos.textContent = "Consultando datos actuales…";
+  errorDatos.textContent = "";
+  sincronizarDatos.hidden = true;
+  guardarDatos.disabled = true;
+  dialogoDatos.showModal();
+  try {
+    const resultado = await peticionDatosRestaurante("consultar");
+    rellenarDatos(resultado.datos, resultado.revision);
+    estadoDatos.textContent = "Datos actuales cargados desde Airtable.";
+  } catch (error) {
+    errorDatos.textContent = error.message;
+    estadoDatos.textContent = "";
+  } finally {
+    guardarDatos.disabled = !revisionDatosRestaurante;
+  }
+});
+
+formularioDatos.addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+  errorDatos.textContent = "";
+  estadoDatos.textContent = "Guardando en Airtable…";
+  guardarDatos.disabled = true;
+  sincronizarDatos.hidden = true;
+  try {
+    const resultado = await peticionDatosRestaurante("guardar", {
+      nombre: datoNombre.value.trim(),
+      telefono1: datoTelefono1.value.trim(),
+      telefono2: datoTelefono2.value.trim(),
+      revision: revisionDatosRestaurante
+    });
+    mostrarResultadoSincronizacion(resultado);
+  } catch (error) {
+    estadoDatos.textContent = "";
+    errorDatos.textContent = error.message;
+  } finally {
+    guardarDatos.disabled = false;
+  }
+});
+
+sincronizarDatos.addEventListener("click", async () => {
+  errorDatos.textContent = "";
+  estadoDatos.textContent = "Reintentando sincronización de memoria…";
+  sincronizarDatos.disabled = true;
+  try {
+    const resultado = await peticionDatosRestaurante("sincronizar");
+    mostrarResultadoSincronizacion(resultado);
+  } catch (error) {
+    estadoDatos.textContent = "";
+    errorDatos.textContent = error.message;
+  } finally {
+    sincronizarDatos.disabled = false;
+  }
+});
+
+function cerrarDatosRestaurante() {
+  dialogoDatos.close();
+  estadoDatos.textContent = "";
+  errorDatos.textContent = "";
+  revisionDatosRestaurante = "";
+  sincronizarDatos.hidden = true;
+}
+document.getElementById("cerrar-dialogo-datos")
+  .addEventListener("click", cerrarDatosRestaurante);
+document.getElementById("volver-dialogo-datos")
+  .addEventListener("click", cerrarDatosRestaurante);
 
 function abrirModificacion(reserva, accion = "modificar") {
   accionEnEdicion = accion;
