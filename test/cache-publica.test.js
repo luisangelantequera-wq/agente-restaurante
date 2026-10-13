@@ -80,7 +80,7 @@ test("inactiva por defecto y siempre inactiva en producción", async () => {
   assert.equal(cacheConfigurada({ ...ENV, CONTACTIA_CACHE_PUBLICA: "0" }), false);
 });
 
-test("tras la primera carga reutiliza datos públicos durante 60 segundos", async () => {
+test("tras la primera carga reutiliza datos públicos durante 24 horas", async () => {
   const redis = crearUpstashSimulado();
   let lecturas = 0;
   const cargar = async () => ({ nombre: "Sol " + ++lecturas });
@@ -89,7 +89,7 @@ test("tras la primera carga reutiliza datos públicos durante 60 segundos", asyn
   assert.deepEqual(uno, dos);
   assert.equal(lecturas, 1, "solo una llamada a Airtable");
   assert.deepEqual(redis.llamadas.map(c => c[0]), ["GET", "SET", "GET"]);
-  assert.equal(TTL_SEGUNDOS, 60);
+  assert.equal(TTL_SEGUNDOS, 86400);
 });
 
 test("un cambio directo en Airtable aparece después de caducar la caché", async () => {
@@ -98,7 +98,7 @@ test("un cambio directo en Airtable aparece después de caducar la caché", asyn
   const cargar = async () => ({ nombre });
   const primera = await leerConCachePublica(opciones(redis, cargar));
   nombre = "Sol Actualizado";
-  redis.adelantarSegundos(59);
+  redis.adelantarSegundos(86399);
   const anterior = await leerConCachePublica(opciones(redis, cargar));
   redis.adelantarSegundos(1);
   const nueva = await leerConCachePublica(opciones(redis, cargar));
@@ -154,7 +154,7 @@ test("no memoriza restaurantes ausentes ni objetos que no superan el validador",
 test("contenido mal formado en Upstash no se considera configuración válida", async () => {
   const redis = crearUpstashSimulado();
   const key = claveCache({ tipo: "ficha", identificador: "restaurante-sol", env: ENV });
-  redis.memoria.set(key, { valor: "{roto", vence: 60 });
+  redis.memoria.set(key, { valor: "{roto", vence: TTL_SEGUNDOS });
   let lecturas = 0;
   const dato = await leerConCachePublica(opciones(redis,
     async () => ({ nombre: "Sol " + ++lecturas })));
