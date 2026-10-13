@@ -916,11 +916,15 @@ async function ejecutarAccionReserva(datos) {
 // Datos estables: se consultan únicamente cuando el encargado abre el
 // editor. El botón "Actualizar" de las reservas NO refresca esta memoria.
 async function peticionDatosRestaurante(accion, datos = {}) {
-  const respuesta = await fetch("/api/datos-restaurante", {
+  const respuesta = await fetch("/api/restaurante", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({ restaurante_id: restauranteId, accion, ...datos })
+    body: JSON.stringify({
+      restaurante_id: restauranteId,
+      accion: "datos_" + accion,
+      ...datos
+    })
   });
   const resultado = await respuesta.json();
   if (respuesta.status === 401) {
