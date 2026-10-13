@@ -136,7 +136,7 @@ async function listarConocimiento() {
 
 
 // Solo datos de contacto del negocio; jamás guardar preguntas,
- // respuestas del cliente ni registros de conocimiento en la caché.
+ // respuestas del cliente, estados operativos ni conocimiento en caché.
 function informacionContactoValida(datos, restauranteId) {
   if (!datos || typeof datos !== "object" || Array.isArray(datos) ||
       !/^rec[A-Za-z0-9]{14}$/.test(datos.id || "") ||
@@ -144,11 +144,10 @@ function informacionContactoValida(datos, restauranteId) {
       !datos.fields || typeof datos.fields !== "object" ||
       Number(datos.fields.id) !== restauranteId ||
       Object.keys(datos.fields).some(campo =>
-        !["id", "nombre", "telefono1", "telefono2", "estado"].includes(campo)) ||
+        !["id", "nombre", "telefono1", "telefono2"].includes(campo)) ||
       ["telefono1", "telefono2"].some(campo =>
         datos.fields[campo] !== undefined &&
-        typeof datos.fields[campo] !== "string") ||
-      String(datos.fields.estado || "activo").trim().toLowerCase() !== "activo"
+        typeof datos.fields[campo] !== "string")
   ) return false;
   return true;
 }
@@ -163,8 +162,7 @@ async function cargarContactoPublico(restauranteId) {
       id: campos.id,
       nombre: campos.nombre,
       telefono1: campos.telefono1,
-      telefono2: campos.telefono2,
-      estado: campos.estado
+      telefono2: campos.telefono2
     }
   };
 }
