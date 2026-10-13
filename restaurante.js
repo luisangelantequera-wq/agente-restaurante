@@ -959,6 +959,8 @@ function mostrarResultadoSincronizacion(resultado) {
 }
 
 botonEditarDatos.addEventListener("click", async () => {
+  // Nunca permitir guardar con la revisión de una apertura anterior.
+  revisionDatosRestaurante = "";
   estadoDatos.textContent = "Consultando datos actuales…";
   errorDatos.textContent = "";
   sincronizarDatos.hidden = true;
