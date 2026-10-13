@@ -155,7 +155,7 @@ textarea {
 
 .barra-fecha {
   display: grid;
-  grid-template-columns: 1fr minmax(180px, 240px) auto auto;
+  grid-template-columns: 1fr minmax(180px, 240px) auto auto auto;
   align-items: end;
   gap: 14px;
   padding: 18px 20px;
@@ -1320,3 +1320,34 @@ textarea {
   }
 }
 
+
+/* Datos estables del restaurante. No afecta al editor de mesas o reservas. */
+.campos-datos-restaurante {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.campos-datos-restaurante > div:first-child {
+  grid-column: 1 / -1;
+}
+
+#estado-datos-restaurante {
+  margin-top: 18px;
+  color: #276a43;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+@media (max-width: 760px) {
+  .campos-datos-restaurante {
+    grid-template-columns: 1fr;
+  }
+  .campos-datos-restaurante > div:first-child {
+    grid-column: auto;
+  }
+  .dialogo-datos-restaurante .dialogo-acciones {
+    flex-wrap: wrap;
+  }
+}
