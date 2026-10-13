@@ -4,6 +4,7 @@ const {
   normalizarRestaurantePublico,
   slugPublicoValido
 } = require("../lib/restaurante-publico");
+const { leerConCachePublica } = require("../lib/cache-publica");
 
 
 function responder(res, status, datos) {
@@ -152,6 +153,30 @@ async function consultarZonasActivas(restauranteRecordId) {
 }
 
 
+// Solo se memoriza el resumen PÚBLICO: id, nombre, slug y zonas.
+// Los permisos de WhatsApp se calculan siempre con el entorno ACTUAL.
+function fichaPublicaValida(datos, slug) {
+  if (!datos || typeof datos !== "object" || Array.isArray(datos)) return false;
+  const campos = Object.keys(datos);
+  if (campos.length !== 4 ||
+      campos.some(c => !["id", "nombre", "slug_publico", "zonas"].includes(c))) {
+    return false;
+  }
+  if (!Array.isArray(datos.zonas) ||
+      datos.zonas.some(z => !z || typeof z.nombre !== "string")) return false;
+  return normalizarRestaurantePublico(datos, slug) !== null;
+}
+
+async function cargarFichaPublica(slugPublico) {
+  const registro = await consultarRestaurante(slugPublico);
+  if (!registro) return null;
+  const zonas = await consultarZonasActivas(registro.id);
+  return normalizarRestaurantePublico(
+    { ...registro.fields, zonas },
+    slugPublico
+  );
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return responder(res, 405, {
@@ -170,31 +195,30 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const registro = await consultarRestaurante(slugPublico);
+    const ficha = await leerConCachePublica({
+      tipo: "ficha",
+      identificador: slugPublico,
+      cargar: () => cargarFichaPublica(slugPublico),
+      validar: datos => fichaPublicaValida(datos, slugPublico)
+    });
 
-    if (!registro) {
+    if (!ficha) {
       return responder(res, 404, {
         ok: false,
         error: "Restaurante no encontrado."
       });
     }
 
-    const zonas = await consultarZonasActivas(registro.id);
-    const restaurante = normalizarRestaurantePublico(
-      { ...registro.fields, zonas, consentimiento_whatsapp: require("../lib/consentimiento-whatsapp").habilitado() },
-      slugPublico
-    );
-
-    if (!restaurante) {
-      return responder(res, 404, {
-        ok: false,
-        error: "Restaurante no encontrado."
-      });
-    }
+    // Nunca cachear el consentimiento: depende del despliegue/entorno.
+    const whatsappHabilitado =
+      require("../lib/consentimiento-whatsapp").habilitado();
 
     return responder(res, 200, {
       ok: true,
-      restaurante,
+      restaurante: {
+        ...ficha,
+        ...(whatsappHabilitado ? { consentimiento_whatsapp: true } : {})
+      },
       ...(registroConversacionesHabilitado(slugPublico)
         ? { registro_conversaciones_habilitado: true }
         : {})
