@@ -21,7 +21,7 @@ const ENV = {
 function prepararRed() {
   const kv = new Map();
   let segundos = 0, nombre = "Restaurante Sol", nombreZona = "INTERIOR",
-    telefono = "910000001", fallaRedis = false;
+    telefono = "910000001", fallaRedis = false, zonaCerrada = false;
   const lecturas = {};
   const fetchSimulado = async (url, opciones = {}) => {
     if (String(url) === ENV.KV_REST_API_URL) {
@@ -36,7 +36,7 @@ function prepararRed() {
       if (cmd === "GET") result = entrada?.dato ?? null;
       else if (cmd === "SET") {
         assert.equal(tipoExpiracion, "EX");
-        assert.equal(ttl, 60);
+        assert.equal(ttl, 86400);
         if (!entrada) {
           kv.set(clave, { dato, expira: segundos + ttl });
           result = "OK";
@@ -60,7 +60,7 @@ function prepararRed() {
       records = [{
         id: ZONA,
         fields: { id_zona: "SOL-INTERIOR", nombre: nombreZona,
-          restaurante: [RESTAURANTE], estado: "activo" }
+          restaurante: [RESTAURANTE], estado: zonaCerrada ? "inactivo" : "activo" }
       }];
     } else if (tabla === "CONOCIMIENTO_RESTAURANTE") {
       records = [];
@@ -74,8 +74,11 @@ function prepararRed() {
     lecturas, fetchSimulado, kv,
     cambiarNombre: n => { nombre = n; },
     cambiarZona: n => { nombreZona = n; },
+    cerrarZona: () => { zonaCerrada = true; },
+    abrirZona: () => { zonaCerrada = false; },
     cambiarTelefono: n => { telefono = n; },
-    caducar: () => { segundos += 61; },
+    avanzar: n => { segundos += n; },
+    caducar: () => { segundos += 86401; },
     fallarRedis: () => { fallaRedis = true; }
   };
 }
@@ -106,7 +109,7 @@ async function entornoSimulado(probar) {
   }
 }
 
-test("ficha pública consulta Airtable una sola vez por minuto y detecta cambios al caducar", async () =>
+test("datos estables se cachean 24h, pero cambios de zona aparecen inmediatamente", async () =>
   entornoSimulado(async red => {
     const peticion = { method: "GET", query: { slug: "restaurante-sol" } };
     const a = await ejecutar(publico, peticion);
@@ -115,23 +118,32 @@ test("ficha pública consulta Airtable una sola vez por minuto y detecta cambios
     assert.deepEqual(a.body.restaurante.zonas, [{ nombre: "INTERIOR" }]);
 
     red.cambiarNombre("Restaurante Sol Renovado");
-    red.cambiarZona("SALA VIP");
+    red.cerrarZona();
+    red.avanzar(5);
     const b = await ejecutar(publico, peticion);
     assert.equal(b.statusCode, 200);
     assert.equal(b.body.restaurante.nombre, "Restaurante Sol");
-    assert.deepEqual(red.lecturas, { RESTAURANTES: 1, ZONA: 1 });
+    assert.deepEqual(b.body.restaurante.zonas, [],
+      "Una zona cerrada no puede quedar en caché ni durante cinco segundos");
+    assert.deepEqual(red.lecturas, { RESTAURANTES: 1, ZONA: 2 });
+
+    red.abrirZona();
+    red.cambiarZona("SALA VIP");
+    const b2 = await ejecutar(publico, peticion);
+    assert.deepEqual(b2.body.restaurante.zonas, [{ nombre: "SALA VIP" }]);
+    assert.deepEqual(red.lecturas, { RESTAURANTES: 1, ZONA: 3 });
 
     red.caducar();
     const c = await ejecutar(publico, peticion);
     assert.equal(c.statusCode, 200);
     assert.equal(c.body.restaurante.nombre, "Restaurante Sol Renovado");
     assert.deepEqual(c.body.restaurante.zonas, [{ nombre: "SALA VIP" }]);
-    assert.deepEqual(red.lecturas, { RESTAURANTES: 2, ZONA: 2 });
+    assert.deepEqual(red.lecturas, { RESTAURANTES: 2, ZONA: 4 });
 
-    // Ninguna copia en Upstash contiene registros de cliente, teléfono
-    // privado o token de Airtable.
+    // Solo metadatos del negocio; ninguna zona o dato privado se almacena.
     for (const entrada of red.kv.values()) {
       const valor = JSON.parse(entrada.dato);
+      assert.equal(valor.datos.zonas, undefined);
       assert.equal(valor.datos.telefono1, undefined);
       assert.equal(valor.datos.AIRTABLE_API_KEY, undefined);
     }
@@ -154,12 +166,15 @@ test("teléfono del negocio compartido, pero las preguntas siguen consultándose
     });
 
     red.cambiarTelefono("910000002");
+    red.avanzar(30);
+    const cacheada = await ejecutar(informacion, peticion);
+    assert.equal(cacheada.body.telefono_restaurante, "910000001");
     red.caducar();
     const c = await ejecutar(informacion, peticion);
     assert.equal(c.statusCode, 200);
     assert.equal(c.body.telefono_restaurante, "910000002");
     assert.deepEqual(red.lecturas, {
-      RESTAURANTES: 2, CONOCIMIENTO_RESTAURANTE: 3
+      RESTAURANTES: 2, CONOCIMIENTO_RESTAURANTE: 4
     });
   }));
 
