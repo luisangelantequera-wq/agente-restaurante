@@ -46,6 +46,9 @@
           Nueva reserva
         </button>
         <button id="actualizar" type="button">Actualizar</button>
+        <button id="editar-datos-restaurante" class="boton-secundario" type="button">
+          Datos del restaurante
+        </button>
       </div>
 
       <section class="resumen" aria-label="Resumen del día">
@@ -372,6 +375,51 @@
         <button id="guardar-nueva-reserva" type="submit">
           Crear reserva
         </button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dialogo-datos-restaurante" class="dialogo dialogo-datos-restaurante">
+    <form id="form-datos-restaurante">
+      <div class="dialogo-cabecera">
+        <div>
+          <p class="etiqueta">CONFIGURACIÓN DEL NEGOCIO</p>
+          <h2>Datos del restaurante</h2>
+        </div>
+        <button id="cerrar-dialogo-datos" class="cerrar-dialogo" type="button"
+          aria-label="Cerrar">×</button>
+      </div>
+
+      <p class="nota-formulario">
+        El nombre y los teléfonos se guardarán primero en Airtable y después
+        se sincronizarán con la memoria de Contactia.
+        El estado de zonas, mesas y reservas siempre se comprueba por separado.
+      </p>
+
+      <div class="campos-datos-restaurante">
+        <div>
+          <label for="dato-nombre">Nombre público</label>
+          <input id="dato-nombre" type="text" minlength="2" maxlength="120" required>
+        </div>
+        <div>
+          <label for="dato-telefono1">Teléfono principal</label>
+          <input id="dato-telefono1" type="tel" maxlength="25" required>
+        </div>
+        <div>
+          <label for="dato-telefono2">Segundo teléfono (opcional)</label>
+          <input id="dato-telefono2" type="tel" maxlength="25">
+        </div>
+      </div>
+
+      <p id="estado-datos-restaurante" role="status" aria-live="polite"></p>
+      <p id="error-datos-restaurante" class="mensaje-error" role="alert"></p>
+
+      <div class="dialogo-acciones">
+        <button id="sincronizar-datos-restaurante" class="boton-secundario"
+          type="button" hidden>Reintentar sincronización</button>
+        <button id="volver-dialogo-datos" class="boton-secundario"
+          type="button">Volver</button>
+        <button id="guardar-datos-restaurante" type="submit">Guardar y actualizar memoria</button>
       </div>
     </form>
   </dialog>
