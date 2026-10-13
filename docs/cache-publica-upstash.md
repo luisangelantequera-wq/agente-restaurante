@@ -1,65 +1,54 @@
-# Fase 1: caché de información pública en Upstash (Preview)
+# Fase 1 revisada: caché solo para datos estables y zonas SIEMPRE al día
 
-## Objetivo
+## Decisión de producto
 
-Evitar consultas repetidas a Airtable **entre diferentes visitantes** para información pública y poco cambiante. Esta mejora complementa, pero no sustituye, la optimización anterior que elimina consultas duplicadas *dentro* de una petición.
+El propietario señala que 60 segundos es innecesariamente poco para datos como nombre y teléfono, pero demasiado para cerrar una terraza cuando llueve. La propuesta separa datos por **riesgo de obsolescencia** y no únicamente por frecuencia de cambio.
 
-## Alcance aplicado
+| Datos | Política |
+|---|---|
+| Nombre, slug e identificador público del establecimiento | Caché Upstash de **24 horas**, con posibilidad de invalidación manual posterior |
+| Teléfonos de contacto del negocio | Caché Upstash de **24 horas** |
+| Dirección | Candidata a 24 horas; **aún no añadida** porque las rutas existentes no incluyen un campo de dirección confirmado |
+| Zonas activas/inactivas, terraza cerrada, horarios y cierres | **Sin caché compartida**; consultar cuando es necesaria la configuración actual |
+| Estado abierto/cerrado del restaurante | **No guardarlo en caché operativa**; la acción de reserva consulta Airtable |
+| Mesas operativas, capacidades, reservas y bloqueos | Sin caché compartida para decisiones de reserva; lecturas frescas y verificación final de conflictos |
 
-Se ha añadido `lib/cache-publica.js` y se utiliza únicamente en estas rutas:
+La optimización previa de configuración **dentro de una sola petición** (`optimizar-configuracion-solicitud`) se conserva, pues no afecta a peticiones posteriores.
 
-- `GET /api/restaurante-publico?slug=...`: almacena la **ficha pública normalizada** (id, nombre, slug y nombres de zonas activas), no el registro original de Airtable. Los indicadores de consentimiento/funcionalidades basados en variables de entorno se calculan nuevamente en cada respuesta.
-- `POST /api/informacion-restaurante`: almacena solo **id, nombre, teléfono y estado del negocio**, previamente seleccionados de la respuesta de Airtable; el conocimiento del restaurante se sigue consultando cada vez para evitar respuestas desactualizadas.
+## Qué se ha cambiado
 
-**Todavía no se guarda en esta caché el horario completo del motor de reservas ni el estado de las mesas.** Esos datos deberán incorporarse de forma separada, después de diseñar invalidaciones seguras.
+- `lib/cache-publica.js`: TTL de **86400 segundos (24 horas)** solo para tipos públicos permitidos; namespace nuevo `contactia:cache-publica:v2` para no reutilizar entradas del experimento anterior.
+- `GET /api/restaurante-publico?slug=...`: la caché ahora contiene exclusivamente los campos `id`, `nombre`, `slug_publico` y el identificador técnico `restaurante_record_id`. **No guarda las zonas.** En **cada petición** obtiene la lista de zonas activas desde Airtable después de leer la identidad del restaurante desde la memoria. Si la terraza se desactiva, una nueva solicitud mostrará la zona cerrada sin esperar 24 horas ni 60 segundos.
+- `POST /api/informacion-restaurante`: únicamente cachea nombre y teléfonos del negocio, sin guardar el estado operativo. Las preguntas y el conocimiento siguen consultándose como antes. Un cierre total del restaurante debe validarse durante la reserva, no inferirse de esta caché de contacto.
+- `api/chat.js` se mantiene sin cambios en esta fase: **las verificaciones de disponibilidad y los intentos de reserva consultan la configuración operativa actual**, incluidas zonas y mesas; la confirmación sigue sus protecciones de retención.
 
-## Seguridad
+## Garantías y límites
 
-- **Nunca guardar** `RESERVAS`, `MESAS` como disponibilidad, `CONVERSACIONES`, datos de clientes, tokens de confirmación, bloqueos de Upstash, preguntas de clientes o contenido privado.
-- Cada tipo de caché tiene una lista estricta de campos permitidos y un validador de contenido. Ni datos de Airtable no normalizados ni cabeceras con credenciales se guardan en Redis.
-- Cada entrada dura **60 segundos**. Una modificación hecha directamente en Airtable puede tardar **hasta 60 segundos** en verse en la ficha pública o el teléfono de información; para cambios urgentes se debe esperar ese plazo o planificar invalidación inmediata con autenticación.
-- Las claves se separan por **base de Airtable, rama Git, categoría y restaurante** usando un hash.
-- `SET EX 60 NX` evita que dos solicitudes concurrentes reemplacen su entrada mutuamente.
-- No se cachean errores de API, fallos 429, registros ausentes ni datos inválidos.
-- Si Upstash falla, se intenta consultar Airtable normalmente, sin devolver información inventada. Si Airtable falla, se devuelve el error habitual.
-- El código de `api/chat.js`, las comprobaciones finales de reservas y las retenciones **no se modifican** en esta fase.
+- Una terraza cerrada en Airtable antes de una **nueva comprobación** ya no puede reaparecer por una copia de 24 horas. Una llamada iniciada antes del cambio deberá volver a verificar disponibilidad al solicitar y confirmar la reserva.
+- **No se garantiza técnicamente una latencia de 5 segundos:** el guardado en Airtable y la siguiente solicitud pueden tener demora o error. El sistema debe rechazar o no confirmar cuando no puede verificar en vivo.
+- La identidad pública cacheada puede tardar hasta **24 horas** en reflejar un cambio hecho directamente en Airtable. Como excepción, si se desactiva completamente el establecimiento, la página pública podría seguir mostrando su identidad hasta que caduque la caché, pero el motor de reservas consulta su estado actual y no debe aceptar la reserva. Antes de activar la caché en clientes reales hay que diseñar una invalidación administrativa para cambios urgentes.
+- Con esta política, las visitas a la ficha pública **siguen consumiendo lecturas de ZONA**. Es un gasto deliberado para reflejar cierres de forma inmediata. No presentar ya el ahorro ficticio de '100 visitantes sin ninguna lectura de zonas'.
+- No se memoriza ningún dato personal, credencial, reserva, estado de ocupación ni bloqueo en esta caché. Las respuestas 429 no se cachean; si Upstash falla, se consulta Airtable.
+
+## Ahorro esperado
+
+La lectura de identidad pública `RESTAURANTES` y la de contacto público dejan de repetirse por visitante durante 24 horas (tras la primera carga, si la memoria está disponible); cada consulta de zonas necesarias para la web o el proceso de reserva permanece viva.
+
+La mayor parte de las lecturas críticas de disponibilidad se optimizaron **dentro de la petición** sin caché entre clientes. Esta mejora NO significa ahorrar el 99% de todo Airtable y requiere medir con el contador real.
 
 ## Activación
 
-La caché está **desactivada por defecto**. Solo funciona si, en la rama de Preview correspondiente, están las variables:
+- **Desactivada por defecto**. Solo puede ejecutarse en Preview con `CONTACTIA_CACHE_PUBLICA=1`.
+- Requiere además `AIRTABLE_BASE_ID`, `AIRTABLE_API_KEY`, `KV_REST_API_URL`, `KV_REST_API_TOKEN` y variables de rama establecidas por Vercel.
+- No se activa con estos cambios en `main`, `prototipo-voz` ni `prueba-livekit-cartesia`; tampoco se activa en Production incluso aunque se declarase el flag.
+- Antes de usarlo para clientes reales: crear un **botón autenticado de actualización de datos estables** que borre las copias del restaurante cuando el encargado los cambie desde el panel de Contactia. Las modificaciones directas en Airtable sin aviso solo se reflejarán al caducar las 24 horas.
 
-- `VERCEL_ENV=preview` (establecida automáticamente por Vercel)
-- `VERCEL_GIT_COMMIT_REF` (rama establecida automáticamente)
-- `CONTACTIA_CACHE_PUBLICA=1` (activación expresa)
-- `AIRTABLE_BASE_ID` apuntando a una base de pruebas adecuada
-- `AIRTABLE_API_KEY` para las consultas habituales
-- `KV_REST_API_URL` y `KV_REST_API_TOKEN` para Upstash
+## Pruebas
 
-Por diseño **no se activa en producción**, incluso si se define la bandera. No reutiliza datos entre distintos restaurantes, bases o ramas.
-
-## Ahorro potencial (no medición real)
-
-Ejemplo en un único intervalo de 60 segundos, sin cambios de datos:
-
-- 100 visitantes solicitan la ficha pública de Restaurante Sol.
-- Antes: hasta 100 lecturas de RESTAURANTES y 100 de ZONA, según la paginación.
-- Ahora: normalmente una lectura de cada tabla después del primer fallo de caché; las visitas siguientes obtienen la copia en Upstash.
-- Cada visita hace una operación ligera de lectura de Upstash y el primer fallo puede requerir una escritura adicional. Las solicitudes concurrentes iniciales aún pueden disparar más de una lectura a Airtable.
-- Las verificaciones de disponibilidad y las confirmaciones **siguen utilizando sus propias consultas**, por lo que no se debe extrapolar ese ahorro a todo Contactia.
-
-## Validaciones
-
-- 10 pruebas unitarias: activación, expiración, cambios directos de Airtable, aislamiento de claves, 429, errores de Redis, rechazo de contenido inválido y datos personales.
-- 3 pruebas de las rutas públicas con ambas APIs ficticias, incluida comprobación de actualización después de caducar.
-- Estas 13 pruebas pasaron en un entorno JavaScript de simulación; queda pendiente ejecutar `npm test` completo con Node y realizar pruebas reales cuando se recupere el límite de Airtable.
-
-## Trabajo posterior
-
-1. Medir llamadas reales antes y después con el contador Airtable.
-2. Añadir un mecanismo autenticado de **invalidación inmediata** al modificar información desde un panel propio.
-3. Evaluar por separado si se puede cachear un pequeño subconjunto de los horarios para **consultas orientativas**, sin reutilizarlo jamás al confirmar una reserva.
-4. Evaluar el coste y la latencia añadidos por Upstash frente al ahorro en Airtable.
+- 10 pruebas unitarias de caché: TTL 24h, aislamiento por rama y base, 429, fallos de Upstash y validación del contenido.
+- 3 pruebas de rutas públicas con Airtable y Redis simulados: cierre de zona y reapertura sin esperar el TTL, persistencia del nombre durante 24 horas y actualización tras la expiración, teléfono de negocio con TTL 24h y recuperación de falla de Redis.
+- Las pruebas pasan en entorno de JavaScript simulado. Falta aún `npm test` integral y la prueba real cuando se recupere la cuota de Airtable.
 
 ## Rama
 
-`cache-publica-upstash`, basada en `optimizar-configuracion-solicitud`, sin cambios sobre `main`, `prototipo-voz` ni `prueba-livekit-cartesia`.
+`cache-publica-upstash` (PR de borrador #8), construida sobre `optimizar-configuracion-solicitud`. No fusionar a producción sin revisión.
