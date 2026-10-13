@@ -62,6 +62,18 @@ function prepararEscenario() {
     }
 
     const tabla = new URL(url).pathname.split("/")[3];
+    if (tabla === "ZONA") {
+      return respuestaAirtable({
+        records: [{
+          id: "recZonaInterior01",
+          fields: {
+            restaurante: [RESTAURANTE],
+            nombre: "INTERIOR",
+            estado: estado.mesaCerrada ? "inactivo" : "activo"
+          }
+        }]
+      });
+    }
     assert.equal(tabla, "RESTAURANTES");
     const esEscritura = String(opts.method || "GET").toUpperCase() === "PATCH";
     if (esEscritura) {
@@ -226,6 +238,36 @@ test("Redis caído: distingue guardado en Airtable de memoria pendiente y permit
     assert.equal(reintento.statusCode, 200);
     assert.equal(reintento.body.memoria_sincronizada, true);
     assert.equal(estado.escriturasAirtable, 1);
+  }));
+
+test("la ficha pública ve inmediatamente el nuevo nombre tras guardar, pero consulta la zona actual", async () =>
+  conEscenario(async ({ estado }, cookie) => {
+    const peticionPublica = {
+      method: "GET", query: { slug: "restaurante-sol" }
+    };
+    const antes = await ejecutar(publico, peticionPublica);
+    assert.equal(antes.statusCode, 200);
+    assert.equal(antes.body.restaurante.nombre, "Restaurante Sol");
+    assert.deepEqual(antes.body.restaurante.zonas, [{ nombre: "INTERIOR" }]);
+
+    const consulta = await ejecutar(editar, request("consultar", cookie));
+    const guardado = await ejecutar(editar, request("guardar", cookie, {
+      revision: consulta.body.revision,
+      nombre: "Restaurante Sol Reformado",
+      telefono1: "910000004",
+      telefono2: ""
+    }));
+    assert.equal(guardado.statusCode, 200);
+    assert.equal(guardado.body.memoria_sincronizada, true);
+
+    // Aunque el valor anterior tuviera 24 horas de vida, el siguiente
+    // visitante recibe el nuevo nombre sin esperar.
+    estado.mesaCerrada = true;
+    const despues = await ejecutar(publico, peticionPublica);
+    assert.equal(despues.statusCode, 200);
+    assert.equal(despues.body.restaurante.nombre, "Restaurante Sol Reformado");
+    assert.deepEqual(despues.body.restaurante.zonas, [],
+      "Una zona cerrada no puede conservarse en la memoria de identidad");
   }));
 
 test("no edita datos si se ejecuta en producción", async () =>
