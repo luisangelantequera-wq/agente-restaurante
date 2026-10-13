@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const {
   crearTokenSesion, COOKIE_SESION
 } = require("../lib/sesion-restaurante");
-const editar = require("../api/datos-restaurante");
+const editar = require("../lib/datos-restaurante-panel");
 const publico = require("../api/restaurante-publico");
 const { claveCache } = require("../lib/cache-publica");
 
@@ -119,7 +119,7 @@ function request(accion, cookie, campos = {}, origin = "https://contactia.exampl
       cookie,
       "content-type": "application/json"
     },
-    body: { accion, restaurante_id: 1, ...campos }
+    body: { accion: "datos_" + accion, restaurante_id: 1, ...campos }
   };
 }
 
