@@ -153,28 +153,32 @@ async function consultarZonasActivas(restauranteRecordId) {
 }
 
 
-// Solo se memoriza el resumen PÚBLICO: id, nombre, slug y zonas.
-// Los permisos de WhatsApp se calculan siempre con el entorno ACTUAL.
+// La copia solo guarda datos de IDENTIDAD que cambian poco. No guardar
+// estados de zonas ni horarios: se consultan de nuevo en cada petición.
+// El ID de registro es interno y permite relacionar las zonas en Airtable.
 function fichaPublicaValida(datos, slug) {
   if (!datos || typeof datos !== "object" || Array.isArray(datos)) return false;
   const campos = Object.keys(datos);
   if (campos.length !== 4 ||
-      campos.some(c => !["id", "nombre", "slug_publico", "zonas"].includes(c))) {
+      campos.some(c => !["id", "nombre", "slug_publico", "restaurante_record_id"].includes(c)) ||
+      !/^rec[A-Za-z0-9]{14}$/.test(datos.restaurante_record_id || "")) {
     return false;
   }
-  if (!Array.isArray(datos.zonas) ||
-      datos.zonas.some(z => !z || typeof z.nombre !== "string")) return false;
-  return normalizarRestaurantePublico(datos, slug) !== null;
+  return normalizarRestaurantePublico({ ...datos, zonas: [] }, slug) !== null;
 }
 
 async function cargarFichaPublica(slugPublico) {
   const registro = await consultarRestaurante(slugPublico);
   if (!registro) return null;
-  const zonas = await consultarZonasActivas(registro.id);
-  return normalizarRestaurantePublico(
-    { ...registro.fields, zonas },
-    slugPublico
+  const ficha = normalizarRestaurantePublico(
+    { ...registro.fields, zonas: [] }, slugPublico
   );
+  return ficha && {
+    id: ficha.id,
+    nombre: ficha.nombre,
+    slug_publico: ficha.slug_publico,
+    restaurante_record_id: registro.id
+  };
 }
 
 module.exports = async (req, res) => {
@@ -209,14 +213,22 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Nunca cachear el consentimiento: depende del despliegue/entorno.
+    // CRÍTICO: en cada visita se comprueba la configuración de zonas
+    // directamente en Airtable. Una terraza cerrada no puede permanecer
+    // abierta en una copia de 24 horas.
+    const zonas = await consultarZonasActivas(ficha.restaurante_record_id);
+
+    // Los permisos de WhatsApp dependen del entorno, no de Airtable.
     const whatsappHabilitado =
       require("../lib/consentimiento-whatsapp").habilitado();
 
     return responder(res, 200, {
       ok: true,
       restaurante: {
-        ...ficha,
+        id: ficha.id,
+        nombre: ficha.nombre,
+        slug_publico: ficha.slug_publico,
+        zonas,
         ...(whatsappHabilitado ? { consentimiento_whatsapp: true } : {})
       },
       ...(registroConversacionesHabilitado(slugPublico)
