@@ -19,7 +19,7 @@ La rama `panel-sincronizar-cache-publica` añade un editor de **nombre y teléfo
 
 ## Seguridad y límites
 
-- La ruta `/api/datos-restaurante` solo funciona en **Preview**, con petición POST del **mismo origen HTTPS**, cookie firmada de sesión válida y validación de entrada.
+- Las acciones `datos_consultar`, `datos_guardar` y `datos_sincronizar` de `/api/restaurante` solo funcionan en **Preview**, con petición POST del **mismo origen HTTPS**, cookie firmada de sesión válida y validación de entrada.
 - No se envía ni almacena en Redis la clave privada del restaurante, la contraseña del panel, datos de clientes, reservas ni información de ocupación.
 - Cada restaurante, rama y base de Airtable mantiene claves separadas de caché.
 - **La activación de caché sigue siendo opt-in** con `CONTACTIA_CACHE_PUBLICA=1` y las variables Upstash. Sin ella, el editor permite guardar en Airtable pero indica que la memoria experimental no está activa.
@@ -46,3 +46,7 @@ La rama `panel-sincronizar-cache-publica` añade un editor de **nombre y teléfo
 ## Activación futura
 
 Una vez validada la aplicación con la base aislada de pruebas, establecer `CONTACTIA_CACHE_PUBLICA=1` **exclusivamente** en la rama Preview correspondiente y ejecutar pruebas controladas con el contador. No fusionar a `main`, `prototipo-voz` ni ramas de Alondra antes de probar el circuito completo.
+
+## Compatibilidad con Vercel Hobby
+
+La primera implementación de esta mejora añadía la función `api/datos-restaurante.js`, pero Vercel rechazó el despliegue al superar el límite de **12 Serverless Functions** del plan Hobby. La versión corregida traslada la lógica a `lib/datos-restaurante-panel.js` y la conecta con el endpoint existente `api/restaurante.js` mediante acciones exclusivas `datos_consultar`, `datos_guardar` y `datos_sincronizar`. El cliente web utiliza `/api/restaurante`. La ruta extra se ha eliminado; la versión actual de Preview vuelve a desplegar correctamente.
