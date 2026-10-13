@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const gestionarDatosRestaurante = require("../lib/datos-restaurante-panel");
 const { registroDebeAnonimizarse } = require("../lib/privacidad");
 const {
   filtrarRegistrosRestaurante
@@ -218,6 +219,14 @@ module.exports = async (req, res) => {
     const restauranteId = Number(body.restaurante_id);
     const accion = String(body.accion || (body.clave ? "iniciar_sesion" : "cargar"))
       .trim();
+
+    // Los datos estables utilizan las mismas funciones desplegadas para
+    // el panel, sin superar el máximo de 12 funciones del plan Hobby.
+    // Se aplica protección estricta de origen y sesión en la subrutina.
+    if (["datos_consultar", "datos_guardar", "datos_sincronizar"]
+      .includes(accion)) {
+      return gestionarDatosRestaurante(req, res);
+    }
     const fecha = String(body.fecha || "").trim();
     const horaMesas = String(body.hora_mesas || "14:00").trim();
     const clave = body.clave;
