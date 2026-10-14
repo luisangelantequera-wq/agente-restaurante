@@ -1,0 +1,43 @@
+name: Contactia - bateria de pruebas (Preview)
+
+on:
+  push:
+    branches:
+      - panel-sincronizar-cache-publica
+  pull_request:
+    branches:
+      - cache-publica-upstash
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    name: Node 22 - pruebas completas y conversacionales
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      # Las pruebas usan datos ficticios; nunca credenciales reales.
+      NODE_ENV: test
+      CONTACTIA_CACHE_PUBLICA: "0"
+      AIRTABLE_API_KEY: ""
+      AIRTABLE_BASE_ID: ""
+      KV_REST_API_URL: ""
+      KV_REST_API_TOKEN: ""
+      TWILIO_AUTH_TOKEN: ""
+      TWILIO_ACCOUNT_SID: ""
+    steps:
+      - name: Descargar rama bajo prueba
+        uses: actions/checkout@v4
+      - name: Preparar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Instalar dependencias exactas
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Ejecutar todos los tests
+        run: npm test
+      - name: Ejecutar bateria conversacional
+        run: npm run test:conversacion
