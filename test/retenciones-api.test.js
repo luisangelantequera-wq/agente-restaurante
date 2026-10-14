@@ -71,6 +71,16 @@ function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
           enviarConReintentos: opciones => requerir(nombre).enviarConReintentos({ ...opciones, esperar: async () => {} })
         }
         : nombre === "../lib/auditoria" ? { registrarAuditoria: async () => {}, determinarOrigenAuditoria: () => "prueba" }
+        : nombre === "../lib/contador-airtable" ? {
+          ...requerir(nombre),
+          crearFetchMedido: (origen, opciones = {}) => requerir(nombre)
+            .crearFetchMedido(origen, {
+              ...opciones,
+              // La instrumentación se importa fuera del vm, por eso
+              // no ve el fetch local salvo que se lo pasemos.
+              fetchImpl: fetchFalso
+            })
+        }
         : requerir(nombre),
       module: { exports: {} }, process: { env: { AIRTABLE_BASE_ID: "appPrueba", ...(avisos ? { VERCEL_ENV: "preview", RESEND_API_KEY: "prueba" } : {}) } },
       Buffer, URLSearchParams, console: { log() {}, warn() {}, error() {} }, fetch: fetchFalso
