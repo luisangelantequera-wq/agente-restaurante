@@ -1,0 +1,82 @@
+name: Contactia - bateria de pruebas (Preview)
+
+on:
+  push:
+    branches:
+      - panel-sincronizar-cache-publica
+  pull_request:
+    branches:
+      - cache-publica-upstash
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Ninguna prueba debe disponer de acceso a proveedores reales.
+  NODE_ENV: test
+  CONTACTIA_CACHE_PUBLICA: "0"
+  AIRTABLE_API_KEY: ""
+  AIRTABLE_BASE_ID: ""
+  KV_REST_API_URL: ""
+  KV_REST_API_TOKEN: ""
+  TWILIO_AUTH_TOKEN: ""
+  TWILIO_ACCOUNT_SID: ""
+
+jobs:
+  nueva-mejora:
+    name: Funciones modificadas - pruebas aisladas
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Probar editor de datos, memoria y disponibilidad
+        run: >-
+          node --test
+          test/datos-restaurante-panel.test.js
+          test/cache-publica.test.js
+          test/cache-publica-api.test.js
+          test/configuracion-solicitud.test.js
+          test/lectura-alternativas.test.js
+          test/alternativas-lecturas-api.test.js
+
+  prueba-completa:
+    name: Rama actual - regresion completa
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Todos los tests Node
+        run: npm test
+      - name: Bateria conversacional, incluso si hay fallos en la anterior
+        if: ${{ !cancelled() }}
+        run: npm run test:conversacion
+
+  base-anterior:
+    name: Comparativa - rama anterior sin editor
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cache-publica-upstash
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Tests de la rama anterior, sin la mejora del panel
+        run: npm test
+      - name: Conversaciones de la rama anterior
+        if: ${{ !cancelled() }}
+        run: npm run test:conversacion
