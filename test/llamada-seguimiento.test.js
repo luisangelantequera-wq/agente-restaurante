@@ -170,9 +170,9 @@ test('hora locutada incluye horas y minutos; no anuncia mantenimiento después d
 test('programador ejecuta reintento de voz aunque no queden correos; pausa impide llamadas',async()=>{
   const e=escenario();await e.iniciar();await e.callback('estado',{CallStatus:'completed'});await activar(e);e.avanzar(2*3600000);
   const modulo=require('../lib/llamada-seguimiento'), anteriorServicio=modulo.servicio, anteriorFetch=global.fetch;
-  const claves=['VERCEL_ENV','CONTACTIA_AVISOS_SECRET','KV_REST_API_URL','KV_REST_API_TOKEN','AIRTABLE_BASE_ID','AIRTABLE_API_KEY','RESEND_API_KEY'];
+  const claves=['VERCEL_ENV','CONTACTIA_AVISOS_SECRET','KV_REST_API_URL','KV_REST_API_TOKEN','AIRTABLE_BASE_ID','AIRTABLE_API_KEY','RESEND_API_KEY','CONTACTIA_PROGRAMADOR_AUTOMATICO'];
   const guardado=Object.fromEntries(claves.map(k=>[k,process.env[k]]));let pausa=true;
-  Object.assign(process.env,{VERCEL_ENV:'preview',CONTACTIA_AVISOS_SECRET:env.CONTACTIA_AVISOS_SECRET,KV_REST_API_URL:'https://prueba.upstash.io',KV_REST_API_TOKEN:'prueba',AIRTABLE_BASE_ID:'appPrueba',AIRTABLE_API_KEY:'prueba',RESEND_API_KEY:'prueba'});
+  Object.assign(process.env,{VERCEL_ENV:'preview',CONTACTIA_PROGRAMADOR_AUTOMATICO:'true',CONTACTIA_AVISOS_SECRET:env.CONTACTIA_AVISOS_SECRET,KV_REST_API_URL:'https://prueba.upstash.io',KV_REST_API_TOKEN:'prueba',AIRTABLE_BASE_ID:'appPrueba',AIRTABLE_API_KEY:'prueba',RESEND_API_KEY:'prueba'});
   modulo.servicio=()=>e.s;
   global.fetch=async(url,o)=>{
     assert.equal(url,'https://prueba.upstash.io');const a=JSON.parse(o.body);
