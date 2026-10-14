@@ -1,9 +1,9 @@
 name: Contactia - bateria de pruebas (Preview)
 
 on:
-  push:
+  pull_request:
     branches:
-      - corregir-bateria-pruebas
+      - panel-sincronizar-cache-publica
   workflow_dispatch:
 
 permissions:
