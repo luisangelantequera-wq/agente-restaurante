@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - corregir-bateria-pruebas
-  pull_request:
-    branches:
-      - panel-sincronizar-cache-publica
   workflow_dispatch:
 
 permissions:
@@ -59,24 +56,5 @@ jobs:
       - name: Todos los tests Node
         run: npm test
       - name: Bateria conversacional, incluso si hay fallos en la anterior
-        if: ${{ !cancelled() }}
-        run: npm run test:conversacion
-
-  base-anterior:
-    name: Comparativa - rama anterior sin editor
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: panel-sincronizar-cache-publica
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Tests de la rama anterior, sin la mejora del panel
-        run: npm test
-      - name: Conversaciones de la rama anterior
         if: ${{ !cancelled() }}
         run: npm run test:conversacion
