@@ -3,10 +3,10 @@ name: Contactia - bateria de pruebas (Preview)
 on:
   push:
     branches:
-      - panel-sincronizar-cache-publica
+      - corregir-bateria-pruebas
   pull_request:
     branches:
-      - cache-publica-upstash
+      - panel-sincronizar-cache-publica
   workflow_dispatch:
 
 permissions:
@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: cache-publica-upstash
+          ref: panel-sincronizar-cache-publica
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
