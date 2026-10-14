@@ -6,6 +6,7 @@ const {
   crearTokenSesion, COOKIE_SESION
 } = require("../lib/sesion-restaurante");
 const editar = require("../lib/datos-restaurante-panel");
+const rutaPanel = require("../api/restaurante");
 const publico = require("../api/restaurante-publico");
 const { claveCache } = require("../lib/cache-publica");
 
@@ -295,4 +296,30 @@ test("impide escribir campos privados u operativos mediante las acciones admitid
     assert.equal(guardar.statusCode, 200);
     assert.equal(estado.fields.estado, "activo");
     assert.equal(estado.fields.api_key_restaurante, "SECRETO-NUNCA-CACHEAR");
+  }));
+
+test("la ruta real del panel admite datos_consultar y datos_guardar sin añadir otra API", async () =>
+  conEscenario(async ({ estado }, cookie) => {
+    const consulta = await ejecutar(rutaPanel, request("consultar", cookie));
+    assert.equal(consulta.statusCode, 200);
+    assert.equal(consulta.body.datos.nombre, "Restaurante Sol");
+
+    const guardado = await ejecutar(rutaPanel, request("guardar", cookie, {
+      revision: consulta.body.revision,
+      nombre: "Restaurante Sol del Panel",
+      telefono1: "910000008",
+      telefono2: ""
+    }));
+    assert.equal(guardado.statusCode, 200);
+    assert.equal(guardado.body.memoria_sincronizada, true);
+    assert.equal(estado.escriturasAirtable, 1);
+    assert.equal(estado.fields.nombre, "Restaurante Sol del Panel");
+  }));
+
+test("la ruta real no permite modificar datos sin sesión del propietario", async () =>
+  conEscenario(async ({ estado }) => {
+    const respuesta = await ejecutar(rutaPanel, request("consultar", ""));
+    assert.equal(respuesta.statusCode, 401);
+    assert.equal(estado.escriturasAirtable, 0);
+    assert.equal(estado.consultasAirtable, 0);
   }));
