@@ -4,6 +4,7 @@ const {
   normalizarRestaurantePublico,
   slugPublicoValido
 } = require("../lib/restaurante-publico");
+const { leerConCachePublica } = require("../lib/cache-publica");
 
 
 function responder(res, status, datos) {
@@ -152,6 +153,34 @@ async function consultarZonasActivas(restauranteRecordId) {
 }
 
 
+// La copia solo guarda datos de IDENTIDAD que cambian poco. No guardar
+// estados de zonas ni horarios: se consultan de nuevo en cada petición.
+// El ID de registro es interno y permite relacionar las zonas en Airtable.
+function fichaPublicaValida(datos, slug) {
+  if (!datos || typeof datos !== "object" || Array.isArray(datos)) return false;
+  const campos = Object.keys(datos);
+  if (campos.length !== 4 ||
+      campos.some(c => !["id", "nombre", "slug_publico", "restaurante_record_id"].includes(c)) ||
+      !/^rec[A-Za-z0-9]{14}$/.test(datos.restaurante_record_id || "")) {
+    return false;
+  }
+  return normalizarRestaurantePublico({ ...datos, zonas: [] }, slug) !== null;
+}
+
+async function cargarFichaPublica(slugPublico) {
+  const registro = await consultarRestaurante(slugPublico);
+  if (!registro) return null;
+  const ficha = normalizarRestaurantePublico(
+    { ...registro.fields, zonas: [] }, slugPublico
+  );
+  return ficha && {
+    id: ficha.id,
+    nombre: ficha.nombre,
+    slug_publico: ficha.slug_publico,
+    restaurante_record_id: registro.id
+  };
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return responder(res, 405, {
@@ -170,31 +199,38 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const registro = await consultarRestaurante(slugPublico);
+    const ficha = await leerConCachePublica({
+      tipo: "ficha",
+      identificador: slugPublico,
+      cargar: () => cargarFichaPublica(slugPublico),
+      validar: datos => fichaPublicaValida(datos, slugPublico)
+    });
 
-    if (!registro) {
+    if (!ficha) {
       return responder(res, 404, {
         ok: false,
         error: "Restaurante no encontrado."
       });
     }
 
-    const zonas = await consultarZonasActivas(registro.id);
-    const restaurante = normalizarRestaurantePublico(
-      { ...registro.fields, zonas, consentimiento_whatsapp: require("../lib/consentimiento-whatsapp").habilitado() },
-      slugPublico
-    );
+    // CRÍTICO: en cada visita se comprueba la configuración de zonas
+    // directamente en Airtable. Una terraza cerrada no puede permanecer
+    // abierta en una copia de 24 horas.
+    const zonas = await consultarZonasActivas(ficha.restaurante_record_id);
 
-    if (!restaurante) {
-      return responder(res, 404, {
-        ok: false,
-        error: "Restaurante no encontrado."
-      });
-    }
+    // Los permisos de WhatsApp dependen del entorno, no de Airtable.
+    const whatsappHabilitado =
+      require("../lib/consentimiento-whatsapp").habilitado();
 
     return responder(res, 200, {
       ok: true,
-      restaurante,
+      restaurante: {
+        id: ficha.id,
+        nombre: ficha.nombre,
+        slug_publico: ficha.slug_publico,
+        zonas,
+        ...(whatsappHabilitado ? { consentimiento_whatsapp: true } : {})
+      },
       ...(registroConversacionesHabilitado(slugPublico)
         ? { registro_conversaciones_habilitado: true }
         : {})

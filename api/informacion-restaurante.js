@@ -6,6 +6,7 @@ const {
 const {
   filtrarRegistrosRestaurante
 } = require("../lib/pertenencia-restaurante");
+const { leerConCachePublica } = require("../lib/cache-publica");
 
 
 const MAX_REQUEST_BODY_BYTES = 8 * 1024;
@@ -134,6 +135,38 @@ async function listarConocimiento() {
 }
 
 
+// Solo datos de contacto del negocio; jamás guardar preguntas,
+ // respuestas del cliente, estados operativos ni conocimiento en caché.
+function informacionContactoValida(datos, restauranteId) {
+  if (!datos || typeof datos !== "object" || Array.isArray(datos) ||
+      !/^rec[A-Za-z0-9]{14}$/.test(datos.id || "") ||
+      Object.keys(datos).some(clave => !["id", "fields"].includes(clave)) ||
+      !datos.fields || typeof datos.fields !== "object" ||
+      Number(datos.fields.id) !== restauranteId ||
+      Object.keys(datos.fields).some(campo =>
+        !["id", "nombre", "telefono1", "telefono2"].includes(campo)) ||
+      ["telefono1", "telefono2"].some(campo =>
+        datos.fields[campo] !== undefined &&
+        typeof datos.fields[campo] !== "string")
+  ) return false;
+  return true;
+}
+
+async function cargarContactoPublico(restauranteId) {
+  const registro = await buscarRestaurante(restauranteId);
+  if (!registro) return null;
+  const campos = registro.fields || {};
+  return {
+    id: registro.id,
+    fields: {
+      id: campos.id,
+      nombre: campos.nombre,
+      telefono1: campos.telefono1,
+      telefono2: campos.telefono2
+    }
+  };
+}
+
 function telefonoPublico(restaurante) {
   const telefono = String(
     restaurante?.fields?.telefono1 ||
@@ -193,7 +226,12 @@ module.exports = async (req, res) => {
       return responder(res, 400, { ok: false, error: "La pregunta no es válida." });
     }
 
-    const restaurante = await buscarRestaurante(restauranteId);
+    const restaurante = await leerConCachePublica({
+      tipo: "telefono",
+      identificador: String(restauranteId),
+      cargar: () => cargarContactoPublico(restauranteId),
+      validar: datos => informacionContactoValida(datos, restauranteId)
+    });
 
     if (!restaurante) {
       return responder(res, 404, { ok: false, error: "Restaurante no encontrado." });
