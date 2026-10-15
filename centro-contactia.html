@@ -40,6 +40,15 @@
         <button id="comprobarProgramados" class="boton-secundario" type="button">Comprobar avisos pendientes</button>
         <p id="estadoProgramados" role="status"></p>
       </section>
+      <section class="panel revision-reservas" aria-labelledby="tituloConsumoAirtable">
+        <h2 id="tituloConsumoAirtable">Contador de peticiones a Airtable</h2>
+        <p>Resumen del mes en esta rama de pruebas: lecturas y escrituras por función.
+          No incluye otras ramas, otros programas ni el consumo histórico anterior a la activación.</p>
+        <p>Consultar este contador no realiza peticiones a Airtable, solo lee las estadísticas de Upstash.</p>
+        <button id="consultarConsumoAirtable" class="boton-secundario" type="button">Ver consumo Airtable</button>
+        <p id="estadoConsumoAirtable" role="status"></p>
+        <div id="resumenConsumoAirtable"></div>
+      </section>
       <section class="panel revision-reservas" aria-labelledby="tituloRevisionReservas">
         <h2 id="tituloRevisionReservas">Reservas pendientes de comprobar</h2>
         <p>Operaciones cuyo guardado no pudo completarse con certeza. Comprobar consulta Airtable y solo resuelve los casos con evidencia suficiente.</p>

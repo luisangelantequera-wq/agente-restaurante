@@ -1,3 +1,4 @@
+const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedido("centro");
 const {
   borrarSesionContactia,
   centroContactiaConfigurado,
@@ -172,7 +173,7 @@ async function obtenerConversacionesAirtable(filtros) {
   });
   const url = "https://api.airtable.com/v0/" +
     `${process.env.AIRTABLE_BASE_ID}/${encodeURIComponent(tabla)}?${parametros}`;
-  const respuesta = await fetch(url, {
+  const respuesta = await fetchAirtableContado(url, {
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`
     }
@@ -268,6 +269,19 @@ module.exports = async (req, res) => {
 
   if (cuerpo.accion === "validar_sesion") {
     return responder(res, 200, { ok: true, sesion: true });
+  }
+
+  if (cuerpo.accion === "consumo_airtable") {
+    try {
+      // Lectura de un único contador de Upstash, no consulta Airtable.
+      const consumo = await require("../lib/contador-airtable").leerConsumo();
+      return responder(res, 200, { ok: true, ...consumo });
+    } catch {
+      return responder(res, 503, {
+        ok: false,
+        error: "El contador no está disponible o falta configurar Upstash para esta rama."
+      });
+    }
   }
 
   if (["llamada_reserva_revisar", "llamada_reserva_iniciar", "llamada_reserva_estado", "llamada_reserva_reintentos"].includes(cuerpo.accion)) {

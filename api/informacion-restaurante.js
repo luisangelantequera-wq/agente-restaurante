@@ -1,3 +1,4 @@
+const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedido("configuracion");
 const crypto = require("crypto");
 const {
   seleccionarConocimiento
@@ -39,7 +40,7 @@ function tamanoSolicitud(req) {
 
 
 async function consultarAirtable(url) {
-  const respuesta = await fetch(url, {
+  const respuesta = await fetchAirtableContado(url, {
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`
     }

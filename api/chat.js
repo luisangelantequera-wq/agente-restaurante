@@ -1,3 +1,4 @@
+const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedido("reservas");
 // ============================================================
 
 const crypto = require("crypto");
@@ -248,7 +249,7 @@ function datosAntelacionInsuficiente(accion, validacion, minutos) {
 // 2️⃣ CONSULTA SEGURA A AIRTABLE
 async function consultarAirtable(url, opciones = {}) {
 
-  const respuesta = await fetch(url, {
+  const respuesta = await fetchAirtableContado(url, {
     ...opciones,
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`,
@@ -4925,6 +4926,14 @@ const prefijoReserva = normalizarPrefijoReserva(
   }
 };
 
+// Etiqueta únicamente la acción permitida; nunca registra el contenido de
+// la solicitud ni datos de clientes. Conserva las exportaciones del módulo.
+const procesarChatSinMedir = module.exports;
+const { conAccion, accionDeCuerpo } = require("../lib/contador-airtable");
+module.exports = (req, res) => conAccion(
+  accionDeCuerpo(req?.body),
+  () => procesarChatSinMedir(req, res)
+);
 
 module.exports._seguridad = {
   camposHorarioParaZona,
