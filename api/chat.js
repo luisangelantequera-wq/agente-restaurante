@@ -388,6 +388,29 @@ function resolverZonaPreferida(zonas, valor) {
 }
 
 
+// La modificación de fecha/hora/personas conserva la zona de la reserva.
+// Los registros antiguos sin cabecera se resuelven desde sus mesas vinculadas.
+async function obtenerZonaReservaExistente(reserva, restauranteRecordId) {
+  const zonas = await obtenerZonasActivasRestaurante(restauranteRecordId);
+  const cabecera = String(reserva.fields.mensaje || "")
+    .match(/^Zona solicitada: (.+)\.(?:\r?\n|$)/);
+  if (cabecera) {
+    return zonas.find(zona => nombreZona(zona) === cabecera[1]) || null;
+  }
+  const ids = reserva.fields.mesa;
+  if (!Array.isArray(ids) || !ids.length) return null;
+  const mesas = filtrarRegistrosRestaurante(
+    await listarRegistrosAirtable("MESAS"), restauranteRecordId
+  );
+  const asignadas = ids.map(id => mesas.find(mesa => mesa.id === id));
+  if (asignadas.some(mesa => !mesa || mesa.fields.zona?.length !== 1)) return null;
+  const zonasIds = new Set(asignadas.map(mesa => mesa.fields.zona[0]));
+  return zonasIds.size === 1
+    ? zonas.find(zona => zonasIds.has(zona.id)) || null
+    : null;
+}
+
+
 function camposHorarioParaZona(camposRestaurante, zona) {
   const horarioZona = String(zona?.fields?.horario_reservas || "").trim();
 
@@ -3982,6 +4005,22 @@ const prefijoReserva = normalizarPrefijoReserva(
         });
       }
 
+      const zonaOriginal = await obtenerZonaReservaExistente(reservaActual, restaurante.id);
+      if (!zonaOriginal) {
+        return responder(res, 200, {
+          ok: true, modificada: false, reactivada: false, disponible: false,
+          motivo: "No se puede conservar la zona original: está cerrada o no se ha podido identificar. Contacte con el restaurante."
+        });
+      }
+      const horarioZonaOriginal = camposHorarioParaZona(restaurante.fields, zonaOriginal);
+      const validacionZonaOriginal = validarHorarioRestaurante(horarioZonaOriginal, fecha, hora);
+      if (!validacionZonaOriginal.valido) {
+        return responder(res, 200, {
+          ok: true, modificada: false, reactivada: false, disponible: false,
+          motivo: validacionZonaOriginal.motivo
+        });
+      }
+
       const asignacion = await buscarAsignacionDisponible(
         restaurante_id,
         restaurante.id,
@@ -3990,7 +4029,9 @@ const prefijoReserva = normalizarPrefijoReserva(
         numeroPersonas,
         margenCapacidad,
         duracionReservaMinutos,
-        reservaActual.id
+        reservaActual.id,
+        false,
+        zonaOriginal.id
       );
 
       if (!asignacion) {
@@ -4003,9 +4044,9 @@ const prefijoReserva = normalizarPrefijoReserva(
           margenCapacidad,
           duracionReservaMinutos,
           intervaloMinutos,
-          restaurante.fields,
+          horarioZonaOriginal,
           reservaActual.id,
-          null,
+          zonaOriginal.id,
           aplicaAntelacionCliente
             ? antelacionMinimaReservaMinutos
             : null
@@ -4018,8 +4059,8 @@ const prefijoReserva = normalizarPrefijoReserva(
           disponible: false,
           alternativas,
           motivo: esReactivacion
-            ? "No hay disponibilidad para reactivar la reserva con esos datos."
-            : "No hay disponibilidad para modificar la reserva con esos datos."
+            ? `No hay disponibilidad en ${nombreZona(zonaOriginal)} para reactivar la reserva con esos datos.`
+            : `No hay disponibilidad en ${nombreZona(zonaOriginal)} para modificar la reserva con esos datos.`
         });
       }
 
@@ -4100,7 +4141,10 @@ const prefijoReserva = normalizarPrefijoReserva(
               duracionReservaMinutos
             }),
             ...(mensajeIncluido
-              ? { mensaje: normalizarObservaciones(mensaje) }
+              ? { mensaje: observacionesConZona(
+                  String(mensaje || "").replace(/^Zona solicitada: .+\.(?:\r?\n|$)/, ""),
+                  zonaOriginal
+                ) }
               : {}),
             ...(esReactivacion ? { estado: "confirmada" } : {})
           }

@@ -14,7 +14,7 @@ const fecha = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 const datos = { restaurante_id: 1, fecha, hora: "14:00", personas: 4, zona_preferida: "TERRAZA" };
 const contacto = { nombre: "Prueba", email: "prueba@example.com", telefono: "+34600111222" };
 
-function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
+function entorno({ avisos = false, estadoCorreo = 503, segundaZona = false } = {}) {
   const redis = crearRedisSimulado(), reservas = new Map();
   const escrituras = [], correos = [];
   let fallarPost = false, cantidad = 0;
@@ -24,6 +24,10 @@ function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
     api_key_restaurante: "claveprueba" } };
   const zona = { id: ZONA, fields: { nombre: "TERRAZA", restaurante: [REST], estado: "activo" } };
   const mesa = { id: MESA, fields: { nombre_mesa: "Mesa", restaurante: [REST], zona: [ZONA], capacidad: 4, estado: "libre" } };
+  const otraZona = { id: "recZona0000000002", fields: { nombre: "INTERIOR", restaurante: [REST], estado: "activo" } };
+  const otraMesa = { id: "recMesa0000000002", fields: { ...mesa.fields, zona: [otraZona.id] } };
+  const zonas = segundaZona ? [otraZona, zona] : [zona];
+  const mesas = segundaZona ? [otraMesa, mesa] : [mesa];
   const respuesta = datos => ({ ok: true, status: 200, text: async () => JSON.stringify(datos), json: async () => datos });
   const fetchFalso = async (url, opciones = {}) => {
     const u = new URL(url), partes = u.pathname.split("/"), tabla = partes[3], id = partes[4];
@@ -32,8 +36,8 @@ function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
       return { ok: estadoCorreo < 300, status: estadoCorreo, text: async () => JSON.stringify(estadoCorreo < 300 ? { id: "correoPrueba" } : {}) };
     }
     if (tabla === "RESTAURANTES") return respuesta({ records: [restaurante] });
-    if (tabla === "ZONA") return respuesta(id ? zona : { records: [zona] });
-    if (tabla === "MESAS") return respuesta(id ? mesa : { records: [mesa] });
+    if (tabla === "ZONA") return respuesta(id ? zonas.find(z => z.id === id) : { records: zonas });
+    if (tabla === "MESAS") return respuesta(id ? mesas.find(m => m.id === id) : { records: mesas });
     if (tabla === "COMBINACIONES_MESAS") return respuesta({ records: [] });
     assert.equal(tabla, "RESERVAS", `No debe llamar a servicios reales: ${tabla}`);
     if (opciones.method === "POST") {
@@ -50,8 +54,8 @@ function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
     if (id) return respuesta(reservas.get(id));
     const formula = u.searchParams.get("filterByFormula") || "";
     const registros = [...reservas.values()].filter(r => {
-      if (formula.includes("{id_reserva}=")) return formula.includes(r.fields.id_reserva);
-      if (formula.includes("{token_gestion}=")) return formula.includes(r.fields.token_gestion);
+      if (formula.includes("{id_reserva}")) return formula.includes(r.fields.id_reserva);
+      if (formula.includes("{token_gestion}")) return formula.includes(r.fields.token_gestion);
       if (formula.includes("'pendiente'")) return ["pendiente", "confirmada", "ocupada", "con retraso", "cobrada"].includes(r.fields.estado);
       return ["confirmada", "ocupada", "con retraso", "cobrada"].includes(r.fields.estado);
     });
@@ -92,7 +96,7 @@ function entorno({ avisos = false, estadoCorreo = 503 } = {}) {
       return { status: res.statusCode, ...res.body };
     };
   }
-  return { instancia, restaurante, redis, reservas, escrituras, correos, fallarPost: () => { fallarPost = true; } };
+  return { instancia, restaurante, zonas, mesas, redis, reservas, escrituras, correos, fallarPost: () => { fallarPost = true; } };
 }
 
 test("API real: dos verificaciones simultáneas solo anuncian disponibilidad a una", async () => {
@@ -243,4 +247,71 @@ for (const idioma of ["es", "en", "fr"]) test(`API: reconstrucción diferida id�
   assert.equal(huellaPayload(payload), detalle.huella);
   assert.equal(huellaPayload(f.mensaje || ''), detalle.mensaje_huella);
   assert.equal(JSON.stringify(payload), e.correos[0].body);
+});
+
+// Regresión: la otra zona se devuelve primero para que una búsqueda sin
+// filtro reproduzca el traslado silencioso observado al cambiar la hora.
+async function reservarEnZonaOriginal(e) {
+  const a = e.instancia();
+  const oferta = await a({ ...datos, accion: "verificar" });
+  const reserva = await a({ ...datos, ...contacto, accion: "reservar", retencion_token: oferta.retencion_token });
+  assert.equal(reserva.reservado, true, JSON.stringify(reserva));
+  return { a, reserva, registro: [...e.reservas.values()].find(r => r.fields.id_reserva === reserva.id_reserva) };
+}
+
+test("modificar hora conserva zona aunque otra zona se ofrezca primero y el cliente no envíe zona", async () => {
+  const e = entorno({ segundaZona: true });
+  const { a, reserva, registro } = await reservarEnZonaOriginal(e);
+  const r = await a({ restaurante_id: 1, fecha, hora: "17:00", personas: 4,
+    accion: "modificar", token_gestion: reserva.token_gestion });
+  assert.equal(r.modificada, true, JSON.stringify(r));
+  assert.deepEqual(Array.from(registro.fields.mesa), [MESA]);
+  assert.equal(registro.fields.hora, "17:00");
+  assert.match(registro.fields.mensaje, /^Zona solicitada: TERRAZA\./);
+});
+
+test("sin sitio en la zona original rechaza y no sugiere horarios libres solo en otra zona", async () => {
+  const e = entorno({ segundaZona: true });
+  const { a, reserva, registro } = await reservarEnZonaOriginal(e);
+  e.mesas.find(m => m.id === MESA).fields.estado = "fuera de servicio";
+  const antes = e.escrituras.length;
+  const original = structuredClone(registro.fields);
+  const r = await a({ ...datos, hora: "17:00", accion: "modificar", token_gestion: reserva.token_gestion });
+  assert.equal(r.modificada, false, JSON.stringify(r));
+  assert.equal(r.alternativas.length, 0);
+  assert.match(r.motivo, /TERRAZA/);
+  assert.deepEqual(registro.fields, original);
+  assert.equal(e.escrituras.length, antes);
+});
+
+test("zona original cerrada impide modificar y mantiene intacta la reserva", async () => {
+  const e = entorno({ segundaZona: true });
+  const { a, reserva, registro } = await reservarEnZonaOriginal(e);
+  e.zonas.find(z => z.id === ZONA).fields.estado = "inactivo";
+  const antes = e.escrituras.length;
+  const r = await a({ ...datos, hora: "17:00", accion: "modificar", token_gestion: reserva.token_gestion });
+  assert.equal(r.modificada, false, JSON.stringify(r));
+  assert.equal(e.escrituras.length, antes);
+  assert.equal(registro.fields.hora, "14:00");
+});
+
+test("reserva antigua sin anotación conserva la zona de sus mesas y protege la cabecera al editar notas", async () => {
+  const e = entorno({ segundaZona: true });
+  const { a, reserva, registro } = await reservarEnZonaOriginal(e);
+  registro.fields.mensaje = "Sin frutos secos";
+  const r = await a({ ...datos, hora: "17:00", accion: "modificar", token_gestion: reserva.token_gestion,
+    mensaje: "Una trona" });
+  assert.equal(r.modificada, true, JSON.stringify(r));
+  assert.deepEqual(Array.from(registro.fields.mesa), [MESA]);
+  assert.equal(registro.fields.mensaje, "Zona solicitada: TERRAZA.\nUna trona");
+});
+
+test("reactivar también conserva la zona original", async () => {
+  const e = entorno({ segundaZona: true });
+  const { a, reserva, registro } = await reservarEnZonaOriginal(e);
+  assert.equal((await a({ accion: "cancelar", restaurante_id: 1, token_gestion: reserva.token_gestion })).cancelada, true);
+  const r = await a({ ...datos, hora: "17:00", accion: "reactivar", clave_restaurante: "claveprueba", token_gestion: reserva.token_gestion });
+  assert.equal(r.reactivada, true, JSON.stringify(r));
+  assert.deepEqual(Array.from(registro.fields.mesa), [MESA]);
+  assert.equal(registro.fields.estado, "confirmada");
 });
