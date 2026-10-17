@@ -113,7 +113,8 @@ function zonas(horarioTerraza = "") {
 
 function instalarAirtableFalso({
   horarioTerraza = "",
-  antelacionMinima = 30
+  antelacionMinima = 30,
+  fechasEspeciales = []
 } = {}) {
   return async (url) => {
     const ruta = new URL(url).pathname;
@@ -126,7 +127,8 @@ function instalarAirtableFalso({
             id: 1,
             nombre: "Restaurante Sol",
             estado: "activo",
-            horario_reservas: horarioParaTodos("13:00-16:00"),
+            horario_reservas: JSON.stringify({ ...JSON.parse(horarioParaTodos("13:00-16:00")),
+              ...(fechasEspeciales.length ? { _contactia: { habitual: ["13:00-16:00"], especiales: fechasEspeciales } } : {}) }),
             intervalo_minutos: 15,
             antelacion_minima_reserva_minutos: antelacionMinima,
             duracion_reserva_minutos: 90,
@@ -374,4 +376,30 @@ test("la confirmación por correo conserva la zona elegida", () => {
   assert.match(fuente, /Zona:\s*\$\{zonaConfirmada\}/);
   assert.match(fuente, /<strong>Zona:<\/strong>/);
   assert.match(fuente, /zona:\s*nombreZona\(zonaReserva\)/);
+});
+
+test("fecha especial: la API bloquea nuevas reservas y no ofrece alternativas en un cierre anual", async () => {
+  const original = global.fetch;
+  const fecha = fechaProxima();
+  global.fetch = instalarAirtableFalso({ fechasEspeciales: [{ fecha: fecha.slice(5), rangos: [] }] });
+  try {
+    const r = await ejecutar({ accion: "verificar", restaurante_id: 1, fecha, hora: "14:00", personas: 2, zona_preferida: "terraza" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.disponible, false);
+    assert.deepEqual(r.body.alternativas, []);
+    assert.match(r.body.motivo, /cerrado en esa fecha/);
+  } finally { global.fetch = original; }
+});
+test("fecha especial: las alternativas usan el servicio excepcional y no el horario semanal", async () => {
+  const original = global.fetch;
+  const fecha = fechaProxima();
+  global.fetch = instalarAirtableFalso({ fechasEspeciales: [{ fecha, rangos: ["17:00-19:00"] }] });
+  try {
+    const r = await ejecutar({ accion: "verificar", restaurante_id: 1, fecha, hora: "16:00", personas: 2, zona_preferida: "terraza" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.disponible, false);
+    assert.ok(r.body.alternativas.length > 0, JSON.stringify(r.body));
+    assert.ok(r.body.alternativas.every(h => (typeof h === "string" ? h : h.hora) >= "17:00"));
+    assert.match(r.body.motivo, /17:00-19:00/);
+  } finally { global.fetch = original; }
 });

@@ -1411,6 +1411,27 @@ button:focus-visible, summary:focus-visible { outline: 3px solid #bf8d2e; outlin
 .editor-turno button { padding: 8px 12px; }
 .editor-turno input { min-width: 0; }
 .editor-agregar { font-size: 12px; margin-top: 10px; }
+.editor-seccion { padding: 18px 0; border-bottom: 1px solid var(--borde); }
+.editor-seccion:first-child { padding-top: 0; }
+.editor-seccion h3 { margin: 0 0 12px; }
+.editor-seccion summary { cursor: pointer; font-weight: 700; line-height: 1.5; }
+.editor-cierres-semanales { display: flex; flex-wrap: wrap; gap: 14px 20px; }
+.editor-cierres-semanales label, [data-semanal] > label { text-transform: capitalize; }
+[data-semanal] .editor-bloque { margin-top: 12px; }
+.editor-fecha { border: 1px solid var(--borde); padding: 14px; border-radius: 12px; margin-bottom: 12px; }
+.editor-fecha-datos { display: grid; grid-template-columns: 65px 65px minmax(120px, 1fr) 95px auto; gap: 10px; align-items: end; margin-bottom: 12px; }
+.editor-fecha-datos label { font-size: 12px; min-width: 0; margin: 0; }
+.editor-fecha-datos input, .editor-fecha-datos select { min-width: 0; width: 100%; }
+.editor-fecha-datos button { padding: 10px 12px; }
+.editor-fecha > .editor-bloque { margin-top: 12px; }
+@media (max-width: 600px) {
+  .editor-fecha-datos { grid-template-columns: 1fr 1fr auto; }
+  .editor-fecha-datos label:has([data-repeticion]), .editor-fecha-datos [data-etiqueta-anio] { grid-column: span 2; }
+  .editor-fecha-datos [data-quitar-fecha] { grid-column: 3; grid-row: 1; }
+  .editor-turno { gap: 6px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; }
+  .editor-turno input { padding: 8px 4px; font-size: 14px; }
+  .editor-turno button { padding: 8px; }
+}
 .grupo-zona { margin: 0; padding: 18px 22px 12px; background: #f5f6f2; color: #344b3b; font-size: 13px; text-transform: uppercase; letter-spacing: .1em; }
 @media (min-width: 980px) { .tabla-cabecera, .reserva { grid-template-columns: 55px minmax(75px,.9fr) 80px 65px minmax(90px,1fr) minmax(100px,1fr) 85px 120px; gap: 8px; } }
 @media (max-width: 1100px) { .panel { width: calc(100% - 32px); } .espacio-panel { grid-template-columns: 195px minmax(0, 1fr); gap: 20px; } .barra-fecha { grid-template-columns: 1fr 1fr; } .barra-fecha label { grid-column: 1; } }

@@ -258,12 +258,10 @@ module.exports = async (req, res) => {
     // Primera ampliación habilitada únicamente en la rama de ensayo.
     if (process.env.VERCEL_ENV === "preview" && process.env.CONTACTIA_PANEL_V2 === "1") {
       const modelo = require("../lib/ajustes-restaurante");
-      const preguntaNormalizada = require("../lib/conocimiento-restaurante").normalizarTextoConocimiento(pregunta);
-      if (/\b(horario|horarios|abr[ií]s|abren|abierto|apertura|cerrado|cierre|cierran)\b/.test(preguntaNormalizada) ||
-          /que dias|dias de apertura/.test(preguntaNormalizada)) {
+      if (modelo.esPreguntaHorario(pregunta)) {
         const actual = await buscarInformacionPublica(restauranteId);
         if (actual.id !== restaurante.id) throw new Error("El restaurante no coincide.");
-        return responder(res, 200, { ok: true, encontrada: true, respuesta: modelo.describirHorario(actual.fields), telefono_restaurante: telefonoPublico(restaurante) });
+        return responder(res, 200, { ok: true, encontrada: true, respuesta: modelo.describirHorario(actual.fields, pregunta), telefono_restaurante: telefonoPublico(restaurante) });
       }
       const informacion = await leerConCachePublica({
         tipo: "informacion", identificador: String(restauranteId),

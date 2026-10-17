@@ -102,8 +102,34 @@ test("ajustes: horarios avisan de reservas afectadas solo del propio restaurante
   assert.equal(e.reservas[0].fields.estado, "confirmada");
 }));
 test("ajustes: las respuestas de horarios leen cambios operativos sin usar memoria compartida", async () => escenario(async (e, llamar, preguntar) => {
-  const primera = await preguntar("¿Qué horarios tenéis?"); assert.match(primera.respuesta, /Lunes: 13:00-16:00/);
+  const primera = await preguntar("¿Qué horarios tenéis?"); assert.match(primera.respuesta, /De lunes a domingo: de 13:00 a 16:00/);
   const datos = horario(); datos.horario.lunes = [];
   const actual = await llamar("consultar", "horarios"); await llamar("guardar", "horarios", { revision: actual.revision, datos });
-  assert.match((await preguntar("¿Qué horarios tenéis?")).respuesta, /Lunes: cerrado/);
+  assert.match((await preguntar("¿Qué horarios tenéis?")).respuesta, /Cerramos los lunes/);
+}));
+
+test("ajustes: calendario especial se guarda sin cambiar tablas y responde al día solicitado", async () => escenario(async (e, llamar, preguntar) => {
+  const inicial = await llamar("consultar", "horarios");
+  const datos = modelo.desdeEditor({ habitual: ["13:00-16:00"], cerrados: ["lunes"], semanales: {}, especiales: [{ fecha: "12-25", rangos: [] }, { fecha: "01-01", rangos: ["14:00-17:00"] }] });
+  const guardado = await llamar("guardar", "horarios", { revision: inicial.revision, datos });
+  assert.equal(guardado.datos_guardados, true);
+  assert.deepEqual(Object.keys(e.patches[0]).sort(), ["cierres_especiales", "dias_cierre", "horario_reservas"]);
+  const leido = await llamar("consultar", "horarios");
+  assert.deepEqual(leido.datos, datos);
+  assert.match((await preguntar("¿Abrís el 25 de diciembre?")).respuesta, /25 de diciembre.*cerrado/);
+  assert.match((await preguntar("¿Qué horarios tenéis el 1 de enero?")).respuesta, /14:00 a 17:00/);
+}));
+test("ajustes: cierre anual avisa de reservas afectadas y exige nueva confirmación si cambian", async () => escenario(async (e, llamar) => {
+  const fecha = new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 10);
+  const registro = localizador => ({ id: "recPrueba", fields: { restaurante: [REST], id_reserva: localizador, fecha, hora: "14:00", estado: "confirmada" } });
+  e.reservas = [registro("SOL-UNO")];
+  const inicial = await llamar("consultar", "horarios");
+  const datos = modelo.desdeEditor({ habitual: ["13:00-16:00"], cerrados: [], semanales: {}, especiales: [{ fecha: fecha.slice(5), rangos: [] }] });
+  const previo = await llamar("guardar", "horarios", { revision: inicial.revision, datos });
+  assert.equal(previo.requiere_confirmacion, true);
+  e.reservas.push(registro("SOL-DOS"));
+  const cambiado = await llamar("guardar", "horarios", { revision: inicial.revision, datos, confirmacion_afectadas: previo.revision_afectadas });
+  assert.equal(cambiado.requiere_confirmacion, true);
+  assert.equal(cambiado.reservas_afectadas.length, 2);
+  assert.equal(e.patches.length, 0);
 }));

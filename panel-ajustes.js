@@ -20,33 +20,88 @@
   function turno(rango = "13:00-16:00") {
     return `<div class="editor-turno"><input type="time" aria-label="Desde" value="${escapar(rango.slice(0, 5))}" required><span>a</span><input type="time" aria-label="Hasta" value="${escapar(rango.slice(6))}" required><button type="button" class="boton-secundario" data-quitar-turno aria-label="Quitar franja">×</button></div>`;
   }
+  function bloqueTurnos(rangos, atributos = "") {
+    return `<div class="editor-bloque" ${atributos}><div class="editor-turnos">${rangos.map(turno).join("")}</div><button type="button" class="boton-secundario editor-agregar" data-agregar-turno>+ Añadir franja</button></div>`;
+  }
+  function filaEspecial(especial = { fecha: "", rangos: [] }) {
+    const partes = especial.fecha.split("-"), anual = partes.length !== 3;
+    const dia = partes.at(-1) || "", mes = partes.at(-2) || "";
+    return `<section class="editor-fecha" data-fecha-especial aria-label="Fecha especial">
+      <div class="editor-fecha-datos">
+        <label>Día<input type="number" data-fecha-dia min="1" max="31" value="${escapar(dia)}" placeholder="25" aria-label="Día del mes"></label>
+        <label>Mes<input type="number" data-fecha-mes min="1" max="12" value="${escapar(mes)}" placeholder="12" aria-label="Mes"></label>
+        <label>Aplicar<select data-repeticion><option value="anual" ${anual ? "selected" : ""}>Cada año</option><option value="unica" ${anual ? "" : "selected"}>Solo un año</option></select></label>
+        <label data-etiqueta-anio ${anual ? "hidden" : ""}>Año<input type="number" data-fecha-anio min="2000" max="9999" value="${anual ? new Date().getFullYear() : escapar(partes[0])}"></label>
+        <button type="button" data-quitar-fecha class="boton-secundario" aria-label="Eliminar fecha especial">×</button>
+      </div>
+      <label class="editor-cerrado"><input type="checkbox" data-cerrado ${especial.rangos.length ? "" : "checked"}> Cerrado todo el día</label>
+      ${bloqueTurnos(especial.rangos.length ? especial.rangos : ["13:00-16:00"], "data-turnos-especiales")}
+    </section>`;
+  }
   function rellenar(datos) {
     if (seccion === "publico") {
       campos.innerHTML = `<div class="editor-campos"><div><label for="ajuste-direccion">Dirección</label><input id="ajuste-direccion" maxlength="300" value="${escapar(datos.direccion)}" autocomplete="street-address"></div><div><label for="ajuste-web">Página web</label><input id="ajuste-web" type="url" maxlength="300" value="${escapar(datos.web)}" placeholder="https://restaurante.es"></div><h3>Respuestas para sus clientes</h3><p class="nota-formulario">Escriba únicamente información confirmada. Si deja un apartado vacío, el asistente no dará una respuesta basada en él.</p>${modelo.TEMAS.map(t => `<div><label for="info-${t.id}">${escapar(t.titulo)}</label><textarea id="info-${t.id}" maxlength="1000" rows="3">${escapar(datos.informacion[t.id])}</textarea></div>`).join("")}</div>`;
     } else {
-      campos.innerHTML = `<div class="editor-horarios">${modelo.DIAS.map(d => `<section class="editor-dia" data-dia="${d}"><div class="editor-dia-cabecera"><h3>${d}</h3><label class="editor-cerrado"><input type="checkbox" data-cerrado ${datos.horario[d].length ? "" : "checked"}> Cerrado</label></div><div class="editor-turnos" ${datos.horario[d].length ? "" : "hidden"}>${datos.horario[d].map(turno).join("")}</div><button type="button" class="boton-secundario editor-agregar" data-agregar-turno ${datos.horario[d].length ? "" : "hidden"}>Añadir franja</button></section>`).join("")}<label for="ajuste-cierres">Cierres excepcionales</label><textarea id="ajuste-cierres" rows="3" placeholder="2026-12-25&#10;2027-01-01">${escapar(datos.cierres.join("\n"))}</textarea><p class="nota-formulario">Una fecha por línea, en formato AAAA-MM-DD. Los cierres afectan a todo el restaurante. Las franjas de cada día deben terminar antes de medianoche.</p></div>`;
-      campos.querySelectorAll("[data-cerrado]").forEach(el => actualizarDia(el.closest("[data-dia]")));
+      const editor = modelo.prepararEditor(datos);
+      campos.innerHTML = `<div class="editor-horarios">
+        <section class="editor-seccion"><h3>Horario habitual</h3><p class="nota-formulario">Se aplica a todos los días abiertos, salvo las excepciones que indique abajo.</p>${bloqueTurnos(editor.habitual, "data-habitual")}</section>
+        <section class="editor-seccion"><h3>Días de cierre semanal</h3><div class="editor-cierres-semanales">${modelo.DIAS.map(d => `<label class="editor-cerrado"><input type="checkbox" data-cierre-semanal="${d}" ${editor.cerrados.includes(d) ? "checked" : ""}> ${d}</label>`).join("")}</div></section>
+        <details class="editor-seccion" ${Object.keys(editor.semanales).length ? "open" : ""}><summary>Días con horario diferente <span class="nota-formulario">(opcional)</span></summary><p class="nota-formulario">Por ejemplo, viernes y sábados hasta más tarde, o domingos solo comidas.</p>${modelo.DIAS.map(d => `<section class="editor-dia" data-semanal="${d}"><label class="editor-cerrado"><input type="checkbox" data-distinto ${editor.semanales[d] ? "checked" : ""}> ${d}</label>${bloqueTurnos(editor.semanales[d] || editor.habitual)}</section>`).join("")}</details>
+        <section class="editor-seccion"><h3>Fechas especiales</h3><p class="nota-formulario">Indique día y mes, y elija si se repite cada año. Puede cerrar o añadir un horario especial, incluso en un día de cierre semanal. Una fecha de un año concreto tiene prioridad sobre la misma fecha anual.</p><div id="fechas-especiales">${[...editor.especiales, ...Array.from({ length: Math.max(0, 2 - editor.especiales.length) }, () => undefined)].map(e => filaEspecial(e)).join("")}</div><button type="button" data-agregar-fecha class="boton-secundario">+ Añadir fecha</button></section>
+        <p class="nota-formulario">Las franjas deben terminar antes de medianoche. Las reservas existentes se conservan; se le avisará si quedan fuera del nuevo horario.</p></div>`;
+      actualizarEditor();
     }
   }
-  function actualizarDia(dia) {
-    const cerrado = dia.querySelector("[data-cerrado]").checked;
-    const turnos = dia.querySelector(".editor-turnos");
-    if (!cerrado && !turnos.children.length) turnos.innerHTML = turno();
-    turnos.hidden = cerrado;
-    turnos.querySelectorAll("input").forEach(el => { el.disabled = cerrado; });
-    const boton = dia.querySelector("[data-agregar-turno]"); boton.hidden = cerrado; boton.disabled = turnos.children.length >= 4;
+  function activarBloque(bloque, activo) {
+    if (!bloque) return;
+    bloque.hidden = !activo;
+    bloque.querySelectorAll("input, button").forEach(el => { el.disabled = !activo; });
+    const boton = bloque.querySelector("[data-agregar-turno]");
+    boton.disabled = !activo || bloque.querySelectorAll(".editor-turno").length >= 4;
+    bloque.querySelectorAll("[data-quitar-turno]").forEach(el => { el.disabled = !activo || bloque.querySelectorAll(".editor-turno").length <= 1; });
   }
-  campos.addEventListener("change", evento => { if (evento.target.matches("[data-cerrado]")) actualizarDia(evento.target.closest("[data-dia]")); });
+  function actualizarEditor() {
+    activarBloque(campos.querySelector("[data-habitual]"), true);
+    campos.querySelectorAll("[data-semanal]").forEach(dia => {
+      const cerrado = [...campos.querySelectorAll("[data-cierre-semanal]")].find(el => el.dataset.cierreSemanal === dia.dataset.semanal).checked;
+      dia.querySelector("[data-distinto]").disabled = cerrado;
+      activarBloque(dia.querySelector(".editor-bloque"), !cerrado && dia.querySelector("[data-distinto]").checked);
+    });
+    campos.querySelectorAll("[data-fecha-especial]").forEach(fila => {
+      const anual = fila.querySelector("[data-repeticion]").value === "anual";
+      fila.querySelector("[data-etiqueta-anio]").hidden = anual;
+      fila.querySelector("[data-fecha-anio]").disabled = anual;
+      activarBloque(fila.querySelector(".editor-bloque"), !fila.querySelector("[data-cerrado]").checked);
+    });
+    const agregar = campos.querySelector("[data-agregar-fecha]");
+    if (agregar) agregar.disabled = campos.querySelectorAll("[data-fecha-especial]").length >= 100;
+  }
+  campos.addEventListener("change", () => { if (seccion === "horarios") actualizarEditor(); });
   campos.addEventListener("click", evento => {
     const agregar = evento.target.closest("[data-agregar-turno]"), quitar = evento.target.closest("[data-quitar-turno]");
-    if (agregar) { const dia = agregar.closest("[data-dia]"), turnos = dia.querySelector(".editor-turnos"); if (turnos.children.length < 4) turnos.insertAdjacentHTML("beforeend", turno("20:00-23:00")); actualizarDia(dia); }
-    if (quitar) { const dia = quitar.closest("[data-dia]"); quitar.closest(".editor-turno").remove(); if (!dia.querySelector(".editor-turnos").children.length) dia.querySelector("[data-cerrado]").checked = true; actualizarDia(dia); }
+    if (agregar) { const turnos = agregar.closest(".editor-bloque").querySelector(".editor-turnos"); if (turnos.children.length < 4) turnos.insertAdjacentHTML("beforeend", turno("")); }
+    if (quitar && quitar.closest(".editor-turnos").children.length > 1) quitar.closest(".editor-turno").remove();
+    if (evento.target.closest("[data-agregar-fecha]") && campos.querySelectorAll("[data-fecha-especial]").length < 100) document.getElementById("fechas-especiales").insertAdjacentHTML("beforeend", filaEspecial());
+    if (evento.target.closest("[data-quitar-fecha]")) evento.target.closest("[data-fecha-especial]").remove();
+    if (seccion === "horarios") actualizarEditor();
   });
+  function leerRangos(bloque) {
+    return [...bloque.querySelectorAll(".editor-turno")].map(el => [...el.querySelectorAll("input")].map(i => i.value).join("-"));
+  }
   function leer() {
     if (seccion === "publico") return modelo.validarPublico({ direccion: document.getElementById("ajuste-direccion").value, web: document.getElementById("ajuste-web").value, informacion: Object.fromEntries(modelo.TEMAS.map(t => [t.id, document.getElementById("info-" + t.id).value])) });
-    const horario = Object.fromEntries([...campos.querySelectorAll("[data-dia]")].map(dia => [dia.dataset.dia,
-      dia.querySelector("[data-cerrado]").checked ? [] : [...dia.querySelectorAll(".editor-turno")].map(el => [...el.querySelectorAll("input")].map(i => i.value).join("-"))]));
-    return modelo.validarHorario({ horario, cierres: document.getElementById("ajuste-cierres").value.split(/\s+/).filter(Boolean) });
+    const cerrados = [...campos.querySelectorAll("[data-cierre-semanal]:checked")].map(el => el.dataset.cierreSemanal);
+    const semanales = Object.fromEntries([...campos.querySelectorAll("[data-semanal]")].filter(el => !cerrados.includes(el.dataset.semanal) && el.querySelector("[data-distinto]").checked).map(el => [el.dataset.semanal, leerRangos(el.querySelector(".editor-bloque"))]));
+    const especiales = [...campos.querySelectorAll("[data-fecha-especial]")].flatMap(fila => {
+      const dia = fila.querySelector("[data-fecha-dia]").value, mes = fila.querySelector("[data-fecha-mes]").value;
+      const cerrado = fila.querySelector("[data-cerrado]").checked;
+      if (!dia && !mes && cerrado) return [];
+      if (!dia || !mes) throw new Error("Complete el día y mes de la fecha especial o elimine la línea.");
+      const anual = fila.querySelector("[data-repeticion]").value === "anual";
+      const fecha = (anual ? "" : fila.querySelector("[data-fecha-anio]").value + "-") + mes.padStart(2, "0") + "-" + dia.padStart(2, "0");
+      return [{ fecha, rangos: cerrado ? [] : leerRangos(fila.querySelector(".editor-bloque")) }];
+    });
+    return modelo.desdeEditor({ habitual: leerRangos(campos.querySelector("[data-habitual]")), cerrados, semanales, especiales });
   }
   function resultado(datos) {
     revision = datos.revision;

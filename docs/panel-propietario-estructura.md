@@ -36,3 +36,11 @@ En RESTAURANTES se han añadido `web` (texto) e `informacion_publica` (texto lar
 ## Verificación
 
 Pruebas automatizadas de sesión/origen/producción, validación de URLs y horarios, conflictos de edición, guardado limitado a campos públicos, respuestas con memoria e invalidación inmediata, fallo Redis/reintento, aislamiento de reservas afectadas y lectura fresca de horarios.
+
+## Horario habitual y excepciones (octubre 2026)
+
+El editor presenta una base habitual, casillas de cierre semanal, horarios distintos por día opcionales y dos líneas iniciales de fechas especiales con botón para añadir más. Al abrir datos antiguos se infiere como base el horario más repetido; no se escribe nada hasta guardar y se conservan las diferencias semanales y cierres existentes.
+
+La tabla semanal compatible se conserva en `horario_reservas`. La misma columna incluye `_contactia: { habitual, especiales }`; no se añaden columnas ni tablas. Cada fecha especial tiene `{ fecha, rangos }`: `MM-DD` para cada año, `AAAA-MM-DD` para un año, y una lista vacía para cerrado. Prioridad: fecha con año, cierre antiguo con fecha, fecha anual y calendario semanal. Las fechas especiales del restaurante se aplican también al horario de zonas; sus estados de cierre operativo siguen vigentes. No altera reservas existentes; el aviso previo considera el nuevo calendario.
+
+El motor de reservas y las alternativas usan las franjas efectivas de la fecha solicitada. Las respuestas informativas agrupan días con horarios iguales y resuelven una fecha concreta, hoy/mañana y días de semana en Europe/Madrid. Las respuestas siguen consultando datos frescos; no cachean los cierres. El horario descrito es el de aceptación de reservas; no se crea un horario comercial independiente.

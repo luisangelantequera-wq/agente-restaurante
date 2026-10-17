@@ -414,9 +414,11 @@ async function obtenerZonaReservaExistente(reserva, restauranteRecordId) {
 function camposHorarioParaZona(camposRestaurante, zona) {
   const horarioZona = String(zona?.fields?.horario_reservas || "").trim();
 
-  return horarioZona
-    ? { ...camposRestaurante, horario_reservas: horarioZona }
-    : camposRestaurante;
+  if (!horarioZona) return camposRestaurante;
+  const propio = leerJSONCampo(horarioZona, {}, "horario_reservas");
+  const general = leerJSONCampo(camposRestaurante.horario_reservas, {}, "horario_reservas");
+  return { ...camposRestaurante, horario_reservas: JSON.stringify({ ...propio,
+    ...(general._contactia ? { _contactia: general._contactia } : {}) }) };
 }
 
 
@@ -1297,7 +1299,8 @@ function validarHorarioRestaurante(campos, fecha, hora) {
     String(dia).trim().toLowerCase()
   );
 
-  if (cierresSemanales.includes(diaSemana)) {
+  const efectivo = require("../lib/ajustes-restaurante").horarioParaFecha(campos, fecha);
+  if (!efectivo.especial && cierresSemanales.includes(diaSemana)) {
     return {
       valido: false,
       motivo:
@@ -1306,7 +1309,7 @@ function validarHorarioRestaurante(campos, fecha, hora) {
     };
   }
 
-  if (cierresEspeciales.map(String).includes(fecha)) {
+  if (efectivo.especial && !efectivo.rangos.length) {
     return {
       valido: false,
       motivo: "El restaurante está cerrado en esa fecha.",
@@ -1314,7 +1317,7 @@ function validarHorarioRestaurante(campos, fecha, hora) {
     };
   }
 
-  const rangos = horario[diaSemana];
+  const rangos = efectivo.rangos;
 
   if (!Array.isArray(rangos) || rangos.length === 0) {
     return {
@@ -1412,15 +1415,8 @@ async function buscarHorariosAlternativos(
 
   // Las alternativas deben pertenecer al mismo servicio que la hora pedida.
   // Así una petición para comer nunca ofrece horas del turno de cena.
-  const diaSemana = obtenerDiaSemana(fecha);
-  const horario = leerJSONCampo(
-    camposRestaurante.horario_reservas,
-    {},
-    "horario_reservas"
-  );
-  const rangosDelDia = Array.isArray(horario[diaSemana])
-    ? horario[diaSemana]
-    : [];
+  const rangosDelDia = require("../lib/ajustes-restaurante")
+    .horarioParaFecha(camposRestaurante, fecha).rangos;
   const rangosValidos = rangosDelDia
     .map((rango) => String(rango).split("-").map((parte) =>
       horaAMinutos(parte.trim())
