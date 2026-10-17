@@ -1514,3 +1514,7 @@ button:focus-visible, summary:focus-visible { outline: 3px solid #bf8d2e; outlin
 @media (max-width: 1000px) { .carta-categoria-cabecera { grid-template-columns: 1fr; } .carta-alergenos { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 520px) { #seccion-carta .tarjeta { padding: 16px; } .carta-campos { grid-template-columns: 1fr; } .carta-plato-editor { padding: 12px; } .carta-alergenos { grid-template-columns: 1fr; } .carta-botones > button { flex: 1 1 140px; } }
 @media print { #seccion-carta { display: none !important; } }
+
+.carta-aviso-importacion { margin-top: 16px; padding: 18px 20px; border: 2px solid #c88a18; border-radius: 12px; background: #fff6de; color: #60430d; font-size: 16px; font-weight: 700; line-height: 1.6; overflow-wrap: anywhere; }
+.carta-aviso-importacion[data-estado="error"] { border-color: #b45848; background: #fff0ec; color: #873d31; }
+.carta-aviso-importacion[data-estado="terminado"] { border-color: #657e50; background: #f0f5eb; color: #344b3b; }
