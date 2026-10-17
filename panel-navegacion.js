@@ -10,6 +10,7 @@
   };
   function abrir(vista, enfocar = true) {
     if (!vistas[vista]) vista = "inicio";
+    document.querySelector(".zona-trabajo").dataset.vistaActiva = vista;
     document.querySelectorAll("[data-paginas]").forEach(el => { el.hidden = !el.dataset.paginas.split(" ").includes(vista); });
     document.querySelectorAll("[data-vista]").forEach(el => {
       if (el.dataset.vista === vista) el.setAttribute("aria-current", "page");

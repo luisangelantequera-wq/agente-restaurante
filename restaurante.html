@@ -55,6 +55,7 @@
       </aside>
       <div class="zona-trabajo">
       <header class="cabecera-vista"><p class="etiqueta" id="etiqueta-vista">VISTA GENERAL</p><h2 id="titulo-vista" tabindex="-1">Inicio</h2><p id="descripcion-vista">Su servicio de un vistazo. Consulte reservas, mesas y solicitudes pendientes.</p></header>
+      <div class="controles-agenda">
       <div class="barra-fecha tarjeta" id="barra-fecha">
         <label for="fecha">Reservas del día</label>
         <input id="fecha" type="date">
@@ -65,7 +66,6 @@
 
       </div>
 
-      <p id="estado-global-panel" role="status" aria-live="polite" class="nota-formulario"></p>
       <section class="resumen" aria-label="Resumen del día" data-paginas="inicio reservas">
         <article class="tarjeta resumen-item">
           <span>Reservas</span>
@@ -80,6 +80,8 @@
           <strong id="total-canceladas">0</strong>
         </article>
       </section>
+      </div>
+      <p id="estado-global-panel" role="status" aria-live="polite" class="nota-formulario"></p>
 
       <section class="tarjeta inicio-servicio" data-paginas="inicio">
         <div class="listado-cabecera"><div><p class="etiqueta">SU PRÓXIMO SERVICIO</p><h2>Preparados para recibir</h2></div><span id="estado-inicio" class="estado estado-libre">Sin actualizar</span></div>

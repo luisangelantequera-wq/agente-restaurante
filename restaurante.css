@@ -1415,4 +1415,41 @@ button:focus-visible, summary:focus-visible { outline: 3px solid #bf8d2e; outlin
 @media (min-width: 980px) { .tabla-cabecera, .reserva { grid-template-columns: 55px minmax(75px,.9fr) 80px 65px minmax(90px,1fr) minmax(100px,1fr) 85px 120px; gap: 8px; } }
 @media (max-width: 1100px) { .panel { width: calc(100% - 32px); } .espacio-panel { grid-template-columns: 195px minmax(0, 1fr); gap: 20px; } .barra-fecha { grid-template-columns: 1fr 1fr; } .barra-fecha label { grid-column: 1; } }
 @media (max-width: 760px) { .espacio-panel { display: block; } .navegacion-panel { position: static; min-height: 0; padding: 10px; margin-bottom: 24px; border-radius: 14px; } .navegacion-panel > .etiqueta, .nota-navegacion { display: none; } .navegacion-panel nav { display: flex; overflow: auto; gap: 6px; } .navegacion-panel button { flex: 0 0 auto; width: auto; padding: 12px; white-space: nowrap; } .navegacion-panel button span { display: none; } .ajustes-cuadricula { grid-template-columns: 1fr; } .panel-header { gap: 10px; } .panel-header h1 { font-size: 23px; } .subtitulo-panel { font-size: 12px; } .panel-header > button { font-size: 12px; padding: 10px; } .resumen { gap: 8px; } .resumen-item { padding: 15px 12px; } .inicio-indicadores { gap: 20px; } .inicio-indicadores span { line-height: 1.6; } }
+/* En la agenda, el resumen comparte barra con la fecha y las acciones. */
+[data-vista-activa="reservas"] .controles-agenda {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 18px;
+  border: 1px solid var(--borde);
+  border-radius: 18px;
+  background: white;
+}
+[data-vista-activa="reservas"] .barra-fecha { display: contents; }
+[data-vista-activa="reservas"] .barra-fecha label { font-size: 13px; }
+[data-vista-activa="reservas"] #fecha { order: 1; width: 160px; }
+[data-vista-activa="reservas"] .resumen {
+  order: 2;
+  flex: 1 0 240px;
+  gap: 8px;
+  margin: 0;
+}
+[data-vista-activa="reservas"] .resumen-item {
+  padding: 8px 10px;
+  border-radius: 10px;
+  box-shadow: none;
+  background: #f7f5ef;
+}
+[data-vista-activa="reservas"] .resumen-item span { font-size: 12px; }
+[data-vista-activa="reservas"] .resumen-item strong { margin-top: 2px; font-size: 23px; line-height: 1.2; }
+[data-vista-activa="reservas"] #nueva-reserva { order: 3; }
+[data-vista-activa="reservas"] #actualizar { order: 4; }
+[data-vista-activa="reservas"] .barra-fecha button { font-size: 13px; padding: 12px 14px; }
+@media (max-width: 760px) {
+  [data-vista-activa="reservas"] #fecha { flex: 1; min-width: 145px; }
+  [data-vista-activa="reservas"] .resumen { flex-basis: 100%; }
+  [data-vista-activa="reservas"] .barra-fecha button { flex: 1; }
+}
 @media print { .navegacion-panel, .cabecera-vista, .subtitulo-panel { display: none; } .espacio-panel { display: block; } [data-paginas="inicio"], [data-paginas="ajustes"], [data-paginas="ayuda"] { display: none !important; } [data-paginas="reservas"], [data-paginas="mesas"], [data-paginas="avisos"] { display: block !important; } }
