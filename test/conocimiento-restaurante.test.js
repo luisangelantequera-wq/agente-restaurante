@@ -172,7 +172,7 @@ test("la interfaz responde la pregunta y retoma el paso pendiente", () => {
   );
   assert.match(script, /await atenderPreguntaInformativa\(mensaje, opciones\)/);
   assert.match(script, /repetirPreguntaPendiente\(\)/);
-  assert.match(script, /No dispongo todavía de una respuesta aprobada/);
+  assert.match(script, /Lo siento, no tengo esa información, pero puede consultarlo directamente con el restaurante/);
   assert.match(
     script,
     /Perdone, no le he entendido\. ¿Puede repetir la pregunta\?/

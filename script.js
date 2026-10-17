@@ -1540,11 +1540,11 @@ async function atenderPreguntaInformativa(mensaje, opciones = {}) {
 
     const telefono = telefonoParaEnlace(datos.telefono_restaurante);
     const contacto = telefono
-      ? ` Puede consultarlo directamente con el restaurante: tel:${telefono}`
-      : " Puede consultarlo directamente con el restaurante.";
+      ? ` en el tel:${telefono}`
+      : ".";
 
     agregarMensaje(
-      `No dispongo todavía de una respuesta aprobada para esa pregunta.${contacto}`,
+      `Lo siento, no tengo esa información, pero puede consultarlo directamente con el restaurante${contacto}`,
       "bot"
     );
     repetirPreguntaPendiente();
