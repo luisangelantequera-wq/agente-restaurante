@@ -28,8 +28,8 @@
     const dia = partes.at(-1) || "", mes = partes.at(-2) || "";
     return `<section class="editor-fecha" data-fecha-especial aria-label="Fecha especial">
       <div class="editor-fecha-datos">
-        <label>Día<input type="number" data-fecha-dia min="1" max="31" value="${escapar(dia)}" placeholder="25" aria-label="Día del mes"></label>
-        <label>Mes<input type="number" data-fecha-mes min="1" max="12" value="${escapar(mes)}" placeholder="12" aria-label="Mes"></label>
+        <label>Día<input type="number" data-fecha-dia min="1" max="31" value="${escapar(dia)}" aria-label="Día del mes"></label>
+        <label>Mes<input type="number" data-fecha-mes min="1" max="12" value="${escapar(mes)}" aria-label="Mes"></label>
         <label>Aplicar<select data-repeticion><option value="anual" ${anual ? "selected" : ""}>Cada año</option><option value="unica" ${anual ? "" : "selected"}>Solo un año</option></select></label>
         <label data-etiqueta-anio ${anual ? "hidden" : ""}>Año<input type="number" data-fecha-anio min="2000" max="9999" value="${anual ? new Date().getFullYear() : escapar(partes[0])}"></label>
         <button type="button" data-quitar-fecha class="boton-secundario" aria-label="Eliminar fecha especial">×</button>
