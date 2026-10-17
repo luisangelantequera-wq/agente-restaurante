@@ -1532,3 +1532,8 @@ button:focus-visible, summary:focus-visible { outline: 3px solid #bf8d2e; outlin
 .carta-plato summary [data-resumen-alergenos] { flex: 1 1 180px; text-align: right; color: #873d31; font-weight: 600; overflow-wrap: anywhere; }
 .carta-plato summary [data-resumen-alergenos]:empty { display: none; }
 @media (max-width: 520px) { .carta-plato { max-width: 100%; } .carta-plato summary .carta-linea-precio { flex-wrap: wrap; } }
+
+#seccion-carta textarea[data-campo="nota_alergenos"] { min-height: calc(1.4em + 18px); height: calc(1.4em + 18px); line-height: 1.4; padding: 8px 12px; resize: vertical; }
+.carta-acciones-plato { padding-top: 4px; }
+.carta-aviso-plato { margin: 0; padding: 10px 12px; border-radius: 8px; background: #f0f5eb; color: #344b3b; font-size: 13px; line-height: 1.5; }
+.carta-aviso-plato[data-estado="error"] { background: #fff0ec; color: #873d31; }
