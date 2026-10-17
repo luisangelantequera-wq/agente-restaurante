@@ -10,7 +10,7 @@
     $('carta-resumen').textContent=`${carta.categorias.length} categorías · ${platos.length} platos y bebidas · ${pendientes} pendientes de revisión`;
     $('carta-publicacion').textContent=estado?.publicada?`Carta publicada: ${new Intl.DateTimeFormat('es-ES',{dateStyle:'medium',timeStyle:'short'}).format(new Date(estado.publicada_en))}. ${carta.fuente.nombre?'Borrador de '+carta.fuente.nombre+'.':''}`:'Aún no hay una carta publicada. El asistente no utiliza el borrador.';
     $('carta-retirar').hidden=!estado?.publicada;
-    $('carta-ayuda-publicar').textContent=!platos.length?'Añada al menos un plato o bebida y revise sus datos antes de publicar.':pendientes?`Faltan ${pendientes} platos o bebidas por revisar. Guardar el borrador no los marca como revisados. Cuando haya comprobado nombres, precios y condiciones, pulse «Confirmar revisión de todos los platos». Los alérgenos se confirman por separado.`:'Los platos están marcados como revisados. Ya puede guardar y publicar. Los alérgenos pendientes se comunicarán como información sin confirmar.';
+    $('carta-ayuda-publicar').textContent=!platos.length?'Añada al menos un plato o bebida y revise sus datos antes de publicar.':pendientes?`Faltan ${pendientes} platos o bebidas por revisar. Guardar el borrador no los marca como revisados. Cuando haya comprobado nombres, precios y condiciones, pulse «Confirmar revisión de todos los platos». Seleccione los alérgenos conocidos dentro de cada plato.`:'Los platos están marcados como revisados. Ya puede guardar y publicar. Los alérgenos pendientes se comunicarán como información sin confirmar.';
   }
   async function solicitar(accion,extra={}){
     const r=await fetch('/api/restaurante',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'carta_'+accion,restaurante_id:id,revision,...extra})});
@@ -19,21 +19,23 @@
   }
   function avisoImportacion(texto,tipo='progreso'){const caja=$('carta-aviso-importacion');caja.textContent=texto;caja.dataset.estado=tipo;caja.hidden=false;caja.scrollIntoView?.({block:'nearest',behavior:'smooth'});}
   function bloquear(valor){ocupado=valor;raiz.querySelectorAll('button,input,select,textarea').forEach(el=>{el.disabled=valor;});if(!valor&&!cargada)$('carta-importar').disabled=true;}
-  function alergenos(p,campo){return `<fieldset class="carta-alergenos"><legend>${campo==='alergenos'?'Contiene (propuesta hasta confirmar)':'Posibles trazas declaradas'}</legend>${m.ALERGENOS.map(a=>`<label><input type="checkbox" data-lista="${campo}" value="${a.id}" ${p[campo].includes(a.id)?'checked':''}><span aria-hidden="true">${a.icono}</span> ${escapar(a.nombre)}</label>`).join('')}</fieldset>`;}
+  function alergenos(p,campo){return `<fieldset class="carta-alergenos"><legend>${campo==='alergenos'?'Contiene':'Posibles trazas declaradas'}</legend>${m.ALERGENOS.map(a=>`<label><input type="checkbox" data-lista="${campo}" value="${a.id}" ${p[campo].includes(a.id)?'checked':''}><span aria-hidden="true">${a.icono}</span> ${escapar(a.nombre)}</label>`).join('')}</fieldset>`;}
+  const detallePlato=p=>`${p.precio?p.precio+' € '+p.unidad:'Precio a consultar'} · ${p.disponible?'Disponible':'Agotado'} · ${p.revisado?'Revisado':'Pendiente'}`;
+  function textoAlergenos(p){const nombres=lista=>lista.map(id=>m.ALERGENOS.find(a=>a.id===id)?.nombre||'').filter(Boolean).join(', ');return [nombres(p.alergenos),p.trazas.length?'Trazas: '+nombres(p.trazas):''].filter(Boolean).join(' · ')+(p.alergenos.length||p.trazas.length?(!p.alergenos_confirmados?' (pendientes de revisión)':''):'');}
+  function actualizarResumen(nodo,p){nodo.querySelector('[data-titulo-plato]').textContent=p.nombre;nodo.querySelector('[data-resumen-plato]').textContent=detallePlato(p);nodo.querySelector('[data-resumen-alergenos]').textContent=textoAlergenos(p);}
   function campo(nombre,titulo,valor,max=500){return `<label>${titulo}<input data-campo="${nombre}" maxlength="${max}" value="${escapar(valor)}" ${nombre==='precio'?'inputmode="decimal"':''}></label>`;}
   function pintar(){
     resumen();$('carta-avisos').innerHTML=carta.avisos.map(a=>`<li>${escapar(a)}</li>`).join('');
     $('carta-categorias').innerHTML=carta.categorias.length?carta.categorias.map((cat,indice)=>`<section class="tarjeta carta-categoria" data-categoria="${cat.id}">
       <div class="carta-categoria-cabecera"><label><span class="carta-categoria-titulo">${indice+1}. Nombre de la categoría</span><input data-categoria-campo="nombre" value="${escapar(cat.nombre)}" maxlength="100"></label><div class="carta-botones"><button type="button" data-orden="-1" class="boton-secundario" aria-label="Subir categoría">↑</button><button type="button" data-orden="1" class="boton-secundario" aria-label="Bajar categoría">↓</button><button type="button" data-borrar-categoria class="boton-secundario">Eliminar categoría</button></div></div>
       <label>Condiciones de esta categoría<textarea data-categoria-campo="notas" rows="2" maxlength="1200">${escapar(cat.notas)}</textarea></label>
-      <div class="carta-platos">${cat.platos.map(p=>`<details class="carta-plato" data-plato="${p.id}"><summary><strong data-titulo-plato>${escapar(p.nombre)}</strong><span data-resumen-plato>${escapar(p.precio?p.precio+' € '+p.unidad:'Precio a consultar')} · ${p.disponible?'Disponible':'Agotado'} · ${p.revisado?'Revisado':'Pendiente'}</span></summary><div class="carta-plato-editor">
+      <div class="carta-platos">${cat.platos.map(p=>`<details class="carta-plato" data-plato="${p.id}"><summary><strong data-titulo-plato>${escapar(p.nombre)}</strong><span class="carta-linea-precio"><span data-resumen-plato>${escapar(detallePlato(p))}</span><span data-resumen-alergenos>${escapar(textoAlergenos(p))}</span></span></summary><div class="carta-plato-editor">
         <div class="carta-campos">${campo('nombre','Nombre',p.nombre,180)}${campo('precio','Precio (€), vacío si es a consultar',p.precio,8)}${campo('unidad','Unidad: por persona, unidad, botella…',p.unidad,100)}<label>Mover a categoría<select data-mover>${carta.categorias.map(c=>`<option value="${c.id}" ${c.id===cat.id?'selected':''}>${escapar(c.nombre)}</option>`).join('')}</select></label></div>
         <label>Descripción<textarea data-campo="descripcion" rows="2" maxlength="700">${escapar(p.descripcion)}</textarea></label>
-        <div class="carta-marcas"><label><input type="checkbox" data-campo="disponible" ${p.disponible?'checked':''}> Disponible</label><label><input type="checkbox" data-campo="revisado" ${p.revisado?'checked':''}> He revisado este plato y su precio</label></div>
+        <div class="carta-marcas"><label><input type="checkbox" data-campo="disponible" ${p.disponible?'checked':''}> Disponible</label></div>
         ${alergenos(p,'alergenos')}${alergenos(p,'trazas')}
         <label>Detalle de alérgenos, ingredientes concretos o contacto cruzado<textarea data-campo="nota_alergenos" maxlength="500" rows="2">${escapar(p.nota_alergenos)}</textarea></label>
-        <label class="carta-confirmar-alergenos"><input type="checkbox" data-campo="alergenos_confirmados" ${p.alergenos_confirmados?'checked':''}> Confirmo que he comprobado la información de alérgenos y trazas de este plato</label>
-        <p class="nota-formulario">${p.pagina?'Página '+p.pagina+' del PDF. ':''}Sin confirmar, el asistente indicará que los alérgenos están pendientes. No marque una ausencia basándose solo en que no aparezca un icono.</p>
+        <p class="nota-formulario">${p.pagina?'Página '+p.pagina+' del PDF. ':''}Seleccione los alérgenos y trazas que conoce del plato. La información importada sin revisar o una selección vacía se tratará como pendiente; no significa que esté libre de alérgenos.</p>
         <button type="button" data-borrar-plato class="boton-secundario">Eliminar plato</button>
       </div></details>`).join('')}</div><button type="button" data-anadir-plato class="boton-secundario">+ Añadir plato o bebida</button></section>`).join(''):'<div class="tarjeta carta-vacia"><h3>Su carta empieza aquí</h3><p>Importe el PDF del restaurante o añada una categoría para introducir platos y bebidas manualmente.</p></div>';
   }
@@ -52,11 +54,11 @@
   function encontrar(el){const cat=carta.categorias.find(c=>c.id===el.closest('[data-categoria]')?.dataset.categoria);return {cat,p:cat?.platos.find(p=>p.id===el.closest('[data-plato]')?.dataset.plato)};}
   $('carta-categorias').addEventListener('input',evento=>{
     const el=evento.target,{cat,p}=encontrar(el);if(!cat)return;
-    if(el.dataset.categoriaCampo){cat[el.dataset.categoriaCampo]=el.value;cat.platos.forEach(x=>x.revisado=false);cat.platos.forEach(x=>{const cb=$('carta-categorias').querySelector(`[data-plato="${x.id}"] [data-campo="revisado"]`);if(cb)cb.checked=false;const resumen=$('carta-categorias').querySelector(`[data-plato="${x.id}"] [data-resumen-plato]`);if(resumen)resumen.textContent=resumen.textContent.replace(/Revisado$/, 'Pendiente');});}
+    if(el.dataset.categoriaCampo){cat[el.dataset.categoriaCampo]=el.value;cat.platos.forEach(x=>{x.revisado=false;const nodo=$('carta-categorias').querySelector(`[data-plato="${x.id}"]`);if(nodo)actualizarResumen(nodo,x);});}
     else if(p&&el.dataset.campo){p[el.dataset.campo]=el.type==='checkbox'?el.checked:el.value;if(!['revisado','alergenos_confirmados'].includes(el.dataset.campo))p.revisado=false;
-      if(['nombre','descripcion','nota_alergenos'].includes(el.dataset.campo))p.alergenos_confirmados=false;
-    }else if(p&&el.dataset.lista){p[el.dataset.lista]=[...el.closest('fieldset').querySelectorAll('input:checked')].map(x=>x.value);p.alergenos_confirmados=false;p.revisado=false;}
-    if(p){const nodo=el.closest('[data-plato]');nodo.querySelector('[data-campo="revisado"]').checked=p.revisado;nodo.querySelector('[data-campo="alergenos_confirmados"]').checked=p.alergenos_confirmados;nodo.querySelector('[data-titulo-plato]').textContent=p.nombre;nodo.querySelector('[data-resumen-plato]').textContent=`${p.precio?p.precio+' € '+p.unidad:'Precio a consultar'} · ${p.disponible?'Disponible':'Agotado'} · ${p.revisado?'Revisado':'Pendiente'}`;}
+      if(['nombre','descripcion'].includes(el.dataset.campo))p.alergenos_confirmados=false;
+    }else if(p&&el.dataset.lista){p[el.dataset.lista]=[...el.closest('fieldset').querySelectorAll('input:checked')].map(x=>x.value);p.alergenos_confirmados=p.alergenos.length>0||p.trazas.length>0;p.revisado=false;}
+    if(p)actualizarResumen(el.closest('[data-plato]'),p);
     cambiar();
   });
   $('carta-categorias').addEventListener('change',evento=>{

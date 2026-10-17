@@ -1523,3 +1523,12 @@ button:focus-visible, summary:focus-visible { outline: 3px solid #bf8d2e; outlin
 #seccion-carta textarea[data-categoria-campo="notas"] { min-height: calc(2.8em + 18px); height: calc(2.8em + 18px); line-height: 1.4; padding: 8px 12px; resize: vertical; }
 #seccion-carta .carta-ayuda-publicar { color: var(--texto); font-weight: 600; }
 #carta-revisar-final { margin-bottom: 16px; }
+
+/* Resumen compacto: precio a la izquierda y alérgenos escritos a la derecha. */
+.carta-plato { max-width: calc(100% - 20px); margin-inline: auto; }
+.carta-plato summary .carta-linea-precio { display: flex; justify-content: space-between; align-items: baseline; gap: 12px 20px; margin: 7px 0 0 19px; }
+.carta-plato summary .carta-linea-precio > span { display: inline; margin: 0; }
+.carta-plato summary [data-resumen-plato] { flex: 0 1 auto; }
+.carta-plato summary [data-resumen-alergenos] { flex: 1 1 180px; text-align: right; color: #873d31; font-weight: 600; overflow-wrap: anywhere; }
+.carta-plato summary [data-resumen-alergenos]:empty { display: none; }
+@media (max-width: 520px) { .carta-plato { max-width: 100%; } .carta-plato summary .carta-linea-precio { flex-wrap: wrap; } }
