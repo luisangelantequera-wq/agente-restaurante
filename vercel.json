@@ -14,6 +14,9 @@
     },
     "api/centro-conversaciones.js": {
       "maxDuration": 60
+    },
+    "api/restaurante.js": {
+      "maxDuration": 180
     }
   },
   "crons": [

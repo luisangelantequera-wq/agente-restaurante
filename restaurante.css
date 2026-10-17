@@ -1475,3 +1475,42 @@ button:focus-visible, summary:focus-visible { outline: 3px solid #bf8d2e; outlin
   [data-vista-activa="reservas"] .barra-fecha button { flex: 1; }
 }
 @media print { .navegacion-panel, .cabecera-vista, .subtitulo-panel { display: none; } .espacio-panel { display: block; } [data-paginas="inicio"], [data-paginas="ajustes"], [data-paginas="ayuda"] { display: none !important; } [data-paginas="reservas"], [data-paginas="mesas"], [data-paginas="avisos"] { display: block !important; } }
+
+/* Carta: revisión por categorías, con información de alérgenos legible. */
+#seccion-carta .tarjeta { padding: 22px; margin-bottom: 18px; }
+#seccion-carta label { display: block; font-size: 13px; font-weight: 600; }
+#seccion-carta input:not([type=checkbox]), #seccion-carta select, #seccion-carta textarea { display: block; width: 100%; min-width: 0; margin-top: 6px; padding: 11px 12px; border: 1px solid var(--borde); border-radius: 9px; background: white; color: var(--texto); }
+#seccion-carta textarea { resize: vertical; }
+#seccion-carta input[type=checkbox] { width: 18px; height: 18px; accent-color: #344b3b; vertical-align: middle; flex: 0 0 auto; }
+#seccion-carta :is(input,select,textarea,summary):focus-visible { outline: 3px solid #c88a1866; outline-offset: 2px; }
+.carta-carga, .carta-botones, .carta-marcas { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.carta-carga > label { flex-basis: 100%; }
+.carta-carga input[type=file] { flex: 1 1 250px; }
+.carta-carga a { color: var(--acento-oscuro); font-weight: 600; }
+.carta-herramientas .carta-botones { margin-top: 18px; }
+.carta-categoria-cabecera { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 18px; align-items: end; margin-bottom: 16px; }
+.carta-categoria-cabecera > label { font-size: 15px !important; }
+.carta-categoria > label { margin-bottom: 20px; }
+.carta-plato { border: 1px solid var(--borde); border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+.carta-plato summary { padding: 16px; background: #f8f7f3; cursor: pointer; }
+.carta-plato summary strong { font-size: 15px; }
+.carta-plato summary span { display: block; margin: 7px 0 0 19px; color: var(--suave); font-size: 12px; line-height: 1.5; }
+.carta-plato[open] summary { border-bottom: 1px solid var(--borde); }
+.carta-plato-editor { padding: 18px; display: grid; gap: 18px; }
+.carta-campos { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+.carta-marcas label, .carta-alergenos label, #seccion-carta .carta-confirmar-alergenos { display: flex; align-items: center; gap: 7px; line-height: 1.5; }
+.carta-marcas { gap: 18px; }
+.carta-alergenos { min-width: 0; border: 1px solid var(--borde); border-radius: 10px; padding: 14px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.carta-alergenos legend { padding: 0 6px; font-size: 13px; font-weight: 700; }
+#seccion-carta .carta-alergenos label { font-weight: 400; font-size: 12px; }
+.carta-alergenos label span { min-width: 22px; text-align: center; }
+.carta-confirmar-alergenos { padding: 14px; background: #f3f5ef; border-radius: 9px; }
+.carta-guardar > p, .carta-vacia > p { color: var(--suave); line-height: 1.65; font-size: 14px; }
+.carta-avisos { color: #785311; line-height: 1.6; font-size: 13px; }
+#carta-error { color: #9b3d3d; line-height: 1.6; }
+#carta-estado { font-size: 14px; }
+#seccion-carta .nota-formulario { margin: 0; line-height: 1.65; }
+.carta-importar > .nota-formulario { margin-top: 14px !important; }
+@media (max-width: 1000px) { .carta-categoria-cabecera { grid-template-columns: 1fr; } .carta-alergenos { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 520px) { #seccion-carta .tarjeta { padding: 16px; } .carta-campos { grid-template-columns: 1fr; } .carta-plato-editor { padding: 12px; } .carta-alergenos { grid-template-columns: 1fr; } .carta-botones > button { flex: 1 1 140px; } }
+@media print { #seccion-carta { display: none !important; } }

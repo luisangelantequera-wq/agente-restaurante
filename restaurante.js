@@ -218,6 +218,7 @@ function mostrarPanel() {
   acceso.hidden = true;
   contenido.hidden = false;
   botonCerrarSesion.hidden = false;
+  window.dispatchEvent(new CustomEvent("contactia:panel-abierto"));
 }
 
 

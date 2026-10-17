@@ -6,6 +6,7 @@
     mesas: ["SALA", "Mesas y zonas", "Disponibilidad por zona. Seleccione una hora y organice el servicio."],
     avisos: ["ATENCIÓN PENDIENTE", "Avisos y recados", "Solicitudes de la lista de espera que necesitan una respuesta."],
     ajustes: ["SU NEGOCIO", "Ajustes del restaurante", "Mantenga al día la información que Contactia ofrece a sus clientes."],
+    carta: ["SU PROPUESTA GASTRONÓMICA", "Carta y bebidas", "Organice su carta, revise los datos y publique lo que responderá su asistente."],
     ayuda: ["ACOMPAÑAMIENTO", "Ayuda", "Respuestas rápidas para gestionar su restaurante con tranquilidad."]
   };
   function abrir(vista, enfocar = true) {
@@ -20,9 +21,10 @@
     document.getElementById("etiqueta-vista").textContent = etiqueta;
     document.getElementById("titulo-vista").textContent = titulo;
     document.getElementById("descripcion-vista").textContent = descripcion;
-    document.getElementById("barra-fecha").hidden = ["ajustes", "ayuda"].includes(vista);
+    document.getElementById("barra-fecha").hidden = ["ajustes", "ayuda", "carta"].includes(vista);
     const url = new URL(location.href); url.searchParams.set("vista", vista); history.replaceState({}, "", url);
     if (enfocar) document.getElementById("titulo-vista").focus({ preventScroll: true });
+    window.dispatchEvent(new CustomEvent("contactia:vista", { detail: { vista } }));
   }
   document.querySelectorAll("[data-vista], [data-ir]").forEach(el => el.addEventListener("click", () => abrir(el.dataset.vista || el.dataset.ir)));
   abrir(new URLSearchParams(location.search).get("vista"), false);

@@ -186,8 +186,8 @@ module.exports = async (req, res) => {
 
   if (
     (Number.isFinite(longitudDeclarada) &&
-      longitudDeclarada > MAX_REQUEST_BODY_BYTES) ||
-    longitudCalculada > MAX_REQUEST_BODY_BYTES
+      longitudDeclarada > 3500000) ||
+    longitudCalculada > 3500000
   ) {
     return responder(res, 413, {
       ok: false,
@@ -219,6 +219,13 @@ module.exports = async (req, res) => {
     const restauranteId = Number(body.restaurante_id);
     const accion = String(body.accion || (body.clave ? "iniciar_sesion" : "cargar"))
       .trim();
+
+    if (["carta_consultar", "carta_importar", "carta_guardar", "carta_publicar", "carta_sincronizar", "carta_retirar"].includes(accion)) {
+      return require("../lib/carta-panel")(req, res);
+    }
+    if (longitudCalculada > MAX_REQUEST_BODY_BYTES || longitudDeclarada > MAX_REQUEST_BODY_BYTES) {
+      return responder(res, 413, { ok: false, error: "La solicitud es demasiado grande." });
+    }
 
     // Los datos estables utilizan las mismas funciones desplegadas para
     // el panel, sin superar el máximo de 12 funciones del plan Hobby.

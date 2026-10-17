@@ -263,6 +263,25 @@ module.exports = async (req, res) => {
         if (actual.id !== restaurante.id) throw new Error("El restaurante no coincide.");
         return responder(res, 200, { ok: true, encontrada: true, respuesta: modelo.describirHorario(actual.fields, pregunta), telefono_restaurante: telefonoPublico(restaurante) });
       }
+      const modeloCarta = require("../lib/carta-restaurante");
+      if (modeloCarta.esPreguntaCarta(pregunta)) {
+        const validarCarta = datos => {
+          try {
+            if (datos?.id !== restauranteId || datos.restaurante_record_id !== restaurante.id || !Object.hasOwn(datos, "carta")) return false;
+            if (datos.carta !== null) modeloCarta.validar(datos.carta, true);
+            return true;
+          } catch { return false; }
+        };
+        const publica = await leerConCachePublica({ tipo: "carta", identificador: String(restauranteId),
+          cargar: async () => {
+            const actual = await buscarInformacionPublica(restauranteId);
+            if (actual.id !== restaurante.id) throw new Error("El restaurante no coincide.");
+            return { id: restauranteId, restaurante_record_id: actual.id, carta: modeloCarta.publica(modeloCarta.leer(actual.fields).publicada) };
+          }, validar: validarCarta });
+        if (!validarCarta(publica)) throw new Error("Carta pública no válida.");
+        const respuestaCarta = modeloCarta.responder(publica.carta, pregunta);
+        if (respuestaCarta) return responder(res, 200, { ok: true, encontrada: true, respuesta: respuestaCarta, telefono_restaurante: telefonoPublico(restaurante) });
+      }
       const informacion = await leerConCachePublica({
         tipo: "informacion", identificador: String(restauranteId),
         cargar: async () => {
