@@ -13,7 +13,7 @@ Habilitada solo en Preview con `CONTACTIA_PANEL_V2=1`. Acceso: panel del restaur
 ## Flujo
 
 1. PDF real de hasta 2,5 MB y entre 1 y 12 páginas. Admite documentos escaneados porque envía el propio PDF al lector visual.
-2. El resultado es una propuesta: conserva categorías, condiciones, precios, unidades y referencias de página. No se guarda ni publica hasta que el propietario acepte el borrador y lo guarde.
+2. El resultado es una propuesta: conserva categorías, condiciones, precios, unidades y referencias de página. Las referencias de página dudosas quedan pendientes de comprobar y se avisa al propietario, conservando los platos. Si aparece una referencia imposible para el archivo, se descartan todas las referencias de página de esa lectura sin cambiar nombres ni precios; no se calcula un desplazamiento a partir de los números impresos. No se guarda ni publica hasta que el propietario acepte el borrador y lo guarde.
 3. Todos los platos importados quedan pendientes de revisión y todos los alérgenos sin confirmar. Los símbolos sin leyenda inequívoca no se interpretan como alérgenos conocidos.
 4. El editor admite hasta 30 categorías y 150 platos/bebidas, con un máximo de 40.000 caracteres por versión. Incluye disponibilidad y listas separadas de alérgenos y trazas, con icono y nombre.
 5. Guardar borrador conserva la publicación anterior. Publicar exige revisión de todos los platos y una confirmación con el recuento de cambios. Los alérgenos tienen su propia confirmación por plato; no se exige inventar una lista para poder publicar.

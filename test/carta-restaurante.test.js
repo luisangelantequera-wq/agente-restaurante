@@ -65,3 +65,18 @@ test('errores del lector distinguen clave, permisos, modelo, crédito y límite 
  ];
  for(const[status,code,type,mensaje]of casos){await assert.rejects(importar({base64,env:{OPENAI_API_KEY:'simulada'},fetchImpl:async()=>({ok:false,status,json:async()=>({error:{code,type,message:'SECRETO-PRIVADO'}})})}),e=>{assert.match(e.message,mensaje);assert.doesNotMatch(e.message,/SECRETO-PRIVADO/);assert.match(e.message,/carta anterior se conserva/);return true;});}
 });
+
+test('numeración impresa fuera del PDF conserva todos los platos y deja referencias pendientes sin inventarlas',async()=>{
+ const base64=await pdf(5),plato={nombre:'Paella',descripcion:'Arroz',precio:'23,50',unidad:'por persona',alergenos:[],trazas:[],nota_alergenos:''};
+ const extraido={avisos:['Iconos pendientes de revisar'],categorias:[{nombre:'Arroces',notas:'Mínimo 2 personas',platos:[{...plato,pagina:3},{...plato,nombre:'Fideuá',pagina:7}]}]};
+ const leer=async datos=>importar({base64,env:{OPENAI_API_KEY:'simulada'},fetchImpl:async(url,opts)=>{
+  const peticion=JSON.parse(opts.body);assert.match(peticion.input[0].content[1].text,/5 páginas físicas/);
+  return {ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(datos)}]}]})};
+ }});
+ const carta=await leer(extraido);assert.equal(carta.fuente.paginas,5);assert.equal(m.platos(carta).length,2);
+ assert.deepEqual(m.platos(carta).map(p=>p.pagina),[0,0]);assert.deepEqual(m.platos(carta).map(p=>p.precio),['23,50','23,50']);assert.match(carta.avisos[0],/página pendientes/);assert.ok(carta.avisos.includes(extraido.avisos[0]));assert.ok(m.platos(carta).every(p=>!p.revisado&&!p.alergenos_confirmados));
+ extraido.categorias[0].platos[0].pagina=1;extraido.categorias[0].platos[1].pagina=0;
+ const parcial=await leer(extraido);assert.deepEqual(m.platos(parcial).map(p=>p.pagina),[1,0]);
+ extraido.categorias[0].platos[1].pagina=5;
+ const valida=await leer(extraido);assert.deepEqual(m.platos(valida).map(p=>p.pagina),[1,5]);assert.deepEqual(valida.avisos,extraido.avisos);
+});
