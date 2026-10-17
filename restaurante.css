@@ -1437,12 +1437,13 @@ button:focus-visible, summary:focus-visible { outline: 3px solid #bf8d2e; outlin
   margin: 0;
 }
 [data-vista-activa="reservas"] .resumen-item {
+  text-align: center;
   padding: 8px 10px;
   border-radius: 10px;
   box-shadow: none;
   background: #f7f5ef;
 }
-[data-vista-activa="reservas"] .resumen-item span { font-size: 12px; }
+[data-vista-activa="reservas"] .resumen-item span { font-size: 12px; font-weight: 700; }
 [data-vista-activa="reservas"] .resumen-item strong { margin-top: 2px; font-size: 23px; line-height: 1.2; }
 [data-vista-activa="reservas"] #nueva-reserva { order: 3; }
 [data-vista-activa="reservas"] #actualizar { order: 4; }
