@@ -223,6 +223,9 @@ module.exports = async (req, res) => {
     // Los datos estables utilizan las mismas funciones desplegadas para
     // el panel, sin superar el máximo de 12 funciones del plan Hobby.
     // Se aplica protección estricta de origen y sesión en la subrutina.
+    if (["ajustes_consultar", "ajustes_guardar", "ajustes_sincronizar"].includes(accion)) {
+      return require("../lib/ajustes-panel")(req, res);
+    }
     if (["datos_consultar", "datos_guardar", "datos_sincronizar"]
       .includes(accion)) {
       return gestionarDatosRestaurante(req, res);

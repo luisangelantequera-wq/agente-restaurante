@@ -178,6 +178,24 @@ function telefonoPublico(restaurante) {
 }
 
 
+async function buscarInformacionPublica(restauranteId) {
+  const datos = await consultarAirtable(
+    `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/RESTAURANTES?` +
+    new URLSearchParams({ filterByFormula: `{id}=${restauranteId}`, maxRecords: "2" })
+  );
+  if (datos.records?.length !== 1 || Number(datos.records[0].fields.id) !== restauranteId) throw new Error("No se pudo identificar el restaurante.");
+  return datos.records[0];
+}
+
+function informacionHabitualValida(datos, restauranteId, recordId) {
+  try {
+    if (datos?.id !== restauranteId || datos.restaurante_record_id !== recordId ||
+        Object.keys(datos).some(k => !["id", "restaurante_record_id", "direccion", "web", "informacion"].includes(k))) return false;
+    require("../lib/ajustes-restaurante").validarPublico(datos);
+    return true;
+  } catch { return false; }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     return responder(res, 405, { ok: false, error: "Método no permitido." });
@@ -235,6 +253,29 @@ module.exports = async (req, res) => {
 
     if (!restaurante) {
       return responder(res, 404, { ok: false, error: "Restaurante no encontrado." });
+    }
+
+    // Primera ampliación habilitada únicamente en la rama de ensayo.
+    if (process.env.VERCEL_ENV === "preview" && process.env.CONTACTIA_PANEL_V2 === "1") {
+      const modelo = require("../lib/ajustes-restaurante");
+      const preguntaNormalizada = require("../lib/conocimiento-restaurante").normalizarTextoConocimiento(pregunta);
+      if (/\b(horario|horarios|abr[ií]s|abren|abierto|apertura|cerrado|cierre|cierran)\b/.test(preguntaNormalizada) ||
+          /que dias|dias de apertura/.test(preguntaNormalizada)) {
+        const actual = await buscarInformacionPublica(restauranteId);
+        if (actual.id !== restaurante.id) throw new Error("El restaurante no coincide.");
+        return responder(res, 200, { ok: true, encontrada: true, respuesta: modelo.describirHorario(actual.fields), telefono_restaurante: telefonoPublico(restaurante) });
+      }
+      const informacion = await leerConCachePublica({
+        tipo: "informacion", identificador: String(restauranteId),
+        cargar: async () => {
+          const actual = await buscarInformacionPublica(restauranteId);
+          return { id: restauranteId, restaurante_record_id: actual.id, ...modelo.normalizarPublico(actual.fields) };
+        },
+        validar: datos => informacionHabitualValida(datos, restauranteId, restaurante.id)
+      });
+      if (!informacionHabitualValida(informacion, restauranteId, restaurante.id)) throw new Error("Información pública no válida.");
+      const habitual = seleccionarConocimiento(pregunta, modelo.registrosPublicos(informacion));
+      if (habitual) return responder(res, 200, { ok: true, encontrada: true, respuesta: habitual.respuesta, telefono_restaurante: telefonoPublico(restaurante) });
     }
 
     const registros = filtrarRegistrosRestaurante(
