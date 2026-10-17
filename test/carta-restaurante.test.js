@@ -51,3 +51,17 @@ test('importador rechaza salidas incompletas, negativas y fallos del proveedor s
  }
  await assert.rejects(importar({base64,env:{OPENAI_API_KEY:'simulada'},fetchImpl:async()=>({ok:false,status:429})}),/límite/);
 });
+
+test('errores del lector distinguen clave, permisos, modelo, crédito y límite temporal sin exponer mensajes privados',async()=>{
+ const base64=await pdf(),casos=[
+  [401,'invalid_api_key','invalid_request_error',/rechazado la clave/],
+  [403,'','permission_error',/no permite esta operación/],
+  [404,'model_not_found','invalid_request_error',/modelo configurado/],
+  [429,'insufficient_quota','insufficient_quota',/crédito disponible/],
+  [429,'billing_not_active','invalid_request_error',/crédito disponible/],
+  [429,'rate_limit_exceeded','rate_limit_error',/límite de solicitudes/],
+  [400,'invalid_request_error','invalid_request_error',/formato del documento/],
+  [503,'server_error','server_error',/Inténtelo más tarde/]
+ ];
+ for(const[status,code,type,mensaje]of casos){await assert.rejects(importar({base64,env:{OPENAI_API_KEY:'simulada'},fetchImpl:async()=>({ok:false,status,json:async()=>({error:{code,type,message:'SECRETO-PRIVADO'}})})}),e=>{assert.match(e.message,mensaje);assert.doesNotMatch(e.message,/SECRETO-PRIVADO/);assert.match(e.message,/carta anterior se conserva/);return true;});}
+});
