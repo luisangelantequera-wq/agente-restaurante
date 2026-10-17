@@ -90,6 +90,9 @@ function crearServidorSimulado(configuracion = {}) {
   };
 
   function respuestaPredeterminada(solicitud) {
+    if (solicitud.accion === "validar_fecha") {
+      return { ok: true, fecha: solicitud.fecha, fecha_admitida: true };
+    }
     if (solicitud.accion === "verificar") {
       return { ok: true, disponible: true, antelacion_insuficiente: false };
     }

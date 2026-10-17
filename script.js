@@ -57,6 +57,7 @@ let registroConversacionesRemotoHabilitado = false;
 let sesionVozActiva = false;
 let ultimoCorreoConfirmacionEnviado = null;
 let retencionActiva = null;
+let fechaCalendarioComprobada = "";
 
 function liberarRetencionActiva() {
   const anterior = retencionActiva;
@@ -469,6 +470,7 @@ function analizarDatosPrincipales(texto) {
 
 
 function limpiarDatosPrincipales() {
+  fechaCalendarioComprobada = "";
   datosReserva.fecha = "";
   datosReserva.personas = null;
   datosReserva.hora = "";
@@ -638,6 +640,41 @@ async function validarMomentoReservaAntesDeContinuar() {
 }
 
 
+// Solo evita repetir esta lectura durante la captura del mismo día.
+// La disponibilidad y la creación definitiva vuelven a consultar datos actuales.
+async function comprobarCalendarioAntesDeCapturar() {
+  const fecha = datosReserva.fecha;
+  const clave = `${datosReserva.restaurante_id}:${fecha}`;
+  if (fechaCalendarioComprobada === clave) return true;
+  try {
+    const respuesta = await fetch("/api/chat", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accion: "validar_fecha", restaurante_id: datosReserva.restaurante_id, fecha }) });
+    const datos = await respuesta.json();
+    if (!respuesta.ok || datos.ok !== true || datos.fecha !== fecha || typeof datos.fecha_admitida !== "boolean") {
+      if (String(datos.error || "").startsWith("La fecha debe estar entre hoy")) {
+        agregarMensaje("Ese día ya ha pasado o está fuera del plazo de reservas. Indíqueme otro día.", "bot");
+      } else {
+        agregarMensaje("No he podido comprobar si abrimos ese día. Indíqueme la fecha de nuevo para volver a intentarlo.", "bot");
+      }
+    } else if (!datos.fecha_admitida) {
+      agregarMensaje(`${datos.motivo || "El restaurante está cerrado ese día."} ¿Qué otro día le viene bien?`, "bot");
+    } else {
+      fechaCalendarioComprobada = clave;
+      return true;
+    }
+  } catch {
+    agregarMensaje("No he podido comprobar si abrimos ese día. Indíqueme la fecha de nuevo para volver a intentarlo.", "bot");
+  }
+  fechaCalendarioComprobada = "";
+  datosReserva.fecha = "";
+  solicitudEspera = null;
+  liberarRetencionActiva();
+  paso = "fecha";
+  return false;
+}
+
+
 async function continuarCapturaDatosPrincipales() {
   if (!datosReserva.fecha) {
     paso = "fecha";
@@ -647,6 +684,8 @@ async function continuarCapturaDatosPrincipales() {
     );
     return;
   }
+
+  if (!(await comprobarCalendarioAntesDeCapturar())) return;
 
   if (!datosReserva.personas) {
     paso = "personas";
@@ -2073,6 +2112,7 @@ async function procesarMensaje(texto, opciones = {}) {
       /^si\b/.test(textoMinusculas) ||
       window.ContactiaEntrada.esIntencionReserva(mensaje)
     ) {
+      fechaCalendarioComprobada = "";
       const analisisInicial = analizarDatosPrincipales(mensaje);
 
       if (analisisInicial.ambiguos.length > 0) {

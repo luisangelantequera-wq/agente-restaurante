@@ -58,6 +58,7 @@ const ACCIONES_PERMITIDAS = new Set([
   "cancelar",
   "consultar",
   "enviar_contacto_restaurante",
+  "validar_fecha",
   "lista_espera_crear",
   "liberar_retencion",
   "modificar",
@@ -69,6 +70,7 @@ const ACCIONES_PERMITIDAS = new Set([
   "verificar"
 ]);
 const ACCIONES_CON_FECHA_RESERVA = new Set([
+  "validar_fecha",
   "lista_espera_crear",
   "modificar",
   "ocupar_mesa",
@@ -2572,6 +2574,27 @@ module.exports = async (req, res) => {
       req,
       restaurante_id
     );
+
+    // Comprobación temprana del calendario, sin personas, zonas ni mesas.
+    if (accion === "validar_fecha") {
+      if (!fechaReservaDentroDeRango(fecha)) return responder(res, 400, {
+        ok: false, error: `La fecha debe estar entre hoy y los próximos ${MAX_DIAS_ANTELACION} días.`
+      });
+      const restaurante = await buscarRestaurante(restaurante_id);
+      if (!restaurante) return responder(res, 404, { ok: false, error: "Restaurante no encontrado." });
+      const campos = restaurante.fields;
+      const efectivo = require("../lib/ajustes-restaurante").horarioParaFecha(campos, fecha);
+      if (!Array.isArray(efectivo.rangos)) throw new Error("Horario no válido.");
+      const activo = String(campos.estado || "activo").trim().toLowerCase() === "activo";
+      const abierta = activo && efectivo.rangos.length > 0;
+      if (abierta) {
+        const primeraHora = String(efectivo.rangos[0]).split("-")[0].trim();
+        if (!validarHorarioRestaurante(campos, fecha, primeraHora).valido) throw new Error("Horario no válido.");
+      }
+      const fechaLegible = new Intl.DateTimeFormat("es-ES", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(fecha + "T12:00:00Z"));
+      return responder(res, 200, { ok: true, fecha, fecha_admitida: abierta,
+        ...(abierta ? {} : { motivo: activo ? `El restaurante está cerrado el ${fechaLegible}.` : "El restaurante no está aceptando reservas en este momento." }) });
+    }
 
     if (accion === "liberar_retencion") {
       const retenciones = almacenRetenciones();

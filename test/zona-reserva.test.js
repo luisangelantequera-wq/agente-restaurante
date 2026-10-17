@@ -403,3 +403,32 @@ test("fecha especial: las alternativas usan el servicio excepcional y no el hora
     assert.match(r.body.motivo, /17:00-19:00/);
   } finally { global.fetch = original; }
 });
+
+test("calendario temprano: fecha sin personas consulta solo el restaurante y relee sus cierres", async () => {
+  const original = global.fetch, especiales = [], leidas = [];
+  const falso = instalarAirtableFalso({ fechasEspeciales: especiales });
+  global.fetch = async (...args) => { leidas.push(new URL(args[0]).pathname.split('/').at(-1)); return falso(...args); };
+  try {
+    const fecha = fechaProxima();
+    const solicitud = { accion: 'validar_fecha', restaurante_id: 1, fecha };
+    const abierta = await ejecutar(solicitud);
+    assert.equal(abierta.status, 200);
+    assert.equal(abierta.body.fecha_admitida, true);
+    especiales.push({ fecha: fecha.slice(5), rangos: [] });
+    const cerrada = await ejecutar(solicitud);
+    assert.equal(cerrada.body.fecha_admitida, false);
+    assert.match(cerrada.body.motivo, /cerrado/);
+    assert.deepEqual(leidas, ['RESTAURANTES', 'RESTAURANTES']);
+    assert.equal(Object.hasOwn(abierta.body, 'disponible'), false);
+  } finally { global.fetch = original; }
+});
+test("calendario temprano: fecha ausente o imposible se rechaza sin consultar Airtable", async () => {
+  const original = global.fetch;
+  global.fetch = () => { throw new Error('No debe consultar datos'); };
+  try {
+    for (const fecha of [undefined, '2026-02-30', 'texto']) {
+      const r = await ejecutar({ accion: 'validar_fecha', restaurante_id: 1, ...(fecha ? { fecha } : {}) });
+      assert.equal(r.status, 400);
+    }
+  } finally { global.fetch = original; }
+});
