@@ -4,12 +4,13 @@
   let estado=null,carta=m.vacia(),revision='',ocupado=false,cargada=false,sucio=false,urlPdf='';
   const escapar=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const nuevoId=()=>crypto.randomUUID();
-  function cambiar(){sucio=true;$('carta-estado').textContent='Hay cambios sin guardar en el borrador.';resumen();}
+  function cambiar(){$('carta-aviso-guardado').hidden=true;$('carta-error').textContent='';sucio=true;$('carta-estado').textContent='Hay cambios sin guardar en el borrador.';resumen();}
   function resumen(){
     const platos=m.platos(carta),pendientes=platos.filter(p=>!p.revisado).length;
     $('carta-resumen').textContent=`${carta.categorias.length} categorías · ${platos.length} platos y bebidas · ${pendientes} pendientes de revisión`;
     $('carta-publicacion').textContent=estado?.publicada?`Carta publicada: ${new Intl.DateTimeFormat('es-ES',{dateStyle:'medium',timeStyle:'short'}).format(new Date(estado.publicada_en))}. ${carta.fuente.nombre?'Borrador de '+carta.fuente.nombre+'.':''}`:'Aún no hay una carta publicada. El asistente no utiliza el borrador.';
     $('carta-retirar').hidden=!estado?.publicada;
+    $('carta-ayuda-publicar').textContent=!platos.length?'Añada al menos un plato o bebida y revise sus datos antes de publicar.':pendientes?`Faltan ${pendientes} platos o bebidas por revisar. Guardar el borrador no los marca como revisados. Cuando haya comprobado nombres, precios y condiciones, pulse «Confirmar revisión de todos los platos». Los alérgenos se confirman por separado.`:'Los platos están marcados como revisados. Ya puede guardar y publicar. Los alérgenos pendientes se comunicarán como información sin confirmar.';
   }
   async function solicitar(accion,extra={}){
     const r=await fetch('/api/restaurante',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'carta_'+accion,restaurante_id:id,revision,...extra})});
@@ -22,8 +23,8 @@
   function campo(nombre,titulo,valor,max=500){return `<label>${titulo}<input data-campo="${nombre}" maxlength="${max}" value="${escapar(valor)}" ${nombre==='precio'?'inputmode="decimal"':''}></label>`;}
   function pintar(){
     resumen();$('carta-avisos').innerHTML=carta.avisos.map(a=>`<li>${escapar(a)}</li>`).join('');
-    $('carta-categorias').innerHTML=carta.categorias.length?carta.categorias.map(cat=>`<section class="tarjeta carta-categoria" data-categoria="${cat.id}">
-      <div class="carta-categoria-cabecera"><label>Nombre de categoría<input data-categoria-campo="nombre" value="${escapar(cat.nombre)}" maxlength="100"></label><div class="carta-botones"><button type="button" data-orden="-1" class="boton-secundario" aria-label="Subir categoría">↑</button><button type="button" data-orden="1" class="boton-secundario" aria-label="Bajar categoría">↓</button><button type="button" data-borrar-categoria class="boton-secundario">Eliminar categoría</button></div></div>
+    $('carta-categorias').innerHTML=carta.categorias.length?carta.categorias.map((cat,indice)=>`<section class="tarjeta carta-categoria" data-categoria="${cat.id}">
+      <div class="carta-categoria-cabecera"><label><span class="carta-categoria-titulo">${indice+1}. Nombre de la categoría</span><input data-categoria-campo="nombre" value="${escapar(cat.nombre)}" maxlength="100"></label><div class="carta-botones"><button type="button" data-orden="-1" class="boton-secundario" aria-label="Subir categoría">↑</button><button type="button" data-orden="1" class="boton-secundario" aria-label="Bajar categoría">↓</button><button type="button" data-borrar-categoria class="boton-secundario">Eliminar categoría</button></div></div>
       <label>Condiciones de esta categoría<textarea data-categoria-campo="notas" rows="2" maxlength="1200">${escapar(cat.notas)}</textarea></label>
       <div class="carta-platos">${cat.platos.map(p=>`<details class="carta-plato" data-plato="${p.id}"><summary><strong data-titulo-plato>${escapar(p.nombre)}</strong><span data-resumen-plato>${escapar(p.precio?p.precio+' € '+p.unidad:'Precio a consultar')} · ${p.disponible?'Disponible':'Agotado'} · ${p.revisado?'Revisado':'Pendiente'}</span></summary><div class="carta-plato-editor">
         <div class="carta-campos">${campo('nombre','Nombre',p.nombre,180)}${campo('precio','Precio (€), vacío si es a consultar',p.precio,8)}${campo('unidad','Unidad: por persona, unidad, botella…',p.unidad,100)}<label>Mover a categoría<select data-mover>${carta.categorias.map(c=>`<option value="${c.id}" ${c.id===cat.id?'selected':''}>${escapar(c.nombre)}</option>`).join('')}</select></label></div>
@@ -38,13 +39,16 @@
   }
   function aceptar(d){estado=d.estado;revision=d.revision;carta=structuredClone(estado.borrador);cargada=true;sucio=false;pintar();$('carta-lector').textContent=d.importacion_disponible?'Al importar, el documento se envía al lector de OpenAI para preparar el borrador. La lectura puede tardar hasta unos minutos.':'La lectura automática del PDF está pendiente de activación en este Sandbox. Puede preparar y guardar la carta manualmente.';}
   async function cargar(){if(ocupado)return;if(sucio&&!confirm('Hay cambios sin guardar. ¿Volver a cargar la última versión guardada?'))return;bloquear(true);$('carta-error').textContent='';$('carta-estado').textContent='Cargando carta…';try{aceptar(await solicitar('consultar'));$('carta-estado').textContent='Carta cargada.';}catch(e){$('carta-error').textContent=e.message;$('carta-estado').textContent='';}finally{bloquear(false);}}
-  async function guardar(publicar=false){if(ocupado||!cargada)return;$('carta-error').textContent='';try{
+  async function guardar(publicar=false){if(ocupado||!cargada)return;$('carta-error').textContent='';$('carta-aviso-guardado').hidden=true;try{
+    const pendientes=m.platos(carta).filter(p=>!p.revisado).length;
+    if(publicar&&pendientes)throw new Error(`Faltan ${pendientes} platos o bebidas por revisar. Compruebe sus datos y pulse «Confirmar revisión de todos los platos» antes de publicar.`);
     const datos=m.validar(carta,publicar);
     if(publicar){const cambios=m.diferencias(estado.publicada||m.vacia(),datos);if(!confirm(`El asistente utilizará esta carta. Cambios respecto a la publicada: ${cambios.nuevos} nuevos, ${cambios.cambiados} modificados y ${cambios.eliminados} eliminados. ¿Guardar y publicar?`))return;}
     bloquear(true);const d=await solicitar(publicar?'publicar':'guardar',{datos,confirmar_publicacion:publicar});aceptar(d);
     $('carta-estado').textContent=publicar?'Carta guardada y publicada.':'Borrador guardado. La carta publicada no ha cambiado.';
     $('carta-sincronizar').hidden=!(d.memoria?.activada&&!d.memoria.sincronizada);if(d.aviso)$('carta-error').textContent=d.aviso;
-  }catch(e){$('carta-error').textContent=e.message;}finally{bloquear(false);}}
+    $('carta-aviso-guardado').textContent=d.aviso||$('carta-estado').textContent;$('carta-aviso-guardado').dataset.estado=d.aviso?'error':'terminado';$('carta-aviso-guardado').hidden=false;
+  }catch(e){$('carta-error').textContent=e.message;const caja=$('carta-aviso-guardado');caja.textContent=e.message;caja.dataset.estado='error';caja.hidden=false;caja.scrollIntoView?.({block:'nearest',behavior:'smooth'});}finally{bloquear(false);}}
   function encontrar(el){const cat=carta.categorias.find(c=>c.id===el.closest('[data-categoria]')?.dataset.categoria);return {cat,p:cat?.platos.find(p=>p.id===el.closest('[data-plato]')?.dataset.plato)};}
   $('carta-categorias').addEventListener('input',evento=>{
     const el=evento.target,{cat,p}=encontrar(el);if(!cat)return;
@@ -67,7 +71,8 @@
     else return;cambiar();pintar();
   });
   $('carta-categoria').addEventListener('click',()=>{if(!cargada||ocupado)return;carta.categorias.push({id:nuevoId(),nombre:'Nueva categoría '+(carta.categorias.length+1),notas:'',platos:[]});cambiar();pintar();});
-  $('carta-revisar').addEventListener('click',()=>{if(!cargada||ocupado||!m.platos(carta).length)return;if(!confirm('Confirma que ha revisado los nombres, descripciones, precios, unidades y condiciones de todos los platos. Esto no confirma los alérgenos. ¿Marcar los platos revisados?'))return;carta.categorias.forEach(c=>c.platos.forEach(p=>p.revisado=true));cambiar();pintar();});
+  function confirmarRevision(){if(!cargada||ocupado||!m.platos(carta).length)return;if(!confirm('Confirma que ha revisado los nombres, descripciones, precios, unidades y condiciones de todos los platos. Esto no confirma los alérgenos. ¿Marcar los platos revisados?'))return;carta.categorias.forEach(c=>c.platos.forEach(p=>p.revisado=true));cambiar();pintar();}
+  $('carta-revisar').addEventListener('click',confirmarRevision);$('carta-revisar-final').addEventListener('click',confirmarRevision);
   $('carta-form').addEventListener('submit',e=>{e.preventDefault();void guardar();});$('carta-publicar').addEventListener('click',()=>guardar(true));$('carta-recargar').addEventListener('click',cargar);
   $('carta-pdf').addEventListener('change',()=>{if(urlPdf)URL.revokeObjectURL(urlPdf);urlPdf='';const file=$('carta-pdf').files[0];$('carta-ver-pdf').hidden=!file;if(file){urlPdf=URL.createObjectURL(file);$('carta-ver-pdf').href=urlPdf;}});
   $('carta-importar').addEventListener('click',async()=>{if(ocupado||!cargada)return;$('carta-error').textContent='';const file=$('carta-pdf').files[0];if(!file){avisoImportacion('Seleccione el documento PDF.','error');return;}if(file.size>2500000||!file.name.toLowerCase().endsWith('.pdf')){avisoImportacion('Seleccione un PDF de hasta 2,5 MB.','error');return;}
