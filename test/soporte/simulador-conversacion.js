@@ -9,6 +9,7 @@ const fechas = require("../../lib/fecha-conversacional");
 const entrada = require("../../lib/entrada-conversacional");
 const conocimiento = require("../../lib/conocimiento-restaurante");
 const centroConversaciones = require("../../lib/centro-conversaciones");
+const guardadoConversaciones = require("../../lib/guardado-conversaciones");
 
 
 function crearElemento() {
@@ -191,6 +192,7 @@ async function crearSimuladorConversacion(configuracion = {}) {
   };
   const ventana = {
     ContactiaCentroConversaciones: centroConversaciones,
+    ContactiaGuardadoConversaciones: guardadoConversaciones,
     ContactiaConocimiento: conocimiento,
     ContactiaEntrada: entrada,
     ContactiaFechas: fechas,

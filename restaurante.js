@@ -221,6 +221,17 @@ function mostrarPanel() {
 }
 
 
+function actualizarInicio(datos) {
+  document.getElementById("estado-inicio").textContent = "Actualizada ahora";
+  document.getElementById("inicio-mesas").textContent = (datos.mesas_disponibles || []).length;
+  document.getElementById("inicio-espera").textContent = (datos.lista_espera || []).filter(r => ["pendiente", "avisado"].includes(r.estado)).length;
+  const vigentes = datos.reservas.filter(r => r.estado !== "cancelada").slice(0, 4);
+  document.getElementById("inicio-reservas").innerHTML = vigentes.length
+    ? vigentes.map(r => `<div class="resumen-proxima"><strong>${escaparHtml(r.hora)}</strong><span>${escaparHtml(r.nombre || "Reserva")} · ${escaparHtml(r.personas)} personas</span><span>${escaparHtml(r.mesas.join(", "))}</span></div>`).join("")
+    : `<p class="nota-formulario">No hay reservas activas para el día seleccionado.</p>`;
+}
+
+
 function renderizarReservas(reservas) {
   reservasActuales = reservas;
 
@@ -497,8 +508,11 @@ function renderizarMesasLibres(mesas, hora) {
     return;
   }
 
-  mesasLibresContenedor.innerHTML = mesas.map((mesa) => `
-    <article class="mesa-libre">
+  let ultimaZona = null;
+  mesasLibresContenedor.innerHTML = mesas.map((mesa) => {
+    const cabecera = ultimaZona !== mesa.zona ? `<h3 class="grupo-zona">${escaparHtml(mesa.zona)}</h3>` : "";
+    ultimaZona = mesa.zona;
+    return `${cabecera}<article class="mesa-libre">
       <div>
         <strong>${escaparHtml(mesa.nombre)}</strong>
         <span>${escaparHtml(mesa.zona)}</span>
@@ -511,7 +525,7 @@ function renderizarMesasLibres(mesas, hora) {
         data-mesa-id="${escaparHtml(mesa.id)}"
       >Ocupar</button>
     </article>
-  `).join("");
+  `; }).join("");
 }
 
 
@@ -1184,7 +1198,9 @@ async function cargarReservas(clave = "") {
     renderizarReservas(datos.reservas);
     renderizarListaEspera(datos.lista_espera || []);
     renderizarMesasLibres(datos.mesas_disponibles || [], datos.hora_mesas);
+    actualizarInicio(datos);
     estadoCarga.textContent = `${datos.reservas.length} reservas`;
+    document.getElementById("estado-global-panel").textContent = "";
 
     const nuevaUrl = new URL(window.location.href);
     nuevaUrl.searchParams.set("fecha", fecha);
@@ -1193,6 +1209,8 @@ async function cargarReservas(clave = "") {
     window.history.replaceState({}, "", nuevaUrl);
   } catch (error) {
     estadoCarga.textContent = error.message;
+    document.getElementById("estado-global-panel").textContent = error.message;
+    document.getElementById("estado-inicio").textContent = "Actualización pendiente";
   } finally {
     botonActualizar.disabled = false;
   }

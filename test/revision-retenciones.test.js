@@ -4,7 +4,9 @@ const { crearRedisSimulado } = require('./soporte/redis-retenciones-simulado');
 const { crearServicioRevision } = require('../lib/revision-retenciones');
 const datos = { fecha: '2026-10-01', hora: '14:00', personas: 4, duracion: 90, zona: 'terraza' };
 async function preparar(estado = 'confirmada') {
-  const redis = crearRedisSimulado(), almacen = redis.instancia();
+  // La reserva de este escenario es del 1/10/2026; su reloj simulado
+  // debe estar en el mismo día para no caducar al ejecutarse meses después.
+  const redis = crearRedisSimulado(Date.parse('2026-10-01T13:30:00Z')), almacen = redis.instancia();
   const oferta = await almacen.adquirir('recRestaurante', datos, [{ ids: ['mesa1'] }]);
   await almacen.iniciar('recRestaurante', oferta.token, datos);
   await almacen.vincularAlta('recRestaurante', oferta.token, 'SOL-20261001-PRUEBA');

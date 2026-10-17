@@ -23,6 +23,12 @@ test('centro muestra operación, comprueba por botón y limpia al cerrar sesión
   vm.runInNewContext(fs.readFileSync(require.resolve('../centro-contactia.js'), 'utf8'), { document, fetch, Intl, Date, console });
   await new Promise(r => setImmediate(r));
   const lista = nodos.get('#listaRetenciones');
+  // Desde que Airtable alcanzó el límite, el Centro NO consulta operaciones
+  // al cargar. Solo lo hace cuando el operador pulsa su botón explícito.
+  assert.equal(llamadas.filter(r => r.accion === 'listar_retenciones').length, 0);
+  assert.equal(lista.children.length, 0);
+  await nodos.get('#actualizarRetenciones').listeners.click();
+  assert.equal(llamadas.filter(r => r.accion === 'listar_retenciones').length, 1);
   assert.equal(lista.children.length, 1);
   assert.match(lista.children[0].children[0].textContent, /Sol <script>/);
   const boton = lista.children[0].children.at(-1);

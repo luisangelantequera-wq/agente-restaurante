@@ -1,9 +1,9 @@
 const assert = require("node:assert/strict");
 const { crearAlmacenRetenciones, LEER, CAS } = require("../../lib/retenciones-mesas");
 
-function crearRedisSimulado() {
+function crearRedisSimulado(ahoraInicial = Date.now()) {
   const documentos = new Map();
-  let ahora = Date.now();
+  let ahora = ahoraInicial;
   let disponible = true;
   const ejecutar = async ([cmd, script, n, clave, previo, nuevo, limite]) => {
     if (!disponible) throw new Error("Redis no disponible");

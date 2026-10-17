@@ -432,7 +432,15 @@ test("la interfaz guarda de forma diferida y cierra la sesión al abandonar", ()
 
   assert.match(script, /fetch\("\/api\/conversaciones"/);
   assert.match(script, /prepararConversacionPersistente/);
-  assert.match(script, /setTimeout[\s\S]*1200/);
+  // La temporización vive ahora en el gestor externo: el navegador no
+  // programa un guardado por cada turno y conserva 90 s de inactividad.
+  const gestor = fs.readFileSync(
+    path.join(__dirname, "..", "lib", "guardado-conversaciones.js"), "utf8"
+  );
+  assert.match(script, /ContactiaGuardadoConversaciones\.crearGestor/);
+  assert.match(gestor, /INACTIVIDAD_MS = 90 \* 1000/);
+  assert.match(gestor, /agendar\(inactividadMs\)/);
   assert.match(script, /addEventListener\("pagehide"/);
-  assert.match(script, /guardarConversacionRemota\("cerrada"/);
+  // El cierre ahora lo delega al gestor que serializa y anonimiza guardados.
+  assert.match(script, /gestorGuardadoConversacion\.cerrar\(/);
 });

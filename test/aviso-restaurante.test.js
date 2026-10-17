@@ -39,6 +39,11 @@ test('Centro ofrece el aviso bajo sesión sin enviar, escribir ni consultar prov
  const {crearTokenSesionContactia,COOKIE_SESION_CONTACTIA}=require('../lib/sesion-contactia');
  const original={...process.env}, originalLeer=lectura.leerAirtable, originalServicio=llamadas.servicio, originalFetch=global.fetch;
  const {registro,seguimiento}=caso();let lecturas=0;
+ // La ficha de ejemplo de octubre caduca; en esta prueba de la ruta
+ // administrativa usamos una reserva futura sin modificar las pruebas
+ // históricas de formato del aviso.
+ registro.fields.fecha=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+ seguimiento.huella=llamadas.huella(registro,env);
  try {
   Object.assign(process.env,{VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'prototipo-voz',CONTACTIA_LLAMADAS_PRUEBA_HABILITADAS:'1',CONTACTIA_CENTRO_SECRET:'s'.repeat(40),CONTACTIA_AVISOS_SECRET:env.CONTACTIA_AVISOS_SECRET,
    TWILIO_VOICE_FROM:'+34611111111',TWILIO_VOICE_TEST_TO:'+34622222222',TWILIO_ACCOUNT_SID:'AC'+'a'.repeat(32),TWILIO_AUTH_TOKEN:'b'.repeat(32)});
