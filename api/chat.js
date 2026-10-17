@@ -1370,8 +1370,9 @@ function validarHorarioRestaurante(campos, fecha, hora) {
     return {
       valido: false,
       motivo:
-        `El horario de reservas para el ${diaSemana} es ` +
-        `${rangos.join(" y ")}.`,
+        `El horario de reservas del ${diaSemana} ${new Intl.DateTimeFormat("es-ES", {
+          timeZone: "UTC", day: "numeric", month: "long"
+        }).format(new Date(fecha + "T12:00:00Z"))} es de ${rangos.join(" y ")}.`,
       cambioRequerido: "hora"
     };
   }
