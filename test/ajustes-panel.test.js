@@ -133,3 +133,43 @@ test("ajustes: cierre anual avisa de reservas afectadas y exige nueva confirmaci
   assert.equal(cambiado.reservas_afectadas.length, 2);
   assert.equal(e.patches.length, 0);
 }));
+
+test("gastronomía: información por líneas conserva días, encargos y mínimos sin inventar disponibilidad", () => {
+  const texto = "Los miércoles tenemos cocido.\nLos jueves tenemos paella, por encargo y para un mínimo de dos personas.";
+  const datos = { informacion: { gastronomia: texto } };
+  for (const q of ["¿Tenéis cocido?", "¿Qué días tenéis cocido?", "Cocido", "¿Qué tenéis los miércoles?"]) assert.equal(modelo.responderGastronomia(datos, q), texto.split("\n")[0]);
+  for (const q of ["¿Tenéis paella?", "¿Se puede encargar paella?", "¿Puedo pedir paella para una persona?", "¿Qué tenéis los jueves?"]) assert.equal(modelo.responderGastronomia(datos, q), texto.split("\n")[1]);
+  assert.equal(modelo.responderGastronomia(datos, "¿Qué especialidades tenéis?"), texto);
+  for (const q of ["¿Hay aparcamiento el jueves?", "¿Abrís el miércoles?", "¿Tenéis sushi?", "¿La paella tiene gluten?", "¿La paella tiene leche?", "¿Qué platos vegetarianos tenéis?"]) assert.equal(modelo.responderGastronomia(datos, q), null);
+  assert.equal(modelo.responderGastronomia({ informacion: {} }, "¿Tenéis cocido?"), null);
+  assert.throws(() => modelo.validarGastronomia({ gastronomia: "x".repeat(1001) }));
+  assert.throws(() => modelo.validarGastronomia({ gastronomia: "Cocido", api_key: "no" }));
+});
+test("gastronomía: editor propio guarda solo su información, conserva contacto y FAQ y permite borrar", async () => escenario(async (e, llamar, preguntar) => {
+  e.fields.informacion_publica = JSON.stringify({ mascotas: "Admitimos perros en terraza.", pagos: "Aceptamos tarjeta." });
+  const inicial = await llamar("consultar", "gastronomia"); assert.equal(inicial.status, 200); assert.deepEqual(inicial.datos, { gastronomia: "" });
+  const texto = "Los miércoles tenemos cocido.\nLos jueves tenemos paella, por encargo y para un mínimo de dos personas.";
+  const r = await llamar("guardar", "gastronomia", { revision: inicial.revision, datos: { gastronomia: texto } });
+  assert.equal(r.status, 200); assert.equal(r.memoria.sincronizada, true); assert.deepEqual(Object.keys(e.patches[0]), ["informacion_publica"]);
+  assert.equal(JSON.parse(e.fields.informacion_publica).mascotas, "Admitimos perros en terraza."); assert.equal(JSON.parse(e.fields.informacion_publica).pagos, "Aceptamos tarjeta.");
+  assert.equal((await preguntar("¿Tenéis cocido?")).respuesta, texto.split("\n")[0]);
+  assert.equal((await preguntar("¿Qué días tenéis cocido?")).respuesta, texto.split("\n")[0]);
+  assert.equal((await preguntar("¿Tenéis paella?")).respuesta, texto.split("\n")[1]);
+  assert.equal((await preguntar("¿Hay aparcamiento el jueves?")).encontrada, false);
+  assert.equal((await preguntar("¿La paella tiene gluten?")).encontrada, false);
+  const consultaGeneral = await llamar("consultar", "publico"); const datos = consultaGeneral.datos; datos.informacion.pagos = "Solo efectivo.";
+  const otro = await llamar("guardar", "publico", { revision: consultaGeneral.revision, datos }); assert.equal(otro.status, 200); assert.equal(JSON.parse(e.fields.informacion_publica).gastronomia, texto);
+  assert.equal((await llamar("guardar", "gastronomia", { revision: inicial.revision, datos: { gastronomia: "Otro plato" } })).status, 409);
+  const retirada = await llamar("guardar", "gastronomia", { revision: r.revision, datos: { gastronomia: "" } }); assert.equal(retirada.status, 200);
+  assert.equal((await preguntar("¿Tenéis cocido?")).encontrada, false); assert.equal(JSON.parse(e.fields.informacion_publica).pagos, "Solo efectivo.");
+}));
+test("gastronomía: requiere sesión y origen, limita el tamaño y recupera la memoria sin repetir guardado", async () => escenario(async (e, llamar) => {
+  assert.equal((await llamar("consultar", "gastronomia", {}, { cookie: "" })).status, 401);
+  assert.equal((await llamar("consultar", "gastronomia", {}, { origin: "https://otra.example" })).status, 403);
+  assert.equal(e.lecturas.length, 0);
+  const inicial = await llamar("consultar", "gastronomia");
+  assert.equal((await llamar("guardar", "gastronomia", { revision: inicial.revision, datos: { gastronomia: "x".repeat(1001) } })).status, 400);
+  e.caido = true;const r = await llamar("guardar", "gastronomia", { revision: inicial.revision, datos: { gastronomia: "Los miércoles tenemos cocido." } });
+  assert.equal(r.datos_guardados, true); assert.equal(r.memoria.sincronizada, false); e.caido = false;
+  assert.equal((await llamar("sincronizar", "gastronomia")).memoria.sincronizada, true); assert.equal(e.patches.length, 1);
+}));

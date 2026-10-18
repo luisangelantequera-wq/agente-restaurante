@@ -40,7 +40,9 @@
   }
   function rellenar(datos) {
     if (seccion === "publico") {
-      campos.innerHTML = `<div class="editor-campos"><div><label for="ajuste-direccion">Dirección</label><input id="ajuste-direccion" maxlength="300" value="${escapar(datos.direccion)}" autocomplete="street-address"></div><div><label for="ajuste-web">Página web</label><input id="ajuste-web" type="url" maxlength="300" value="${escapar(datos.web)}" placeholder="https://restaurante.es"></div><h3>Respuestas para sus clientes</h3><p class="nota-formulario">Escriba únicamente información confirmada. Si deja un apartado vacío, el asistente no dará una respuesta basada en él.</p>${modelo.TEMAS.map(t => `<div><label for="info-${t.id}">${escapar(t.titulo)}</label><textarea id="info-${t.id}" maxlength="1000" rows="3">${escapar(datos.informacion[t.id])}</textarea></div>`).join("")}</div>`;
+      campos.innerHTML = `<div class="editor-campos"><div><label for="ajuste-direccion">Dirección</label><input id="ajuste-direccion" maxlength="300" value="${escapar(datos.direccion)}" autocomplete="street-address"></div><div><label for="ajuste-web">Página web</label><input id="ajuste-web" type="url" maxlength="300" value="${escapar(datos.web)}" placeholder="https://restaurante.es"></div><h3>Respuestas para sus clientes</h3><p class="nota-formulario">Escriba únicamente información confirmada. Si deja un apartado vacío, el asistente no dará una respuesta basada en él.</p>${modelo.TEMAS.map(t => `<div ${t.id === "gastronomia" ? "hidden" : ""}><label for="info-${t.id}">${escapar(t.titulo)}</label><textarea id="info-${t.id}" maxlength="1000" rows="3">${escapar(datos.informacion[t.id])}</textarea></div>`).join("")}</div>`;
+    } else if (seccion === "gastronomia") {
+      campos.innerHTML = `<div class="editor-campos"><label for="ajuste-gastronomia">Especialidades, días y condiciones</label><p class="nota-formulario" id="ayuda-gastronomia">Escriba una especialidad por línea. Indique el día, si requiere encargo, la antelación y el mínimo de personas cuando corresponda.</p><textarea id="ajuste-gastronomia" maxlength="1000" rows="6" aria-describedby="ayuda-gastronomia">${escapar(datos.gastronomia)}</textarea><p class="nota-formulario">Ejemplos: «Los miércoles tenemos cocido». «Los jueves tenemos paella, por encargo y para un mínimo de dos personas».</p><p class="nota-formulario">El asistente responderá con la información que guarde. Puede modificarla o borrarla cuando cambie.</p></div>`;
     } else {
       const editor = modelo.prepararEditor(datos);
       campos.innerHTML = `<div class="editor-horarios">
@@ -89,6 +91,7 @@
     return [...bloque.querySelectorAll(".editor-turno")].map(el => [...el.querySelectorAll("input")].map(i => i.value).join("-"));
   }
   function leer() {
+    if (seccion === "gastronomia") return modelo.validarGastronomia({ gastronomia: document.getElementById("ajuste-gastronomia").value });
     if (seccion === "publico") return modelo.validarPublico({ direccion: document.getElementById("ajuste-direccion").value, web: document.getElementById("ajuste-web").value, informacion: Object.fromEntries(modelo.TEMAS.map(t => [t.id, document.getElementById("info-" + t.id).value])) });
     const cerrados = [...campos.querySelectorAll("[data-cierre-semanal]:checked")].map(el => el.dataset.cierreSemanal);
     const semanales = Object.fromEntries([...campos.querySelectorAll("[data-semanal]")].filter(el => !cerrados.includes(el.dataset.semanal) && el.querySelector("[data-distinto]").checked).map(el => [el.dataset.semanal, leerRangos(el.querySelector(".editor-bloque"))]));
@@ -111,7 +114,7 @@
   }
   document.querySelectorAll("[data-ajuste]").forEach(boton => boton.addEventListener("click", async () => {
     seccion = boton.dataset.ajuste; revision = ""; const actual = ++generacion;
-    document.getElementById("titulo-editor-ajustes").textContent = seccion === "horarios" ? "Horarios y calendario" : "Información del restaurante";
+    document.getElementById("titulo-editor-ajustes").textContent = seccion === "horarios" ? "Horarios y calendario" : seccion === "gastronomia" ? "Información gastronómica" : "Información del restaurante";
     document.getElementById("nota-editor-ajustes").textContent = seccion === "horarios" ? "Configure las horas en las que acepta reservas. Estos horarios se comprueban al reservar; un cierre o cambio no cancela las reservas existentes." : "La información que guarde estará disponible para las próximas preguntas de sus clientes.";
     campos.innerHTML = ""; guardar.disabled = true; estado.textContent = "Cargando ajustes…"; error.textContent = ""; reintentar.hidden = true; dialogo.showModal();
     try { const datos = await solicitar("consultar"); if (actual !== generacion) return; revision = datos.revision; rellenar(datos.datos); estado.textContent = "Ajustes actuales cargados."; guardar.disabled = false; }

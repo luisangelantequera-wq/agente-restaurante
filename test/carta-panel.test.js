@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const ruta=require('../api/restaurante'),publico=require('../api/informacion-restaurante');
 const {crearTokenSesion,COOKIE_SESION}=require('../lib/sesion-restaurante');
 const m=require('../lib/carta-restaurante');
-const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'carta-pruebas',CONTACTIA_PANEL_V2:'1',CONTACTIA_CACHE_PUBLICA:'1',AIRTABLE_BASE_ID:'appFicticia',AIRTABLE_API_KEY:'simulada',PANEL_SESSION_SECRET:'s'.repeat(64),KV_REST_API_URL:'https://carta.upstash.io',KV_REST_API_TOKEN:'token-ficticio-largo',CONTACTIA_MEDIR_AIRTABLE:'false',OPENAI_API_KEY:''};
+const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'carta-pruebas',CONTACTIA_PANEL_V2:'1',CONTACTIA_CARTA_ACTIVA:'1',CONTACTIA_CACHE_PUBLICA:'1',AIRTABLE_BASE_ID:'appFicticia',AIRTABLE_API_KEY:'simulada',PANEL_SESSION_SECRET:'s'.repeat(64),KV_REST_API_URL:'https://carta.upstash.io',KV_REST_API_TOKEN:'token-ficticio-largo',CONTACTIA_MEDIR_AIRTABLE:'false',OPENAI_API_KEY:''};
 function carta(){return {...m.vacia(),categorias:[{id:'cat',nombre:'Arroces',notas:'Mínimo 2 personas',platos:[{id:'paella',nombre:'Paella valenciana',descripcion:'',precio:'23,50',unidad:'por persona',disponible:true,revisado:true,alergenos:['gluten'],trazas:[],alergenos_confirmados:false,nota_alergenos:'Propuesta privada',pagina:0}]}]};}
 const response=d=>({ok:true,status:200,text:async()=>JSON.stringify(d),json:async()=>d});
 async function escenario(fn){
@@ -53,4 +53,12 @@ test('importación sin clave no envía el PDF ni cambia el guardado; límites pr
  const consulta=await llamar('consultar');const r=await llamar('importar',{revision:consulta.body.revision,pdf_base64:'dato'});assert.equal(r.statusCode,503);assert.equal(estado.escrituras,0);
  assert.equal((await llamar('consultar',{relleno:'x'.repeat(110000)})).statusCode,413);
  const res={setHeader(){},end(s){this.body=JSON.parse(s);}};await ruta({method:'POST',headers:{'content-type':'application/json'},body:{accion:'consultar',relleno:'x'.repeat(17000)}},res);assert.equal(res.statusCode,413);
+}));
+
+test('carta aparcada: sin activación explícita no accede al editor ni responde desde la carta publicada',()=>escenario(async({estado,llamar,preguntar})=>{
+ process.env.CONTACTIA_CARTA_ACTIVA='0';
+ estado.campos[1].carta_json=JSON.stringify({version:1,borrador:carta(),publicada:carta(),publicada_en:new Date().toISOString()});
+ assert.equal((await llamar('consultar')).statusCode,404);assert.equal(estado.lecturas,0);
+ assert.equal((await preguntar('cuánto cuesta la paella valenciana')).body.encontrada,false);
+ assert.equal(estado.escrituras,0);
 }));

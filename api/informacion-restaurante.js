@@ -261,10 +261,10 @@ module.exports = async (req, res) => {
       if (modelo.esPreguntaHorario(pregunta)) {
         const actual = await buscarInformacionPublica(restauranteId);
         if (actual.id !== restaurante.id) throw new Error("El restaurante no coincide.");
-        return responder(res, 200, { ok: true, encontrada: true, respuesta: modelo.describirHorario(actual.fields, pregunta), telefono_restaurante: telefonoPublico(restaurante) });
+        return responder(res, 200, { ok: true, encontrada: true, respuesta: modelo.responderGastronomia(modelo.normalizarPublico(actual.fields), pregunta) || modelo.describirHorario(actual.fields, pregunta), telefono_restaurante: telefonoPublico(restaurante) });
       }
       const modeloCarta = require("../lib/carta-restaurante");
-      if (modeloCarta.esPreguntaCarta(pregunta)) {
+      if (process.env.CONTACTIA_CARTA_ACTIVA === "1" && modeloCarta.esPreguntaCarta(pregunta)) {
         const validarCarta = datos => {
           try {
             if (datos?.id !== restauranteId || datos.restaurante_record_id !== restaurante.id || !Object.hasOwn(datos, "carta")) return false;
@@ -291,6 +291,8 @@ module.exports = async (req, res) => {
         validar: datos => informacionHabitualValida(datos, restauranteId, restaurante.id)
       });
       if (!informacionHabitualValida(informacion, restauranteId, restaurante.id)) throw new Error("Información pública no válida.");
+      const gastronomica = modelo.responderGastronomia(informacion, pregunta);
+      if (gastronomica) return responder(res, 200, { ok: true, encontrada: true, respuesta: gastronomica, telefono_restaurante: telefonoPublico(restaurante) });
       const habitual = seleccionarConocimiento(pregunta, modelo.registrosPublicos(informacion));
       if (habitual) return responder(res, 200, { ok: true, encontrada: true, respuesta: habitual.respuesta, telefono_restaurante: telefonoPublico(restaurante) });
     }

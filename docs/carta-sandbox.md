@@ -1,5 +1,7 @@
 # Carta editable en Sandbox
 
+Estado desde 18/10/2026: función aparcada. El acceso y el editor se han retirado del panel; las rutas y respuestas de carta requieren `CONTACTIA_CARTA_ACTIVA=1`, desactivado por defecto. Los datos existentes se conservan. El apartado operativo es Ajustes → 05 Información gastronómica (ver `informacion-gastronomica.md`).
+
 Habilitada solo en Preview con `CONTACTIA_PANEL_V2=1`. Acceso: panel del restaurante → Carta, o Ajustes → Carta y bebidas. Utiliza la sesión firmada del propietario y el endpoint existente `/api/restaurante`; no añade una función serverless.
 
 ## Configuración
