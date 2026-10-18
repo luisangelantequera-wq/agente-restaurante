@@ -884,12 +884,10 @@ async function comprobarDisponibilidad() {
         return;
       }
 
-      paso = "nombre";
-
-      agregarMensaje(
-        "¿A nombre de quién hacemos la reserva?",
-        "bot"
-      );
+      preguntarEncargos(() => {
+        paso = "nombre";
+        agregarMensaje("¿A nombre de quién hacemos la reserva?", "bot");
+      });
 
       return;
     }
@@ -2448,7 +2446,7 @@ async function procesarMensaje(texto, opciones = {}) {
       agregarMensaje("Si no podemos entregarle el correo, ¿autoriza que le enviemos la confirmación por WhatsApp a este número?", "bot");
       return;
     }
-    preguntarEncargos();
+    pedirObservacionesReserva();
 
     return;
   }
@@ -2464,7 +2462,7 @@ async function procesarMensaje(texto, opciones = {}) {
       return;
     }
     datosReserva.whatsapp_autorizado = si;
-    preguntarEncargos();
+    pedirObservacionesReserva();
     return;
   }
 
