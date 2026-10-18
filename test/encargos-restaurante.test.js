@@ -23,7 +23,7 @@ test('valida selección en servidor, no confía en nombres enviados, respeta mí
 test('conversación permite varios arroces, cantidades, no gracias y no borra la selección en una reverificación igual',()=>{
  let estado='',terminado=0;const mensajes=[],datos={personas:4};const c=crear({modelo:m,entrada,datos:()=>datos,decir:t=>mensajes.push(t),paso:p=>estado=p});
  c.configurar([grupo()],['2026-10-19','14:00',4]);c.comenzar(()=>terminado++);assert.equal(estado,'encargo_plato');assert.match(mensajes.at(-1),/Arroz del señoret/);
- c.procesar('arroz del señoret',estado);assert.equal(estado,'encargo_personas');c.procesar('1',estado);assert.match(mensajes.at(-1),/entre 2 y 4/);c.procesar('dos',estado);assert.equal(estado,'encargo_otro');c.procesar('sí',estado);c.procesar('arroz negro para dos',estado);assert.equal(terminado,1);assert.equal(c.seleccion().length,2);assert.match(c.resumen(),/Arroz negro: 2/);
+ c.procesar('arroz del señoret',estado);assert.equal(estado,'encargo_personas');c.procesar('1',estado);assert.match(mensajes.at(-1),/El mínimo para Arroz del señoret es de 2 personas/);c.procesar('dos',estado);assert.equal(estado,'encargo_otro');c.procesar('sí',estado);c.procesar('arroz negro para dos',estado);assert.equal(terminado,1);assert.equal(c.seleccion().length,2);assert.match(c.resumen(),/Arroz negro: 2/);
  c.configurar([grupo()],['2026-10-19','14:00',4]);c.comenzar(()=>terminado++);assert.equal(c.seleccion().length,2);assert.equal(terminado,2);
  c.configurar([grupo()],['2026-10-20','14:00',4]);assert.equal(c.seleccion().length,0);c.comenzar(()=>terminado++);c.procesar('no gracias',estado);assert.equal(terminado,3);
  c.limpiar();assert.equal(c.seleccion().length,0);

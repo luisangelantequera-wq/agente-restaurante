@@ -36,3 +36,17 @@ test('varios platos se ofrecen sin números y se elige el plato por su nombre di
  const cantidad=await s.enviar('queremos el de bogavante');assert.equal(cantidad.paso,'encargo_personas');assert.match(cantidad.respuesta,/Arroz con bogavante/);
  assert.equal((await s.enviar('4')).paso,'nombre');
 });
+
+test('repite la pregunta de platos o personas sin enviar la petición al servicio informativo',async()=>{
+ const {s,r}=await empezar();const antes=s.solicitudes.length;
+ for(const frase of ['me lo puedes repetir?','¿Puede repetirlo, por favor?','repítelo','me lo repites otra vez','¿Me repite los arroces?','puedes repetir los platos de arroz por favor']){const repetida=await s.enviar(frase);assert.equal(repetida.paso,'encargo_plato');assert.equal(repetida.respuesta,r.respuesta.split("\n\n").at(-1));assert.equal(s.solicitudes.length,antes);}
+ const cantidad=await s.enviar('Arroz negro');assert.equal(cantidad.respuesta,'¿Cuántas personas tomarán Arroz negro?');
+ const repetida=await s.enviar('me lo puedes repetir?');assert.equal(repetida.respuesta,cantidad.respuesta);assert.equal(s.solicitudes.length,antes);
+ const lista=await s.enviar('¿Me repite los arroces?');assert.equal(lista.paso,'encargo_personas');assert.match(lista.respuesta,/Arroz del señoret y Arroz negro/);assert.match(lista.respuesta,/¿Cuántas personas tomarán Arroz negro\?/);assert.equal(s.solicitudes.length,antes);
+ const exceso=await s.enviar('5');assert.equal(exceso.paso,'encargo_personas');assert.match(exceso.respuesta,/Ha indicado 5 personas, pero la reserva es para 4/);
+ assert.equal((await s.enviar('4')).paso,'nombre');
+});
+test('al repartir entre platos controla las personas restantes sin cambiar el total de la reserva',async()=>{
+ const {s}=await empezar();await s.enviar('Arroz negro');await s.enviar('2');await s.enviar('sí');await s.enviar('Arroz del señoret');
+ const exceso=await s.enviar('3');assert.equal(exceso.paso,'encargo_personas');assert.match(exceso.respuesta,/quedan 2 por asignar/);assert.equal((await s.enviar('2')).paso,'nombre');
+});
