@@ -18,6 +18,21 @@ test('sin platos elegibles conserva el flujo normal de reservas',async()=>{const
 test('pregunta por varios grupos antes del nombre y omite el mínimo de una persona y usa el singular de hora',async()=>{
  const cocido={...grupo,id:'cocidos',nombre:'Legumbres',platos:['Cocido'],minimo:1};
  const {s,r}=await empezar([grupo,cocido]);assert.equal(r.paso,'encargo_plato');assert.doesNotMatch(r.respuesta,/nombre|correo|teléfono/);
- const siguiente=await s.enviar('no gracias');assert.equal(siguiente.paso,'encargo_plato');assert.match(siguiente.respuesta,/Cocido/);assert.doesNotMatch(siguiente.respuesta,/Mínimo|1 persona/);assert.match(siguiente.respuesta,/Antelación mínima: 1 hora/);
+ const siguiente=await s.enviar('no gracias');assert.equal(siguiente.paso,'encargo_plato');assert.match(siguiente.respuesta,/Cocido/);assert.doesNotMatch(siguiente.respuesta,/Mínimo|1 persona/);assert.match(siguiente.respuesta,/con 1 hora de antelación/);
  const nombre=await s.enviar('no gracias');assert.equal(nombre.paso,'nombre');assert.match(nombre.respuesta,/nombre/);await contacto(s);
+});
+
+test('un solo plato pregunta directamente, acepta sí y no ofrece repetir el mismo plato',async()=>{
+ const {s,r}=await empezar([{...grupo,nombre:'Legumbres',platos:['Cocido'],minimo:1}]);
+ assert.match(r.respuesta,/¿Va a tomar Cocido\?/);assert.doesNotMatch(r.respuesta,/Opciones|Legumbres|1\. Cocido|mínimo/i);
+ const cantidad=await s.enviar('sí');assert.equal(cantidad.paso,'encargo_personas');assert.doesNotMatch(cantidad.respuesta,/mínimo/i);
+ const nombre=await s.enviar('2');assert.equal(nombre.paso,'nombre');await contacto(s);assert.match((await s.enviar('no')).respuesta,/Cocido: 2 personas/);
+});
+test('varios platos se ofrecen sin números y se elige el plato por su nombre distintivo',async()=>{
+ const {s,r}=await empezar([{...grupo,pregunta:'',platos:['Arroz a banda','Arroz con bogavante','Paella de Marisco','Paella Valenciana','Arroz Negro'],antelacion_horas:2}]);
+ assert.match(r.respuesta,/Tenemos Arroz a banda, Arroz con bogavante, Paella de Marisco, Paella Valenciana y Arroz Negro/);
+ assert.match(r.respuesta,/para un mínimo de 2 personas, siempre que se reserve con 2 horas de antelación/);
+ assert.doesNotMatch(r.respuesta,/Opciones|1\. Arroz/);
+ const cantidad=await s.enviar('queremos el de bogavante');assert.equal(cantidad.paso,'encargo_personas');assert.match(cantidad.respuesta,/Arroz con bogavante/);
+ assert.equal((await s.enviar('4')).paso,'nombre');
 });
