@@ -227,6 +227,8 @@ module.exports = async (req, res) => {
       return responder(res, 413, { ok: false, error: "La solicitud es demasiado grande." });
     }
 
+    if (accion === "encargo_visto") return require("../lib/encargos-panel")(req,res);
+
     // Los datos estables utilizan las mismas funciones desplegadas para
     // el panel, sin superar el máximo de 12 funciones del plan Hobby.
     // Se aplica protección estricta de origen y sesión en la subrutina.
@@ -434,6 +436,7 @@ module.exports = async (req, res) => {
           observaciones: anonimizada
             ? ""
             : normalizarObservaciones(reserva.fields.mensaje),
+          ...(process.env.VERCEL_ENV === "preview" && process.env.CONTACTIA_PANEL_V2 === "1" && !anonimizada ? { encargo: require("../lib/encargos-restaurante").leerReserva(reserva.fields.encargo_json), encargo_revision: require("../lib/encargos-panel").revision(reserva.fields.encargo_json) } : {}),
           estado: normalizarEstado(reserva.fields.estado),
           anonimizada
         };

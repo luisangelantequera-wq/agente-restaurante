@@ -1871,8 +1871,12 @@ async function enviarCorreoConfirmacionReserva({
   localizador,
   enlaceGestion,
   seguimiento,
+  encargos = [],
   idioma = "es"
 }) {
+  const detalleEncargo = encargos.length ? require("../lib/encargos-restaurante").resumen(encargos) : "";
+  const textoEncargo = detalleEncargo ? "\nPlatos por encargo: " + detalleEncargo + "\n" : "";
+  const htmlEncargo = detalleEncargo ? `<p><strong>Platos por encargo:</strong> ${escaparHtml(detalleEncargo)}</p>` : "";
   nombreRestaurante = normalizarTexto(nombreRestaurante) ||
     NOMBRE_RESTAURANTE_GENERICO;
   const ingles = idioma === "en";
@@ -1926,8 +1930,8 @@ async function enviarCorreoConfirmacionReserva({
     return enviarCorreoResend({
       destinatario,
       asunto,
-      texto,
-      html,
+      texto: texto + textoEncargo,
+      html: html + htmlEncargo,
       seguimiento,
       contexto: "confirmation de réservation"
     });
@@ -1975,8 +1979,8 @@ async function enviarCorreoConfirmacionReserva({
     return enviarCorreoResend({
       destinatario,
       asunto,
-      texto,
-      html,
+      texto: texto + textoEncargo,
+      html: html + htmlEncargo,
       seguimiento,
       contexto: "booking confirmation"
     });
@@ -2023,8 +2027,8 @@ async function enviarCorreoConfirmacionReserva({
   return enviarCorreoResend({
     destinatario,
     asunto,
-    texto,
-    html,
+    texto: texto + textoEncargo,
+    html: html + htmlEncargo,
     seguimiento,
     contexto: "confirmación"
   });
@@ -2342,6 +2346,7 @@ async function enviarAvisoRestaurante({
   emailCliente,
   telefonoCliente,
   observaciones,
+  encargos = [],
   enlaceGestion
 }) {
   nombreRestaurante = normalizarTexto(nombreRestaurante) ||
@@ -2355,7 +2360,7 @@ async function enviarAvisoRestaurante({
     cancelada: "Reserva cancelada"
   };
   const titulo = titulos[tipo] || "Actualización de reserva";
-  const observacionesLimpias = normalizarObservaciones(observaciones);
+  const observacionesLimpias = [normalizarObservaciones(observaciones), encargos.length ? "ENCARGO: " + require("../lib/encargos-restaurante").resumen(encargos) : ""].filter(Boolean).join("\n");
   const observacionesPrioritarias = observacionEsPrioritaria(
     observacionesLimpias
   );
@@ -3941,6 +3946,7 @@ const prefijoReserva = normalizarPrefijoReserva(
         ok: true,
         disponible: true,
         zona: nombreZona(zonaReserva),
+        ...(process.env.VERCEL_ENV === "preview" && process.env.CONTACTIA_PANEL_V2 === "1" ? {encargos_disponibles: require("../lib/encargos-restaurante").disponibles(require("../lib/encargos-restaurante").leer(restaurante.fields),fecha,hora,numeroPersonas)} : {}),
         ...(retencion ? { retencion_token: retencion.token, retencion_hasta: retencion.vence } : {}),
 
         mesa: {
@@ -4025,6 +4031,11 @@ const prefijoReserva = normalizarPrefijoReserva(
         });
       }
 
+      let encargoModificado = null;
+      if (process.env.VERCEL_ENV === "preview" && reservaActual.fields.encargo_json && (esReactivacion || fecha !== reservaActual.fields.fecha || hora !== reservaActual.fields.hora || numeroPersonas !== Number(reservaActual.fields.personas))) {
+        try { const m=require("../lib/encargos-restaurante");const anterior=m.leerReserva(reservaActual.fields.encargo_json);encargoModificado=m.validarSeleccion(anterior.items,m.leer(restaurante.fields),fecha,hora,numeroPersonas); }
+        catch { return responder(res,200,{ok:true,modificada:false,reactivada:false,disponible:false,motivo:"La reserva incluye platos por encargo que no cumplen las condiciones con el cambio solicitado. Contacte con el restaurante para revisarlos."}); }
+      }
       const zonaOriginal = await obtenerZonaReservaExistente(reservaActual, restaurante.id);
       if (!zonaOriginal) {
         return responder(res, 200, {
@@ -4153,6 +4164,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           fields: {
             fecha,
             hora,
+            ...(encargoModificado ? {encargo_json:JSON.stringify(encargoModificado)} : {}),
             personas: numeroPersonas,
             mesa: asignacion.ids,
             ...crearMetadatosPrivacidadReserva({
@@ -4523,6 +4535,13 @@ const prefijoReserva = normalizarPrefijoReserva(
 
     if (accion === "reservar" || accion === "reservar_panel") {
       const esReservaPanel = accion === "reservar_panel";
+      const modeloEncargos = require("../lib/encargos-restaurante");
+      let encargoReserva = null;
+      if (body.encargos !== undefined && (!Array.isArray(body.encargos) || body.encargos.length)) {
+        if (process.env.VERCEL_ENV !== "preview" || process.env.CONTACTIA_PANEL_V2 !== "1") return responder(res,400,{ok:false,error:"Los encargos no están disponibles en este entorno."});
+        try { encargoReserva = modeloEncargos.validarSeleccion(body.encargos,modeloEncargos.leer(restaurante.fields),fecha,hora,numeroPersonas); }
+        catch (e) { return responder(res,400,{ok:false,encargos_error:true,error:e.message,encargos_disponibles:modeloEncargos.disponibles(modeloEncargos.leer(restaurante.fields),fecha,hora,numeroPersonas)}); }
+      }
       const retenciones = almacenRetenciones();
       let retencionCliente = null;
 
@@ -4789,6 +4808,11 @@ const prefijoReserva = normalizarPrefijoReserva(
       }
 
 
+      if (encargoReserva) {
+        try { encargoReserva=modeloEncargos.validarSeleccion(body.encargos,modeloEncargos.leer(restaurante.fields),fecha,hora,numeroPersonas); }
+        catch(e){if(retencionCliente)await retenciones.descartar(restaurante.id,retencionCliente.token);return responder(res,400,{ok:false,encargos_error:true,error:e.message,encargos_disponibles:modeloEncargos.disponibles(modeloEncargos.leer(restaurante.fields),fecha,hora,numeroPersonas)});}
+      }
+
       if (retencionCliente) {
         await retenciones.vincularAlta(restaurante.id, retencionCliente.token, idReserva);
       }
@@ -4820,6 +4844,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           ...(email ? { email: email } : {}),
 
           mensaje: observacionesConZona(mensaje, zonaReserva),
+          ...(encargoReserva?.items.length ? { encargo_json: JSON.stringify(encargoReserva) } : {}),
 
           estado: "pendiente",
 
@@ -4965,6 +4990,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           zona: nombreZona(zonaReserva),
           localizador: idReserva,
           enlaceGestion,
+          encargos: encargoReserva?.items || [],
           idioma: ["en", "fr"].includes(idioma) ? idioma : "es"
         }),
         enviarAvisoRestaurante({
@@ -4979,6 +5005,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           emailCliente: email,
           telefonoCliente: telefono,
           observaciones: observacionesConZona(mensaje, zonaReserva),
+          encargos: encargoReserva?.items || [],
           enlaceGestion: generarEnlacePanelRestaurante(fecha, restaurante_id)
         })
       ]);

@@ -305,6 +305,7 @@ function renderizarReservas(reservas) {
         </div>
       `
       : "";
+    const encargo = reserva.encargo?.items?.length ? `<div class="encargo-reserva ${reserva.encargo.visto ? 'encargo-visto' : 'encargo-pendiente'}"><strong>🍽 ${reserva.estado === 'cancelada' ? 'RESERVA CANCELADA · ' : ''}ENCARGO · ${reserva.encargo.items.map(p=>escaparHtml(p.plato)+': '+p.personas+' personas').join('; ')}</strong><span>${reserva.encargo.visto ? 'Visto por el restaurante' : 'Pendiente de ver por el restaurante'}</span>${!reserva.encargo.visto ? `<button type="button" class="boton-secundario" data-accion="encargo-visto" data-localizador="${escaparHtml(reserva.localizador)}">Marcar como visto</button>` : ''}</div>` : '';
     let acciones = '<div class="acciones-reserva">';
 
     if (reserva.anonimizada) {
@@ -375,6 +376,7 @@ function renderizarReservas(reservas) {
       </div>
       ${selectorEstado}
       ${acciones}
+      ${encargo}
       ${observaciones}
     </article>
   `;
@@ -1059,6 +1061,9 @@ function abrirModificacion(reserva, accion = "modificar") {
     : "Guardar cambios";
   referenciaModificar.textContent =
     `${reserva.localizador} · ${reserva.nombre}`;
+  const detalleEncargo = document.getElementById("detalle-encargo-reserva");
+  detalleEncargo.hidden = !reserva.encargo?.items?.length;
+  detalleEncargo.textContent = reserva.encargo?.items?.length ? "🍽 ENCARGO · " + reserva.encargo.items.map(p=>p.plato+": "+p.personas+" personas").join("; ") : "";
   nuevaFecha.value = reserva.fecha;
   mostrarHoraEnSelector(reserva.hora);
   nuevasPersonas.value = reserva.personas;
@@ -1575,6 +1580,12 @@ reservasContenedor.addEventListener("click", async (evento) => {
 
   if (!reserva) {
     return;
+  }
+
+  if (boton.dataset.accion === "encargo-visto") {
+    boton.disabled=true;
+    try { const r=await fetch("/api/restaurante",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({accion:"encargo_visto",restaurante_id:restauranteId,reserva_id:reserva.id,revision:reserva.encargo_revision})});const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||"No se pudo marcar el encargo.");reserva.encargo=d.encargo;reserva.encargo_revision=d.revision;renderizarReservas(reservasActuales); }
+    catch(e){estadoCarga.textContent=e.message;boton.disabled=false;window.alert(e.message);}return;
   }
 
   if (boton.dataset.accion === "modificar") {

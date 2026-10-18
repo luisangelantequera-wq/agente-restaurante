@@ -46,6 +46,10 @@ let datosReserva = {
   observaciones: ""
 };
 
+const encargosChat = window.ContactiaEncargosConversacion?.crear({ modelo: window.ContactiaEncargos, entrada: window.ContactiaEntrada, datos: () => datosReserva, decir: texto => agregarMensaje(texto,"bot"), paso: estado => { paso=estado; } });
+function pedirObservacionesReserva(){paso="observaciones";agregarMensaje("¿Desea añadir alguna observación? Si no, responda: no.","bot");}
+function preguntarEncargos(continuar=pedirObservacionesReserva){if(encargosChat)encargosChat.comenzar(continuar);else continuar();}
+
 let localizadorGestion = "";
 let reservaGestion = null;
 let reservaGestionOriginal = null;
@@ -859,6 +863,7 @@ async function comprobarDisponibilidad() {
         token: data.retencion_token, vence: data.retencion_hasta,
         restaurante_id: datosReserva.restaurante_id
       } : null;
+      encargosChat?.configurar(data.encargos_disponibles || [], [datosReserva.fecha,datosReserva.hora,datosReserva.personas]);
       solicitudEspera = null;
       const detalleZona = datosReserva.zona_preferida
         ? ` en ${datosReserva.zona_preferida}`
@@ -875,7 +880,7 @@ async function comprobarDisponibilidad() {
         datosReserva.email &&
         datosReserva.telefono
       ) {
-        mostrarConfirmacionNuevaReserva();
+        preguntarEncargos(mostrarConfirmacionNuevaReserva);
         return;
       }
 
@@ -1003,6 +1008,7 @@ function mostrarConfirmacionNuevaReserva() {
     `📧 Email: ${datosReserva.email}\n` +
     `📱 Teléfono: ${datosReserva.telefono}\n` +
     lineaObservaciones +
+    (encargosChat?.resumen() ? `🍽 Encargo: ${encargosChat.resumen()}\n` : "") +
     `\n¿Confirma la reserva? Indique «Sí, confirmo la reserva» o «No, no confirmo». ` +
     `Si desea corregir un dato, indíquemelo ahora.`,
     "bot"
@@ -1178,6 +1184,7 @@ async function crearReserva() {
         zona_preferida: datosReserva.zona_preferida,
         mensaje: datosReserva.observaciones,
         idioma: idiomaConversacion,
+        ...(encargosChat?.seleccion().length ? {encargos:encargosChat.seleccion()} : {}),
         whatsapp_autorizado: datosReserva.whatsapp_autorizado
       })
     });
@@ -1185,6 +1192,7 @@ async function crearReserva() {
     const data = await respuesta.json();
 
     if (!respuesta.ok || data.ok === false) {
+      if(data.encargos_error){agregarMensaje(data.error+" No se ha creado la reserva; revisemos el encargo.","bot");encargosChat?.configurar(data.encargos_disponibles||[],[datosReserva.fecha,datosReserva.hora,datosReserva.personas,"revisar"]);preguntarEncargos(mostrarConfirmacionNuevaReserva);return;}
       if (data.retencion_error === "caducada" || data.retencion_error === "conflicto") {
         agregarMensaje("La retención temporal ha terminado. Voy a comprobar de nuevo la disponibilidad; sus datos se conservarán.", "bot");
         await comprobarDisponibilidad();
@@ -1447,6 +1455,7 @@ function esIntencionOperativa(texto) {
 
 
 function repetirPreguntaPendiente() {
+  if(paso.startsWith("encargo_")){encargosChat?.repetir();return;}
   const preguntas = {
     inicio: "¿Desea reservar, consultar, modificar o cancelar una reserva?",
     personas: "¿Para cuántas personas desea reservar?",
@@ -1663,6 +1672,8 @@ async function procesarMensaje(texto, opciones = {}) {
     );
     return;
   }
+
+  if (encargosChat?.procesar(mensaje,paso)) return;
 
   if (await atenderPreguntaInformativa(mensaje, opciones)) {
     return;
@@ -2437,12 +2448,7 @@ async function procesarMensaje(texto, opciones = {}) {
       agregarMensaje("Si no podemos entregarle el correo, ¿autoriza que le enviemos la confirmación por WhatsApp a este número?", "bot");
       return;
     }
-    paso = "observaciones";
-
-    agregarMensaje(
-      "¿Desea añadir alguna observación? Si no, responda: no.",
-      "bot"
-    );
+    preguntarEncargos();
 
     return;
   }
@@ -2458,8 +2464,7 @@ async function procesarMensaje(texto, opciones = {}) {
       return;
     }
     datosReserva.whatsapp_autorizado = si;
-    paso = "observaciones";
-    agregarMensaje("¿Desea añadir alguna observación? Si no, responda: no.", "bot");
+    preguntarEncargos();
     return;
   }
 
@@ -2740,6 +2745,7 @@ function prepararRespuestasParaVoz(respuestas) {
       `para ${personasParaVoz(datosReserva.personas)} personas${zona} del ` +
       `restaurante, a nombre de ${datosReserva.nombre}, con correo ` +
       `${datosReserva.email} y teléfono ${telefono}. ` +
+      (encargosChat?.resumen() ? `Encargo: ${encargosChat.resumen()}. ` : "") +
       "¿Confirma la reserva?"
     );
   }
@@ -2826,6 +2832,7 @@ window.ContactiaVozBridge = {
 
 // 1️⃣1️⃣ REINICIAR
 function reiniciarReserva() {
+  encargosChat?.limpiar();
   liberarRetencionActiva();
   paso = "inicio";
   capturaGuiadaEstricta = false;

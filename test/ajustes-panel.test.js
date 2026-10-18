@@ -147,7 +147,7 @@ test("gastronomía: información por líneas conserva días, encargos y mínimos
 });
 test("gastronomía: editor propio guarda solo su información, conserva contacto y FAQ y permite borrar", async () => escenario(async (e, llamar, preguntar) => {
   e.fields.informacion_publica = JSON.stringify({ mascotas: "Admitimos perros en terraza.", pagos: "Aceptamos tarjeta." });
-  const inicial = await llamar("consultar", "gastronomia"); assert.equal(inicial.status, 200); assert.deepEqual(inicial.datos, { gastronomia: "" });
+  const inicial = await llamar("consultar", "gastronomia"); assert.equal(inicial.status, 200); assert.deepEqual(inicial.datos, { gastronomia: "", encargos: [] });
   const texto = "Los miércoles tenemos cocido.\nLos jueves tenemos paella, por encargo y para un mínimo de dos personas.";
   const r = await llamar("guardar", "gastronomia", { revision: inicial.revision, datos: { gastronomia: texto } });
   assert.equal(r.status, 200); assert.equal(r.memoria.sincronizada, true); assert.deepEqual(Object.keys(e.patches[0]), ["informacion_publica"]);

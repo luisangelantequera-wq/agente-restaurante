@@ -198,6 +198,8 @@ async function crearSimuladorConversacion(configuracion = {}) {
     ContactiaGuardadoConversaciones: guardadoConversaciones,
     ContactiaConocimiento: conocimiento,
     ContactiaEntrada: entrada,
+    ContactiaEncargos: require("../../lib/encargos-restaurante"),
+    ContactiaEncargosConversacion: require("../../lib/encargos-conversacion"),
     ContactiaFechas: fechas,
     ContactiaRestaurantePublico: restaurantePublico,
     ContactiaRutaPublica: rutaPublica,
