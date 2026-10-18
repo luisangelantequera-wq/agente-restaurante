@@ -15,9 +15,9 @@ test('no gracias continúa la reserva sin encargo ni obligación de pedir comida
 });
 test('sin platos elegibles conserva el flujo normal de reservas',async()=>{const {r}=await empezar([]);assert.equal(r.paso,'nombre');assert.doesNotMatch(r.respuesta,/arroces|encargo/i);});
 
-test('pregunta por varios grupos antes del nombre y usa los singulares de persona y hora',async()=>{
+test('pregunta por varios grupos antes del nombre y omite el mínimo de una persona y usa el singular de hora',async()=>{
  const cocido={...grupo,id:'cocidos',nombre:'Legumbres',platos:['Cocido'],minimo:1};
  const {s,r}=await empezar([grupo,cocido]);assert.equal(r.paso,'encargo_plato');assert.doesNotMatch(r.respuesta,/nombre|correo|teléfono/);
- const siguiente=await s.enviar('no gracias');assert.equal(siguiente.paso,'encargo_plato');assert.match(siguiente.respuesta,/Cocido/);assert.match(siguiente.respuesta,/Mínimo 1 persona por plato, con 1 hora de antelación/);
+ const siguiente=await s.enviar('no gracias');assert.equal(siguiente.paso,'encargo_plato');assert.match(siguiente.respuesta,/Cocido/);assert.doesNotMatch(siguiente.respuesta,/Mínimo|1 persona/);assert.match(siguiente.respuesta,/Antelación mínima: 1 hora/);
  const nombre=await s.enviar('no gracias');assert.equal(nombre.paso,'nombre');assert.match(nombre.respuesta,/nombre/);await contacto(s);
 });
