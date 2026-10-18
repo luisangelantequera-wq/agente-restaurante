@@ -62,3 +62,12 @@ test('carta aparcada: sin activación explícita no accede al editor ni responde
  assert.equal((await preguntar('cuánto cuesta la paella valenciana')).body.encontrada,false);
  assert.equal(estado.escrituras,0);
 }));
+
+test('carta disponible por defecto y compatible con información gastronómica independiente',()=>escenario(async({estado,llamar,preguntar})=>{
+ delete process.env.CONTACTIA_CARTA_ACTIVA;
+ estado.campos[1].carta_json=JSON.stringify({version:1,borrador:carta(),publicada:carta(),publicada_en:new Date().toISOString()});
+ assert.equal((await llamar('consultar')).statusCode,200);
+ assert.match((await preguntar('cuánto cuesta la paella valenciana')).body.respuesta,/23,50/);
+ estado.campos[1].informacion_publica=JSON.stringify({gastronomia:'Los jueves tenemos paella, por encargo y para un mínimo de dos personas.'});estado.redis.clear();
+ assert.equal((await preguntar('¿Tenéis paella?')).body.respuesta,'Los jueves tenemos paella, por encargo y para un mínimo de dos personas.');
+}));

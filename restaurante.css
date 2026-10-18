@@ -1537,3 +1537,11 @@ button:focus-visible, summary:focus-visible { outline: 3px solid #bf8d2e; outlin
 .carta-acciones-plato { padding-top: 4px; }
 .carta-aviso-plato { margin: 0; padding: 10px 12px; border-radius: 8px; background: #f0f5eb; color: #344b3b; font-size: 13px; line-height: 1.5; }
 .carta-aviso-plato[data-estado="error"] { background: #fff0ec; color: #873d31; }
+
+/* Confirmación siempre junto a los botones del editor de ajustes. */
+.editor-ajustes .dialogo-acciones { display: block; }
+.acciones-editor-ajustes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.aviso-editor-ajustes { margin-bottom: 12px; padding: 14px 16px; border: 2px solid #657e50; border-radius: 10px; background: #f0f5eb; color: #344b3b; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.aviso-editor-ajustes[data-estado="pendiente"], .aviso-editor-ajustes[data-estado="progreso"] { border-color: #c88a18; background: #fff6de; color: #60430d; }
+.aviso-editor-ajustes[data-estado="error"] { border-color: #b45848; background: #fff0ec; color: #873d31; }
+@media (max-width: 520px) { .acciones-editor-ajustes > button { flex: 1 1 140px; } }

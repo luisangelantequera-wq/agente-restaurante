@@ -263,8 +263,19 @@ module.exports = async (req, res) => {
         if (actual.id !== restaurante.id) throw new Error("El restaurante no coincide.");
         return responder(res, 200, { ok: true, encontrada: true, respuesta: modelo.responderGastronomia(modelo.normalizarPublico(actual.fields), pregunta) || modelo.describirHorario(actual.fields, pregunta), telefono_restaurante: telefonoPublico(restaurante) });
       }
+      const informacion = await leerConCachePublica({
+        tipo: "informacion", identificador: String(restauranteId),
+        cargar: async () => {
+          const actual = await buscarInformacionPublica(restauranteId);
+          return { id: restauranteId, restaurante_record_id: actual.id, ...modelo.normalizarPublico(actual.fields) };
+        },
+        validar: datos => informacionHabitualValida(datos, restauranteId, restaurante.id)
+      });
+      if (!informacionHabitualValida(informacion, restauranteId, restaurante.id)) throw new Error("Información pública no válida.");
+      const gastronomica = modelo.responderGastronomia(informacion, pregunta);
+      if (gastronomica) return responder(res, 200, { ok: true, encontrada: true, respuesta: gastronomica, telefono_restaurante: telefonoPublico(restaurante) });
       const modeloCarta = require("../lib/carta-restaurante");
-      if (process.env.CONTACTIA_CARTA_ACTIVA === "1" && modeloCarta.esPreguntaCarta(pregunta)) {
+      if (process.env.CONTACTIA_CARTA_ACTIVA !== "0" && modeloCarta.esPreguntaCarta(pregunta)) {
         const validarCarta = datos => {
           try {
             if (datos?.id !== restauranteId || datos.restaurante_record_id !== restaurante.id || !Object.hasOwn(datos, "carta")) return false;
@@ -282,17 +293,6 @@ module.exports = async (req, res) => {
         const respuestaCarta = modeloCarta.responder(publica.carta, pregunta);
         if (respuestaCarta) return responder(res, 200, { ok: true, encontrada: true, respuesta: respuestaCarta, telefono_restaurante: telefonoPublico(restaurante) });
       }
-      const informacion = await leerConCachePublica({
-        tipo: "informacion", identificador: String(restauranteId),
-        cargar: async () => {
-          const actual = await buscarInformacionPublica(restauranteId);
-          return { id: restauranteId, restaurante_record_id: actual.id, ...modelo.normalizarPublico(actual.fields) };
-        },
-        validar: datos => informacionHabitualValida(datos, restauranteId, restaurante.id)
-      });
-      if (!informacionHabitualValida(informacion, restauranteId, restaurante.id)) throw new Error("Información pública no válida.");
-      const gastronomica = modelo.responderGastronomia(informacion, pregunta);
-      if (gastronomica) return responder(res, 200, { ok: true, encontrada: true, respuesta: gastronomica, telefono_restaurante: telefonoPublico(restaurante) });
       const habitual = seleccionarConocimiento(pregunta, modelo.registrosPublicos(informacion));
       if (habitual) return responder(res, 200, { ok: true, encontrada: true, respuesta: habitual.respuesta, telefono_restaurante: telefonoPublico(restaurante) });
     }

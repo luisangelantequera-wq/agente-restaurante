@@ -8,6 +8,8 @@
   const error = document.getElementById("error-editor-ajustes");
   const guardar = document.getElementById("guardar-editor-ajustes");
   const reintentar = document.getElementById("reintentar-editor-ajustes");
+  const aviso = document.getElementById("aviso-editor-ajustes");
+  function mostrarAviso(mensaje, tipo = "guardado", desplazar = true) { aviso.textContent = mensaje; aviso.dataset.estado = tipo; aviso.hidden = false; if (desplazar) aviso.scrollIntoView?.({ block: "nearest", behavior: "smooth" }); }
   const id = Number(new URLSearchParams(location.search).get("restaurante") || 1);
   let seccion = "", revision = "", generacion = 0, guardando = false;
   const escapar = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -111,37 +113,40 @@
     if (datos.memoria?.activada && !datos.memoria.sincronizada) { estado.textContent = "Cambios guardados."; error.textContent = datos.aviso; reintentar.hidden = false; }
     else { estado.textContent = seccion === "horarios" ? "Horarios y calendario actualizados. Las reservas existentes se conservan." : datos.memoria?.sincronizada ? "Información guardada y memoria actualizada." : "Información guardada. La memoria no está activa en este entorno."; reintentar.hidden = true; }
     rellenar(datos.datos);
+    mostrarAviso(datos.memoria?.activada && !datos.memoria.sincronizada ? "Los cambios se han guardado. La actualización de las respuestas está pendiente; pulse Actualizar memoria para reintentar." : "Los cambios se han guardado correctamente.", datos.memoria?.activada && !datos.memoria.sincronizada ? "pendiente" : "guardado");
   }
   document.querySelectorAll("[data-ajuste]").forEach(boton => boton.addEventListener("click", async () => {
     seccion = boton.dataset.ajuste; revision = ""; const actual = ++generacion;
     document.getElementById("titulo-editor-ajustes").textContent = seccion === "horarios" ? "Horarios y calendario" : seccion === "gastronomia" ? "Información gastronómica" : "Información del restaurante";
     document.getElementById("nota-editor-ajustes").textContent = seccion === "horarios" ? "Configure las horas en las que acepta reservas. Estos horarios se comprueban al reservar; un cierre o cambio no cancela las reservas existentes." : "La información que guarde estará disponible para las próximas preguntas de sus clientes.";
+    aviso.hidden = true;
     campos.innerHTML = ""; guardar.disabled = true; estado.textContent = "Cargando ajustes…"; error.textContent = ""; reintentar.hidden = true; dialogo.showModal();
     try { const datos = await solicitar("consultar"); if (actual !== generacion) return; revision = datos.revision; rellenar(datos.datos); estado.textContent = "Ajustes actuales cargados."; guardar.disabled = false; }
     catch (e) { if (actual === generacion) { estado.textContent = ""; error.textContent = e.message; } }
   }));
   form.addEventListener("submit", async evento => {
     evento.preventDefault(); if (guardando || !revision) return;
-    guardando = true; guardar.disabled = true; error.textContent = ""; estado.textContent = "Guardando cambios…";
+    guardando = true; guardar.disabled = true; error.textContent = ""; estado.textContent = "Guardando cambios…"; guardar.textContent = "Guardando…"; mostrarAviso("Guardando cambios…", "progreso");
     try {
       const datos = leer();
       let respuesta = await solicitar("guardar", { datos, revision });
       if (respuesta.requiere_confirmacion) {
         const reservas = respuesta.reservas_afectadas;
         const detalle = reservas.slice(0, 8).map(r => `${r.localizador}: ${r.fecha} a las ${r.hora}`).join("\n");
-        if (!window.confirm(`El nuevo horario afecta a ${reservas.length} reserva(s):\n${detalle}\n\nSe conservarán sin cancelar. Deberá revisarlas y contactar con los clientes. ¿Guardar el horario?`)) { estado.textContent = "No se han guardado cambios."; return; }
+        if (!window.confirm(`El nuevo horario afecta a ${reservas.length} reserva(s):\n${detalle}\n\nSe conservarán sin cancelar. Deberá revisarlas y contactar con los clientes. ¿Guardar el horario?`)) { estado.textContent = "No se han guardado cambios."; mostrarAviso(estado.textContent, "pendiente"); return; }
         respuesta = await solicitar("guardar", { datos, revision, confirmacion_afectadas: respuesta.revision_afectadas });
         if (respuesta.requiere_confirmacion) throw new Error("Las reservas afectadas han cambiado. Vuelva a revisar el horario antes de confirmar.");
       }
       resultado(respuesta);
-    } catch (e) { estado.textContent = ""; error.textContent = e.message; }
-    finally { guardando = false; guardar.disabled = false; }
+    } catch (e) { estado.textContent = ""; error.textContent = e.message; mostrarAviso(e.message, "error"); }
+    finally { guardando = false; guardar.disabled = false; guardar.textContent = "Guardar cambios"; }
   });
   reintentar.addEventListener("click", async () => {
     reintentar.disabled = true; error.textContent = "";
-    try { resultado(await solicitar("sincronizar")); } catch (e) { error.textContent = e.message; }
+    try { resultado(await solicitar("sincronizar")); } catch (e) { error.textContent = e.message; mostrarAviso(e.message, "error"); }
     finally { reintentar.disabled = false; }
   });
+  campos.addEventListener("input", () => { if (!guardando && revision) mostrarAviso("Hay cambios sin guardar.", "pendiente", false); });
   function cerrar() { if (guardando) return; ++generacion; dialogo.close(); revision = ""; }
   document.getElementById("cerrar-editor-ajustes").addEventListener("click", cerrar);
   document.getElementById("volver-editor-ajustes").addEventListener("click", cerrar);

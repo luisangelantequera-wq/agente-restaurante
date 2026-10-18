@@ -49,6 +49,7 @@
           <button type="button" data-vista="mesas"><span aria-hidden="true">▦</span> Mesas y zonas</button>
           <button type="button" data-vista="avisos"><span aria-hidden="true">◷</span> Avisos y recados</button>
           <button type="button" data-vista="ajustes"><span aria-hidden="true">⚙</span> Ajustes del restaurante</button>
+          <button type="button" data-vista="carta"><span aria-hidden="true">▱</span> Carta</button>
           <button type="button" data-vista="ayuda"><span aria-hidden="true">?</span> Ayuda</button>
         </nav>
         <div class="nota-navegacion"><span class="punto-conexion" aria-hidden="true"></span> Su espacio de trabajo</div>
@@ -160,7 +161,22 @@
         <article class="tarjeta ajuste-opcion"><span class="icono-ajuste" aria-hidden="true">01</span><h3>Datos de contacto</h3><p>Nombre del restaurante y teléfonos que recibe el cliente.</p><button id="editar-datos-restaurante" type="button" class="boton-secundario">Editar datos</button></article>
         <article class="tarjeta ajuste-opcion"><span class="icono-ajuste" aria-hidden="true">02</span><h3>Horarios y calendario</h3><p>Franjas para reservar, días de cierre y fechas excepcionales.</p><button type="button" data-ajuste="horarios" class="boton-secundario">Editar horarios</button></article>
         <article class="tarjeta ajuste-opcion"><span class="icono-ajuste" aria-hidden="true">03</span><h3>Información del restaurante</h3><p>Dirección, página web y respuestas sobre aparcamiento, accesibilidad, mascotas y más.</p><button type="button" data-ajuste="publico" class="boton-secundario">Editar información</button></article>
+        <article class="tarjeta ajuste-opcion"><span class="icono-ajuste" aria-hidden="true">04</span><h3>Carta y bebidas</h3><p>Importe un PDF y revise categorías, precios, disponibilidad y alérgenos.</p><button type="button" data-ir="carta" class="boton-secundario">Editar carta</button></article>
         <article class="tarjeta ajuste-opcion"><span class="icono-ajuste" aria-hidden="true">05</span><h3>Información gastronómica</h3><p>Especialidades, días en los que se sirven y condiciones de encargo o mínimo de personas.</p><button type="button" data-ajuste="gastronomia" class="boton-secundario">Editar información gastronómica</button></article>
+      </section>
+      <section data-paginas="carta" id="seccion-carta" hidden>
+        <div class="tarjeta carta-importar">
+          <div><p class="etiqueta">DEL PDF A SU CARTA</p><h3>Importar y revisar</h3><p>Suba un PDF con platos y bebidas. Prepararemos un borrador organizado por categorías para que pueda revisarlo antes de publicarlo.</p></div>
+          <div class="carta-carga"><label for="carta-pdf">Documento PDF (hasta 2,5 MB y 12 páginas)</label><input id="carta-pdf" type="file" accept="application/pdf,.pdf"><button type="button" id="carta-importar">Importar PDF</button><a id="carta-ver-pdf" target="_blank" rel="noopener" hidden>Ver PDF seleccionado</a></div>
+          <div id="carta-aviso-importacion" class="carta-aviso-importacion" role="status" aria-live="polite" aria-atomic="true" tabindex="-1" hidden></div>
+          <p id="carta-lector" class="nota-formulario"></p>
+        </div>
+        <form id="carta-form">
+          <div class="tarjeta carta-herramientas"><div><p class="etiqueta">BORRADOR EDITABLE</p><p id="carta-resumen">Cargue la carta para comenzar.</p><p id="carta-publicacion" class="nota-formulario"></p></div><div class="carta-botones"><button type="button" id="carta-recargar" class="boton-secundario">Volver a cargar</button><button type="button" id="carta-categoria" class="boton-secundario">+ Añadir categoría</button><button type="button" id="carta-revisar" class="boton-secundario">Marcar platos revisados</button></div></div>
+          <p id="carta-estado" role="status" aria-live="polite"></p><p id="carta-error" role="alert" class="mensaje-error"></p><ul id="carta-avisos" class="carta-avisos"></ul>
+          <div id="carta-categorias"></div>
+          <div class="tarjeta carta-guardar"><p id="carta-ayuda-publicar" class="carta-ayuda-publicar" aria-live="polite"></p><button type="button" id="carta-revisar-final" class="boton-secundario">Confirmar revisión de todos los platos</button><div id="carta-aviso-guardado" class="carta-aviso-importacion" role="status" aria-live="polite" hidden></div><p>Guardar el borrador no cambia lo que responde el asistente. Publique cuando haya revisado nombres, precios y condiciones. Seleccione los alérgenos conocidos dentro de cada plato.</p><div class="carta-botones"><button type="submit" id="carta-guardar" class="boton-secundario">Guardar borrador</button><button type="button" id="carta-publicar">Guardar y publicar</button><button type="button" id="carta-sincronizar" class="boton-secundario" hidden>Actualizar memoria</button><button type="button" id="carta-retirar" class="boton-secundario" hidden>Retirar carta publicada</button></div></div>
+        </form>
       </section>
       <section class="tarjeta ayuda-panel" data-paginas="ayuda" hidden>
         <p class="etiqueta">GUÍA RÁPIDA</p><h3>Un panel para el día a día</h3>
@@ -500,7 +516,7 @@
       <p id="nota-editor-ajustes" class="nota-formulario"></p>
       <div id="campos-editor-ajustes"></div>
       <p id="estado-editor-ajustes" role="status" aria-live="polite"></p><p id="error-editor-ajustes" class="mensaje-error" role="alert"></p>
-      <div class="dialogo-acciones"><button type="button" id="reintentar-editor-ajustes" class="boton-secundario" hidden>Actualizar memoria</button><button type="button" id="volver-editor-ajustes" class="boton-secundario">Volver</button><button type="submit" id="guardar-editor-ajustes" disabled>Guardar cambios</button></div>
+      <div class="dialogo-acciones"><div id="aviso-editor-ajustes" class="aviso-editor-ajustes" role="status" aria-live="polite" aria-atomic="true" hidden></div><div class="acciones-editor-ajustes"><button type="button" id="reintentar-editor-ajustes" class="boton-secundario" hidden>Actualizar memoria</button><button type="button" id="volver-editor-ajustes" class="boton-secundario">Volver</button><button type="submit" id="guardar-editor-ajustes" disabled>Guardar cambios</button></div></div>
     </form>
   </dialog>
 
@@ -508,6 +524,8 @@
   <script src="restaurante.js"></script>
   <script src="panel-navegacion.js"></script>
   <script src="panel-ajustes.js"></script>
+  <script src="lib/carta-restaurante.js"></script>
+  <script src="panel-carta.js"></script>
 </body>
 
 </html>

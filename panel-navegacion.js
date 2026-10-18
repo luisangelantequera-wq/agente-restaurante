@@ -6,10 +6,10 @@
     mesas: ["SALA", "Mesas y zonas", "Disponibilidad por zona. Seleccione una hora y organice el servicio."],
     avisos: ["ATENCIÓN PENDIENTE", "Avisos y recados", "Solicitudes de la lista de espera que necesitan una respuesta."],
     ajustes: ["SU NEGOCIO", "Ajustes del restaurante", "Mantenga al día la información que Contactia ofrece a sus clientes."],
+    carta: ["SU PROPUESTA GASTRONÓMICA", "Carta y bebidas", "Organice su carta, revise los datos y publique lo que responderá su asistente."],
     ayuda: ["ACOMPAÑAMIENTO", "Ayuda", "Respuestas rápidas para gestionar su restaurante con tranquilidad."]
   };
   function abrir(vista, enfocar = true) {
-    if (vista === "carta") vista = "ajustes";
     if (!vistas[vista]) vista = "inicio";
     document.querySelector(".zona-trabajo").dataset.vistaActiva = vista;
     document.querySelectorAll("[data-paginas]").forEach(el => { el.hidden = !el.dataset.paginas.split(" ").includes(vista); });
