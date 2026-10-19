@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {crearSimuladorConversacion}=require('./soporte/simulador-conversacion');
 const grupo={id:'arroces',nombre:'Arroces',platos:['Arroz del señoret','Arroz negro'],dias:['lunes','martes','miércoles','jueves','viernes','sábado','domingo'],minimo:2,antelacion_horas:1,pregunta:'Si va a pedir algún arroz, indique cuál.',activo:true};
-async function empezar(opciones=[grupo]){const s=await crearSimuladorConversacion({respuestas:{verificar:[{ok:true,momento_valido:true},{ok:true,disponible:true,encargos_disponibles:opciones}]}});let r;for(const t of ['quiero reservar mañana','4','14:00','interior','sí'])r=await s.enviar(t);return {s,r};}
+async function empezar(opciones=[grupo],abrirLista=true){const s=await crearSimuladorConversacion({respuestas:{verificar:[{ok:true,momento_valido:true},{ok:true,disponible:true,encargos_disponibles:opciones}]}});let r;for(const t of ['quiero reservar mañana','4','14:00','interior','sí'])r=await s.enviar(t);if(abrirLista&&r.paso==='encargo_interes')r=await s.enviar('sí');return {s,r};}
 async function contacto(s){let r;for(const t of ['Luis Prueba','cliente@example.com','612345678'])r=await s.enviar(t);assert.equal(r.paso,'observaciones');return r;}
 test('reserva pregunta por el arroz, recoge comensales, lo incluye en el resumen y lo envía al servidor',async()=>{
  const {s,r}=await empezar();assert.equal(r.paso,'encargo_plato');assert.match(r.respuesta,/Arroz del señoret/);
@@ -49,4 +49,18 @@ test('repite la pregunta de platos o personas sin enviar la petición al servici
 test('al repartir entre platos controla las personas restantes sin cambiar el total de la reserva',async()=>{
  const {s}=await empezar();await s.enviar('Arroz negro');await s.enviar('2');await s.enviar('sí');await s.enviar('Arroz del señoret');
  const exceso=await s.enviar('3');assert.equal(exceso.paso,'encargo_personas');assert.match(exceso.respuesta,/quedan 2 por asignar/);assert.equal((await s.enviar('2')).paso,'nombre');
+});
+
+test('pregunta si pedirá arroz antes de enumerar y permite continuar sin escuchar la lista',async()=>{
+ const {s,r}=await empezar([grupo],false);assert.equal(r.paso,'encargo_interes');assert.match(r.respuesta,/¿Va a pedir arroz\?/);assert.doesNotMatch(r.respuesta,/señoret|negro/);
+ const repetir=await s.enviar('me lo puedes repetir?');assert.equal(repetir.paso,'encargo_interes');assert.doesNotMatch(repetir.respuesta,/señoret|negro/);
+ assert.equal((await s.enviar('no')).paso,'nombre');await contacto(s);
+});
+test('tras sí enumera los arroces y permite decidir después contactando con el restaurante',async()=>{
+ const {s}=await empezar([grupo],false);const lista=await s.enviar('sí');assert.equal(lista.paso,'encargo_plato');assert.match(lista.respuesta,/Arroz del señoret y Arroz negro/);
+ assert.match(lista.respuesta,/Si no lo tiene decidido aún, puede solicitar el cambio posteriormente al restaurante y contestar ahora «No, gracias»/);assert.equal((await s.enviar('no gracias')).paso,'nombre');
+});
+test('acepta indicar directamente el plato o pedir la lista en la pregunta inicial',async()=>{
+ const a=await empezar([grupo],false);assert.equal((await a.s.enviar('Arroz negro')).paso,'encargo_personas');
+ const b=await empezar([grupo],false);const lista=await b.s.enviar('¿Me repite los arroces?');assert.equal(lista.paso,'encargo_plato');assert.match(lista.respuesta,/Arroz del señoret y Arroz negro/);
 });
