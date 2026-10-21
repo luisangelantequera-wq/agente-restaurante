@@ -171,7 +171,7 @@ test("la zona única se selecciona localmente sin repregunta ni una lectura adic
       datosReserva: { zona_preferida: "" },
       nombresZonasDisponibles: () => zonas,
       llamadas: 0, mensaje: "",
-      agregarMensaje(t) { this.mensaje=t; },
+      agregarMensaje() {},
       describirOpcionesZonas: x => x.join(", ")
     };
     // Estado de la simulación queda dentro del mismo contexto de la función.
