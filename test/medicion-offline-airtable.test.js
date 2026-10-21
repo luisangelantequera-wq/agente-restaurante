@@ -57,3 +57,41 @@ test("cambiar horas no necesita lecturas hasta la actualización explícita", as
   const costoAhoraSinActualizar = 0;
   assert.equal(costoAnterior - costoAhoraSinActualizar, 10);
 });
+
+test("al cambiar de hora el manejador invalida mesas sin llamar a ninguna API", () => {
+  const fs = require("node:fs");
+  const vm = require("node:vm");
+  const origen = fs.readFileSync(require.resolve("../restaurante.js"), "utf8");
+  const principio = origen.indexOf("function marcarHoraPendiente() {");
+  const final = origen.indexOf('horaMesas.addEventListener("change", marcarHoraPendiente);', principio);
+  assert.ok(principio >= 0 && final > principio);
+  const codigo = origen.slice(principio, final + 'horaMesas.addEventListener("change", marcarHoraPendiente);'.length);
+
+  let cambioHora, borrados = 0, solicitudes = 0;
+  const avisos = new Map();
+  const contexto = {
+    mesasLibresActuales: [{ id: "mesa-anterior" }],
+    mesasLibresContenedor: { replaceChildren() { borrados++; } },
+    resumenMesasLibres: { textContent: "" },
+    estadoCarga: { textContent: "" },
+    document: { getElementById(id) {
+      if (!avisos.has(id)) avisos.set(id, { textContent: "" });
+      return avisos.get(id);
+    }},
+    horaMesas: { addEventListener(tipo, ejecutar) {
+      assert.equal(tipo, "change");
+      cambioHora = ejecutar;
+    }},
+    fetch() { solicitudes++; throw Error("No se deben realizar llamadas"); }
+  };
+  vm.runInNewContext(codigo, contexto);
+  assert.equal(typeof cambioHora, "function");
+  cambioHora();
+  cambioHora();
+  assert.equal(solicitudes, 0);
+  assert.equal(borrados, 2);
+  assert.equal(contexto.mesasLibresActuales.length, 0);
+  assert.match(contexto.resumenMesasLibres.textContent, /Pulse Actualizar/);
+  assert.equal(avisos.get("inicio-mesas").textContent, "—");
+  assert.match(avisos.get("estado-global-panel").textContent, /Hora cambiada/);
+});
