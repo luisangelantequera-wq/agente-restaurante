@@ -257,14 +257,15 @@ test("no publica restaurantes inexistentes o inactivos", async () => {
 test("portada en Preview puede cargar identidad sin consultar ZONA; al solicitarla se relee", async () => {
   const anteriorFetch = global.fetch;
   const variables = ["VERCEL_ENV", "VERCEL_GIT_COMMIT_REF", "AIRTABLE_BASE_ID",
-    "AIRTABLE_API_KEY", "CONTACTIA_CACHE_PUBLICA"];
+    "CONTACTIA_SANDBOX_BASE_ID", "AIRTABLE_API_KEY", "CONTACTIA_CACHE_PUBLICA"];
   const anteriores = Object.fromEntries(variables.map(k => [k, process.env[k]]));
   const llamadas = [];
   let zonaCerrada = false;
   Object.assign(process.env, {
     VERCEL_ENV: "preview",
     VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
-    AIRTABLE_BASE_ID: "appSimulacion00001",
+    AIRTABLE_BASE_ID: "app12345678901234",
+    CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
     AIRTABLE_API_KEY: "SIMULADA_NO_REAL",
     CONTACTIA_CACHE_PUBLICA: "0"
   });
