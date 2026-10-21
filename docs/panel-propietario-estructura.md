@@ -66,3 +66,29 @@ Vercel, ni se guardan zonas operativas en Upstash. Al reservar,
 `/api/chat` sigue consultando las zonas reales y comprobando mesas.
 Una sesión sin datos cargados muestra «Se mostrará al cargar la agenda»
 y un error de carga no se presenta como un estado verificado.
+
+## Alta de nuevas zonas (preparada; interruptor apagado)
+
+El editor existente de **Mesas y zonas** incorpora el formulario "Añadir
+una zona". El código `lib/zonas-panel.js` tramita `zonas_crear` desde
+`/api/restaurante`, sin función extra en Vercel.
+
+**No habilitada en octubre:** se requiere
+`CONTACTIA_CREAR_ZONAS=1` en el entorno Preview de la rama
+`corregir-bateria-pruebas`. Sin la variable, responde 503 antes de
+consultar Airtable y el formulario permanece desactivado.
+
+La operación, cuando se habilite, exige sesión del propietario firmada,
+origen HTTPS coincidente, nombre válido y no repetido. Comprueba el
+restaurante y las zonas existentes, y crea en `ZONA` los campos
+`id_zona`, `nombre`, `estado: inactivo` y el vínculo
+`restaurante`. No introduce campos nuevos en Airtable.
+La nueva zona **siempre comienza cerrada y sin mesas**. El panel añade
+la confirmación de guardado a su vista sin volver a descargar la agenda.
+
+**Pendiente antes de activarlo:** desarrollar la asignación/creación de
+mesas dentro de las zonas y bloquear la reapertura de una zona sin mesas
+operativas. Hasta entonces, las nuevas zonas permanecerán cerradas y no
+serán anunciadas a clientes. Mantener desactivado el interruptor salvo
+en las pruebas controladas de noviembre. Los cierres/reaperturas
+existentes conservan sus confirmaciones de reservas afectadas.
