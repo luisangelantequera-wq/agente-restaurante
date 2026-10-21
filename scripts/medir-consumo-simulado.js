@@ -52,7 +52,7 @@ async function medirCargaAgenda({ paginasReservas = 1, conSesion = true } = {}) 
       let records = [], offset;
       if (tabla === "RESTAURANTES") {
         records = [{
-          id: "recSolSimulado0001",
+          id: "rec12345678901234",
           fields: { id: 1, nombre: "Restaurante Sol (FICTICIO)",
             duracion_reserva_minutos: 90, estado: "activo" }
         }];

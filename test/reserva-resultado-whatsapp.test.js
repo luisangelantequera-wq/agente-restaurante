@@ -51,3 +51,16 @@ test('lector y receptor juntos aplican solo el resultado de la versión vigente'
   await handler(req,res);assert.equal(consultas,1);assert.equal(escrituras,cambiado?0:1);assert.equal(res.codigo,200);assert.equal(res.datos.aplicado,!cambiado);
  }
 });
+
+test('el lector WhatsApp respeta la pausa del Sandbox y no consulta Airtable',async()=>{
+ const entorno={...env,
+  VERCEL_GIT_COMMIT_REF:'corregir-bateria-pruebas',
+  AIRTABLE_BASE_ID:'app12345678901234',
+  CONTACTIA_SANDBOX_BASE_ID:'app12345678901234',
+  CONTACTIA_PAUSA_SANDBOX_AIRTABLE:'1'
+ };
+ let intentos=0;
+ const lector=crearLector({env:entorno,fetchImpl:async()=>{intentos++;throw Error('No debe consultar');}});
+ await assert.rejects(lector(r.id),e=>e.status===503);
+ assert.equal(intentos,0);
+});
