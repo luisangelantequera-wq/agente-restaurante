@@ -55,6 +55,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Todos los tests Node
         run: npm test
+      - name: Ensayo de consumo Airtable sin credenciales ni red
+        run: npm run medir:simulado
       - name: Bateria conversacional, incluso si hay fallos en la anterior
         if: ${{ !cancelled() }}
         run: npm run test:conversacion
