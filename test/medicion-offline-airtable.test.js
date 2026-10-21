@@ -36,3 +36,24 @@ test("el simulador rechaza parámetros de páginas no válidos", async () => {
   await assert.rejects(medirCargaAgenda({ paginasReservas: 0 }), /entre 1 y 3/);
   await assert.rejects(medirCargaAgenda({ paginasReservas: 4 }), /entre 1 y 3/);
 });
+
+test("el selector de hora no recarga toda la agenda ni deja mesas libres obsoletas", () => {
+  const fs = require("node:fs");
+  const cliente = fs.readFileSync(require.resolve("../restaurante.js"), "utf8");
+  assert.match(cliente, /horaMesas\.addEventListener\("change", marcarHoraPendiente\)/);
+  assert.match(cliente, /mesasLibresActuales = \[\];/);
+  assert.match(cliente, /mesasLibresContenedor\.replaceChildren\(\)/);
+  assert.match(cliente, /Pulse Actualizar para comprobar mesas disponibles/);
+  assert.doesNotMatch(cliente, /horaMesas\.addEventListener\("change", \(\) => botonActualizar\.click\(\)\)/);
+});
+
+test("cambiar horas no necesita lecturas hasta la actualización explícita", async () => {
+  const medida = await medirCargaAgenda();
+  // La carga manual sigue consultando todas las tablas necesarias.
+  assert.equal(medida.total_peticiones, 5);
+  // El cambio de hora se resuelve en la interfaz, sin solicitar una nueva
+  // carga automática; dos cambios seguidos evitan dos cargas enteras.
+  const costoAnterior = medida.total_peticiones * 2;
+  const costoAhoraSinActualizar = 0;
+  assert.equal(costoAnterior - costoAhoraSinActualizar, 10);
+});

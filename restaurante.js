@@ -1236,7 +1236,20 @@ botonActualizar.addEventListener("click", () => {
 
 
 campoFecha.addEventListener("change", () => botonActualizar.click());
-horaMesas.addEventListener("change", () => botonActualizar.click());
+function marcarHoraPendiente() {
+  // Cambiar la hora no vuelve a descargar toda la agenda automáticamente.
+  // Las mesas libres mostradas pertenecían a la hora ANTERIOR: ocultarlas
+  // para no ofrecer ocupación de una mesa sin comprobación actualizada.
+  mesasLibresActuales = [];
+  mesasLibresContenedor.replaceChildren();
+  const aviso = "Hora cambiada. Pulse Actualizar para comprobar mesas disponibles.";
+  resumenMesasLibres.textContent = aviso;
+  estadoCarga.textContent = aviso;
+  document.getElementById("inicio-mesas").textContent = "—";
+  document.getElementById("estado-inicio").textContent = "Disponibilidad pendiente";
+  document.getElementById("estado-global-panel").textContent = aviso;
+}
+horaMesas.addEventListener("change", marcarHoraPendiente);
 
 
 nuevaHoraHoras.addEventListener("change", actualizarHoraSeleccionada);
