@@ -173,3 +173,47 @@ test("gastronomía: requiere sesión y origen, limita el tamaño y recupera la m
   assert.equal(r.datos_guardados, true); assert.equal(r.memoria.sincronizada, false); e.caido = false;
   assert.equal((await llamar("sincronizar", "gastronomia")).memoria.sincronizada, true); assert.equal(e.patches.length, 1);
 }));
+
+test("pregunta de horarios con caché fría reutiliza una sola lectura de RESTAURANTES", async () =>
+  escenario(async (e, _llamar, preguntar) => {
+    const respuesta = await preguntar("¿Qué horarios tenéis?");
+    assert.match(respuesta.respuesta, /De lunes a domingo: de 13:00 a 16:00/);
+    assert.equal(e.lecturas.filter(t => t === "RESTAURANTES").length, 1,
+      "La primera pregunta no debe volver a leer la misma tabla");
+    const nuevaConfiguracion = horario();
+    nuevaConfiguracion.horario.lunes = [];
+    Object.assign(e.fields, modelo.camposHorario(nuevaConfiguracion));
+    const segunda = await preguntar("¿Qué horarios tenéis?");
+    assert.match(segunda.respuesta, /Cerramos los lunes/);
+    assert.equal(e.lecturas.filter(t => t === "RESTAURANTES").length, 2,
+      "Una petición posterior debe releer el horario actual");
+  }));
+
+test("información estable fría se reutiliza sin guardar el registro completo en Redis", async () =>
+  escenario(async (e, _llamar, preguntar) => {
+    const respuesta = await preguntar("¿Admitís mascotas?");
+    assert.equal(respuesta.ok, true);
+    assert.equal(e.lecturas.filter(t => t === "RESTAURANTES").length, 1,
+      "No deben producirse dos lecturas en la primera consulta informativa");
+    const valoresCache = [...e.redis.values()].map(JSON.parse);
+    const contactos = valoresCache.filter(x => x.datos?.fields?.telefono1);
+    assert.equal(contactos.length, 1);
+    assert.deepEqual(Object.keys(contactos[0].datos.fields).sort(),
+      ["id", "nombre", "telefono1", "telefono2"].filter(c => c in contactos[0].datos.fields).sort());
+    assert.equal(contactos[0].datos.fields.estado, undefined);
+    assert.equal(contactos[0].datos.fields.horario_reservas, undefined);
+    assert.equal(contactos[0].datos.fields.informacion_publica, undefined);
+  }));
+
+test("con caché desactivada las preguntas distintas releen configuración operativa", async () =>
+  escenario(async (e, _llamar, preguntar) => {
+    process.env.CONTACTIA_CACHE_PUBLICA = "0";
+    await preguntar("¿Qué horarios tenéis?");
+    assert.equal(e.lecturas.filter(t => t === "RESTAURANTES").length, 1);
+    const cambio = horario();
+    cambio.horario.martes = [];
+    Object.assign(e.fields, modelo.camposHorario(cambio));
+    const nueva = await preguntar("¿Qué horarios tenéis?");
+    assert.match(nueva.respuesta, /Cerramos los martes/);
+    assert.equal(e.lecturas.filter(t => t === "RESTAURANTES").length, 2);
+  }));

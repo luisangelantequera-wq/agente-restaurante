@@ -63,14 +63,18 @@ async function consultarAirtable(url) {
 }
 
 
-async function buscarRestaurante(restauranteId) {
+async function buscarRestaurante(restauranteId, { camposCompletos = false } = {}) {
   const parametros = new URLSearchParams({
     filterByFormula: `{id}=${restauranteId}`,
     maxRecords: "2"
   });
 
-  for (const campo of ["id", "nombre", "telefono1", "telefono2", "estado"]) {
-    parametros.append("fields[]", campo);
+  // Solo al necesitar otros campos en esta MISMA solicitud se hace la
+  // lectura completa, evitando consultar RESTAURANTES por segunda vez.
+  if (!camposCompletos) {
+    for (const campo of ["id", "nombre", "telefono1", "telefono2", "estado"]) {
+      parametros.append("fields[]", campo);
+    }
   }
 
   const datos = await consultarAirtable(
@@ -152,9 +156,14 @@ function informacionContactoValida(datos, restauranteId) {
   return true;
 }
 
-async function cargarContactoPublico(restauranteId) {
-  const registro = await buscarRestaurante(restauranteId);
+async function cargarContactoPublico(restauranteId, registrarCompleto = null) {
+  const registro = await buscarRestaurante(restauranteId, {
+    camposCompletos: typeof registrarCompleto === "function"
+  });
   if (!registro) return null;
+  // La copia de Upstash contiene exclusivamente los cuatro campos públicos
+  // existentes. El registro completo permanece solo en esta petición HTTP.
+  if (typeof registrarCompleto === "function") registrarCompleto(registro);
   const campos = registro.fields || {};
   return {
     id: registro.id,
@@ -244,10 +253,14 @@ module.exports = async (req, res) => {
       return responder(res, 400, { ok: false, error: "La pregunta no es válida." });
     }
 
+    const panelAmpliado = process.env.VERCEL_ENV === "preview" &&
+      process.env.CONTACTIA_PANEL_V2 === "1";
+    let registroCompletoDeEstaSolicitud = null;
     const restaurante = await leerConCachePublica({
       tipo: "telefono",
       identificador: String(restauranteId),
-      cargar: () => cargarContactoPublico(restauranteId),
+      cargar: () => cargarContactoPublico(restauranteId, panelAmpliado
+        ? registro => { registroCompletoDeEstaSolicitud = registro; } : null),
       validar: datos => informacionContactoValida(datos, restauranteId)
     });
 
@@ -256,17 +269,28 @@ module.exports = async (req, res) => {
     }
 
     // Primera ampliación habilitada únicamente en la rama de ensayo.
-    if (process.env.VERCEL_ENV === "preview" && process.env.CONTACTIA_PANEL_V2 === "1") {
+    if (panelAmpliado) {
       const modelo = require("../lib/ajustes-restaurante");
+      // Compartir solo dentro de UNA solicitud; entre preguntas distintas,
+      // los horarios y cierres operativos se vuelven a leer de Airtable.
+      const obtenerRegistroCompleto = async () => {
+        if (!registroCompletoDeEstaSolicitud) {
+          const actual = await buscarInformacionPublica(restauranteId);
+          if (actual.id !== restaurante.id) {
+            throw new Error("El restaurante no coincide.");
+          }
+          registroCompletoDeEstaSolicitud = actual;
+        }
+        return registroCompletoDeEstaSolicitud;
+      };
       if (modelo.esPreguntaHorario(pregunta)) {
-        const actual = await buscarInformacionPublica(restauranteId);
-        if (actual.id !== restaurante.id) throw new Error("El restaurante no coincide.");
+        const actual = await obtenerRegistroCompleto();
         return responder(res, 200, { ok: true, encontrada: true, respuesta: modelo.responderGastronomia(modelo.normalizarPublico(actual.fields), pregunta) || modelo.describirHorario(actual.fields, pregunta), telefono_restaurante: telefonoPublico(restaurante) });
       }
       const informacion = await leerConCachePublica({
         tipo: "informacion", identificador: String(restauranteId),
         cargar: async () => {
-          const actual = await buscarInformacionPublica(restauranteId);
+          const actual = await obtenerRegistroCompleto();
           return { id: restauranteId, restaurante_record_id: actual.id, ...modelo.normalizarPublico(actual.fields) };
         },
         validar: datos => informacionHabitualValida(datos, restauranteId, restaurante.id)
@@ -285,8 +309,7 @@ module.exports = async (req, res) => {
         };
         const publica = await leerConCachePublica({ tipo: "carta", identificador: String(restauranteId),
           cargar: async () => {
-            const actual = await buscarInformacionPublica(restauranteId);
-            if (actual.id !== restaurante.id) throw new Error("El restaurante no coincide.");
+            const actual = await obtenerRegistroCompleto();
             return { id: restauranteId, restaurante_record_id: actual.id, carta: modeloCarta.publica(modeloCarta.leer(actual.fields).publicada) };
           }, validar: validarCarta });
         if (!validarCarta(publica)) throw new Error("Carta pública no válida.");

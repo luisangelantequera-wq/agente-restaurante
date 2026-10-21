@@ -65,3 +65,25 @@ después de colgar se descartan. No supone que las 57 llamadas históricas
 sean duplicadas: esas cifras agrupan múltiples conversaciones.
 
 No se modifica la persistencia existente ni se pierden avisos de revisión.
+
+## Reutilización de RESTAURANTES dentro de una petición informativa
+
+En `api/informacion-restaurante.js`, cuando `CONTACTIA_PANEL_V2=1`, el
+primer acceso que necesita el teléfono del restaurante puede traer además
+los campos informativos y operativos. La **misma respuesta de Airtable** se
+utiliza después para horarios, gastronomía o carta dentro de esa solicitud.
+
+- Con la caché pública fría, una consulta informativa que antes podía
+  consultar RESTAURANTES dos veces ahora lo hace **una vez**.
+- Cuando la caché pública está caliente, conserva la lectura fresca de
+  horarios y cierres. Las preguntas posteriores no reutilizan esa lectura.
+- Solo se guarda en Upstash la proyección pública previamente autorizada
+  de contacto/identidad/información; **nunca** la copia completa del registro
+  cargado para servir esta solicitud.
+- No modifica `api/chat.js`, bloqueos Upstash, RESERVAS, MESAS ni ZONA.
+  Por seguridad las lecturas de zonas continúan frescas.
+
+El ahorro se medirá en simulación con la batería de `test/ajustes-panel.test.js`.
+No inferir que se ahorran todas las 191 llamadas de configuración: la
+mayoría de accesos corresponden a peticiones distintas y a necesidades
+de seguridad operativa.
