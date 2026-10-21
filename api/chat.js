@@ -58,6 +58,7 @@ const ACCIONES_PERMITIDAS = new Set([
   "cancelar",
   "consultar",
   "enviar_contacto_restaurante",
+  "validar_fecha",
   "lista_espera_crear",
   "liberar_retencion",
   "modificar",
@@ -69,6 +70,7 @@ const ACCIONES_PERMITIDAS = new Set([
   "verificar"
 ]);
 const ACCIONES_CON_FECHA_RESERVA = new Set([
+  "validar_fecha",
   "lista_espera_crear",
   "modificar",
   "ocupar_mesa",
@@ -388,12 +390,37 @@ function resolverZonaPreferida(zonas, valor) {
 }
 
 
+// La modificación de fecha/hora/personas conserva la zona de la reserva.
+// Los registros antiguos sin cabecera se resuelven desde sus mesas vinculadas.
+async function obtenerZonaReservaExistente(reserva, restauranteRecordId) {
+  const zonas = await obtenerZonasActivasRestaurante(restauranteRecordId);
+  const cabecera = String(reserva.fields.mensaje || "")
+    .match(/^Zona solicitada: (.+)\.(?:\r?\n|$)/);
+  if (cabecera) {
+    return zonas.find(zona => nombreZona(zona) === cabecera[1]) || null;
+  }
+  const ids = reserva.fields.mesa;
+  if (!Array.isArray(ids) || !ids.length) return null;
+  const mesas = filtrarRegistrosRestaurante(
+    await listarRegistrosAirtable("MESAS"), restauranteRecordId
+  );
+  const asignadas = ids.map(id => mesas.find(mesa => mesa.id === id));
+  if (asignadas.some(mesa => !mesa || mesa.fields.zona?.length !== 1)) return null;
+  const zonasIds = new Set(asignadas.map(mesa => mesa.fields.zona[0]));
+  return zonasIds.size === 1
+    ? zonas.find(zona => zonasIds.has(zona.id)) || null
+    : null;
+}
+
+
 function camposHorarioParaZona(camposRestaurante, zona) {
   const horarioZona = String(zona?.fields?.horario_reservas || "").trim();
 
-  return horarioZona
-    ? { ...camposRestaurante, horario_reservas: horarioZona }
-    : camposRestaurante;
+  if (!horarioZona) return camposRestaurante;
+  const propio = leerJSONCampo(horarioZona, {}, "horario_reservas");
+  const general = leerJSONCampo(camposRestaurante.horario_reservas, {}, "horario_reservas");
+  return { ...camposRestaurante, horario_reservas: JSON.stringify({ ...propio,
+    ...(general._contactia ? { _contactia: general._contactia } : {}) }) };
 }
 
 
@@ -1274,7 +1301,8 @@ function validarHorarioRestaurante(campos, fecha, hora) {
     String(dia).trim().toLowerCase()
   );
 
-  if (cierresSemanales.includes(diaSemana)) {
+  const efectivo = require("../lib/ajustes-restaurante").horarioParaFecha(campos, fecha);
+  if (!efectivo.especial && cierresSemanales.includes(diaSemana)) {
     return {
       valido: false,
       motivo:
@@ -1283,7 +1311,7 @@ function validarHorarioRestaurante(campos, fecha, hora) {
     };
   }
 
-  if (cierresEspeciales.map(String).includes(fecha)) {
+  if (efectivo.especial && !efectivo.rangos.length) {
     return {
       valido: false,
       motivo: "El restaurante está cerrado en esa fecha.",
@@ -1291,7 +1319,7 @@ function validarHorarioRestaurante(campos, fecha, hora) {
     };
   }
 
-  const rangos = horario[diaSemana];
+  const rangos = efectivo.rangos;
 
   if (!Array.isArray(rangos) || rangos.length === 0) {
     return {
@@ -1342,8 +1370,9 @@ function validarHorarioRestaurante(campos, fecha, hora) {
     return {
       valido: false,
       motivo:
-        `El horario de reservas para el ${diaSemana} es ` +
-        `${rangos.join(" y ")}.`,
+        `El horario de reservas del ${diaSemana} ${new Intl.DateTimeFormat("es-ES", {
+          timeZone: "UTC", day: "numeric", month: "long"
+        }).format(new Date(fecha + "T12:00:00Z"))} es de ${rangos.join(" y ")}.`,
       cambioRequerido: "hora"
     };
   }
@@ -1389,15 +1418,8 @@ async function buscarHorariosAlternativos(
 
   // Las alternativas deben pertenecer al mismo servicio que la hora pedida.
   // Así una petición para comer nunca ofrece horas del turno de cena.
-  const diaSemana = obtenerDiaSemana(fecha);
-  const horario = leerJSONCampo(
-    camposRestaurante.horario_reservas,
-    {},
-    "horario_reservas"
-  );
-  const rangosDelDia = Array.isArray(horario[diaSemana])
-    ? horario[diaSemana]
-    : [];
+  const rangosDelDia = require("../lib/ajustes-restaurante")
+    .horarioParaFecha(camposRestaurante, fecha).rangos;
   const rangosValidos = rangosDelDia
     .map((rango) => String(rango).split("-").map((parte) =>
       horaAMinutos(parte.trim())
@@ -1849,8 +1871,12 @@ async function enviarCorreoConfirmacionReserva({
   localizador,
   enlaceGestion,
   seguimiento,
+  encargos = [],
   idioma = "es"
 }) {
+  const detalleEncargo = encargos.length ? require("../lib/encargos-restaurante").resumen(encargos) : "";
+  const textoEncargo = detalleEncargo ? "\nPlatos por encargo: " + detalleEncargo + "\n" : "";
+  const htmlEncargo = detalleEncargo ? `<p><strong>Platos por encargo:</strong> ${escaparHtml(detalleEncargo)}</p>` : "";
   nombreRestaurante = normalizarTexto(nombreRestaurante) ||
     NOMBRE_RESTAURANTE_GENERICO;
   const ingles = idioma === "en";
@@ -1904,8 +1930,8 @@ async function enviarCorreoConfirmacionReserva({
     return enviarCorreoResend({
       destinatario,
       asunto,
-      texto,
-      html,
+      texto: texto + textoEncargo,
+      html: html + htmlEncargo,
       seguimiento,
       contexto: "confirmation de réservation"
     });
@@ -1953,8 +1979,8 @@ async function enviarCorreoConfirmacionReserva({
     return enviarCorreoResend({
       destinatario,
       asunto,
-      texto,
-      html,
+      texto: texto + textoEncargo,
+      html: html + htmlEncargo,
       seguimiento,
       contexto: "booking confirmation"
     });
@@ -2001,8 +2027,8 @@ async function enviarCorreoConfirmacionReserva({
   return enviarCorreoResend({
     destinatario,
     asunto,
-    texto,
-    html,
+    texto: texto + textoEncargo,
+    html: html + htmlEncargo,
     seguimiento,
     contexto: "confirmación"
   });
@@ -2320,6 +2346,7 @@ async function enviarAvisoRestaurante({
   emailCliente,
   telefonoCliente,
   observaciones,
+  encargos = [],
   enlaceGestion
 }) {
   nombreRestaurante = normalizarTexto(nombreRestaurante) ||
@@ -2333,7 +2360,7 @@ async function enviarAvisoRestaurante({
     cancelada: "Reserva cancelada"
   };
   const titulo = titulos[tipo] || "Actualización de reserva";
-  const observacionesLimpias = normalizarObservaciones(observaciones);
+  const observacionesLimpias = [normalizarObservaciones(observaciones), encargos.length ? "ENCARGO: " + require("../lib/encargos-restaurante").resumen(encargos) : ""].filter(Boolean).join("\n");
   const observacionesPrioritarias = observacionEsPrioritaria(
     observacionesLimpias
   );
@@ -2553,6 +2580,27 @@ module.exports = async (req, res) => {
       req,
       restaurante_id
     );
+
+    // Comprobación temprana del calendario, sin personas, zonas ni mesas.
+    if (accion === "validar_fecha") {
+      if (!fechaReservaDentroDeRango(fecha)) return responder(res, 400, {
+        ok: false, error: `La fecha debe estar entre hoy y los próximos ${MAX_DIAS_ANTELACION} días.`
+      });
+      const restaurante = await buscarRestaurante(restaurante_id);
+      if (!restaurante) return responder(res, 404, { ok: false, error: "Restaurante no encontrado." });
+      const campos = restaurante.fields;
+      const efectivo = require("../lib/ajustes-restaurante").horarioParaFecha(campos, fecha);
+      if (!Array.isArray(efectivo.rangos)) throw new Error("Horario no válido.");
+      const activo = String(campos.estado || "activo").trim().toLowerCase() === "activo";
+      const abierta = activo && efectivo.rangos.length > 0;
+      if (abierta) {
+        const primeraHora = String(efectivo.rangos[0]).split("-")[0].trim();
+        if (!validarHorarioRestaurante(campos, fecha, primeraHora).valido) throw new Error("Horario no válido.");
+      }
+      const fechaLegible = new Intl.DateTimeFormat("es-ES", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(fecha + "T12:00:00Z"));
+      return responder(res, 200, { ok: true, fecha, fecha_admitida: abierta,
+        ...(abierta ? {} : { motivo: activo ? `El restaurante está cerrado el ${fechaLegible}.` : "El restaurante no está aceptando reservas en este momento." }) });
+    }
 
     if (accion === "liberar_retencion") {
       const retenciones = almacenRetenciones();
@@ -3543,7 +3591,16 @@ module.exports = async (req, res) => {
       zonasActivas = await obtenerZonasActivasRestaurante(restaurante.id);
 
       if (zonasActivas.length > 0) {
-        zonaReserva = resolverZonaPreferida(zonasActivas, zona_preferida);
+        // En el Preview de pruebas, una única zona ACTIVA se elige
+        // automáticamente cuando el cliente no señaló ninguna.
+        // No evita la lectura de ZONA: esa lectura es la que garantiza
+        // que la zona no se haya cerrado mientras se conversaba.
+        const seleccionarUnicaZona = process.env.VERCEL_ENV === "preview" &&
+          process.env.VERCEL_GIT_COMMIT_REF === "corregir-bateria-pruebas";
+        zonaReserva = seleccionarUnicaZona && !zona_preferida &&
+          zonasActivas.length === 1
+          ? zonasActivas[0]
+          : resolverZonaPreferida(zonasActivas, zona_preferida);
 
         if (!zonaReserva) {
           const zonasDisponibles = resumirZonas(zonasActivas);
@@ -3898,6 +3955,7 @@ const prefijoReserva = normalizarPrefijoReserva(
         ok: true,
         disponible: true,
         zona: nombreZona(zonaReserva),
+        ...(process.env.VERCEL_ENV === "preview" && process.env.CONTACTIA_PANEL_V2 === "1" ? {encargos_disponibles: require("../lib/encargos-restaurante").disponibles(require("../lib/encargos-restaurante").leer(restaurante.fields),fecha,hora,numeroPersonas)} : {}),
         ...(retencion ? { retencion_token: retencion.token, retencion_hasta: retencion.vence } : {}),
 
         mesa: {
@@ -3982,6 +4040,27 @@ const prefijoReserva = normalizarPrefijoReserva(
         });
       }
 
+      let encargoModificado = null;
+      if (process.env.VERCEL_ENV === "preview" && reservaActual.fields.encargo_json && (esReactivacion || fecha !== reservaActual.fields.fecha || hora !== reservaActual.fields.hora || numeroPersonas !== Number(reservaActual.fields.personas))) {
+        try { const m=require("../lib/encargos-restaurante");const anterior=m.leerReserva(reservaActual.fields.encargo_json);encargoModificado=m.validarSeleccion(anterior.items,m.leer(restaurante.fields),fecha,hora,numeroPersonas); }
+        catch { return responder(res,200,{ok:true,modificada:false,reactivada:false,disponible:false,motivo:"La reserva incluye platos por encargo que no cumplen las condiciones con el cambio solicitado. Contacte con el restaurante para revisarlos."}); }
+      }
+      const zonaOriginal = await obtenerZonaReservaExistente(reservaActual, restaurante.id);
+      if (!zonaOriginal) {
+        return responder(res, 200, {
+          ok: true, modificada: false, reactivada: false, disponible: false,
+          motivo: "No se puede conservar la zona original: está cerrada o no se ha podido identificar. Contacte con el restaurante."
+        });
+      }
+      const horarioZonaOriginal = camposHorarioParaZona(restaurante.fields, zonaOriginal);
+      const validacionZonaOriginal = validarHorarioRestaurante(horarioZonaOriginal, fecha, hora);
+      if (!validacionZonaOriginal.valido) {
+        return responder(res, 200, {
+          ok: true, modificada: false, reactivada: false, disponible: false,
+          motivo: validacionZonaOriginal.motivo
+        });
+      }
+
       const asignacion = await buscarAsignacionDisponible(
         restaurante_id,
         restaurante.id,
@@ -3990,7 +4069,9 @@ const prefijoReserva = normalizarPrefijoReserva(
         numeroPersonas,
         margenCapacidad,
         duracionReservaMinutos,
-        reservaActual.id
+        reservaActual.id,
+        false,
+        zonaOriginal.id
       );
 
       if (!asignacion) {
@@ -4003,9 +4084,9 @@ const prefijoReserva = normalizarPrefijoReserva(
           margenCapacidad,
           duracionReservaMinutos,
           intervaloMinutos,
-          restaurante.fields,
+          horarioZonaOriginal,
           reservaActual.id,
-          null,
+          zonaOriginal.id,
           aplicaAntelacionCliente
             ? antelacionMinimaReservaMinutos
             : null
@@ -4018,8 +4099,8 @@ const prefijoReserva = normalizarPrefijoReserva(
           disponible: false,
           alternativas,
           motivo: esReactivacion
-            ? "No hay disponibilidad para reactivar la reserva con esos datos."
-            : "No hay disponibilidad para modificar la reserva con esos datos."
+            ? `No hay disponibilidad en ${nombreZona(zonaOriginal)} para reactivar la reserva con esos datos.`
+            : `No hay disponibilidad en ${nombreZona(zonaOriginal)} para modificar la reserva con esos datos.`
         });
       }
 
@@ -4092,6 +4173,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           fields: {
             fecha,
             hora,
+            ...(encargoModificado ? {encargo_json:JSON.stringify(encargoModificado)} : {}),
             personas: numeroPersonas,
             mesa: asignacion.ids,
             ...crearMetadatosPrivacidadReserva({
@@ -4100,7 +4182,10 @@ const prefijoReserva = normalizarPrefijoReserva(
               duracionReservaMinutos
             }),
             ...(mensajeIncluido
-              ? { mensaje: normalizarObservaciones(mensaje) }
+              ? { mensaje: observacionesConZona(
+                  String(mensaje || "").replace(/^Zona solicitada: .+\.(?:\r?\n|$)/, ""),
+                  zonaOriginal
+                ) }
               : {}),
             ...(esReactivacion ? { estado: "confirmada" } : {})
           }
@@ -4459,6 +4544,13 @@ const prefijoReserva = normalizarPrefijoReserva(
 
     if (accion === "reservar" || accion === "reservar_panel") {
       const esReservaPanel = accion === "reservar_panel";
+      const modeloEncargos = require("../lib/encargos-restaurante");
+      let encargoReserva = null;
+      if (body.encargos !== undefined && (!Array.isArray(body.encargos) || body.encargos.length)) {
+        if (process.env.VERCEL_ENV !== "preview" || process.env.CONTACTIA_PANEL_V2 !== "1") return responder(res,400,{ok:false,error:"Los encargos no están disponibles en este entorno."});
+        try { encargoReserva = modeloEncargos.validarSeleccion(body.encargos,modeloEncargos.leer(restaurante.fields),fecha,hora,numeroPersonas); }
+        catch (e) { return responder(res,400,{ok:false,encargos_error:true,error:e.message,encargos_disponibles:modeloEncargos.disponibles(modeloEncargos.leer(restaurante.fields),fecha,hora,numeroPersonas)}); }
+      }
       const retenciones = almacenRetenciones();
       let retencionCliente = null;
 
@@ -4725,6 +4817,11 @@ const prefijoReserva = normalizarPrefijoReserva(
       }
 
 
+      if (encargoReserva) {
+        try { encargoReserva=modeloEncargos.validarSeleccion(body.encargos,modeloEncargos.leer(restaurante.fields),fecha,hora,numeroPersonas); }
+        catch(e){if(retencionCliente)await retenciones.descartar(restaurante.id,retencionCliente.token);return responder(res,400,{ok:false,encargos_error:true,error:e.message,encargos_disponibles:modeloEncargos.disponibles(modeloEncargos.leer(restaurante.fields),fecha,hora,numeroPersonas)});}
+      }
+
       if (retencionCliente) {
         await retenciones.vincularAlta(restaurante.id, retencionCliente.token, idReserva);
       }
@@ -4756,6 +4853,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           ...(email ? { email: email } : {}),
 
           mensaje: observacionesConZona(mensaje, zonaReserva),
+          ...(encargoReserva?.items.length ? { encargo_json: JSON.stringify(encargoReserva) } : {}),
 
           estado: "pendiente",
 
@@ -4901,6 +4999,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           zona: nombreZona(zonaReserva),
           localizador: idReserva,
           enlaceGestion,
+          encargos: encargoReserva?.items || [],
           idioma: ["en", "fr"].includes(idioma) ? idioma : "es"
         }),
         enviarAvisoRestaurante({
@@ -4915,6 +5014,7 @@ const prefijoReserva = normalizarPrefijoReserva(
           emailCliente: email,
           telefonoCliente: telefono,
           observaciones: observacionesConZona(mensaje, zonaReserva),
+          encargos: encargoReserva?.items || [],
           enlaceGestion: generarEnlacePanelRestaurante(fecha, restaurante_id)
         })
       ]);

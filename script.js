@@ -20,6 +20,10 @@ let restauranteActivo = {
   slug_publico: rutaRestaurante.slug_publico,
   zonas: []
 };
+// Únicamente la rama de pruebas difiere la lectura operativa de zonas.
+// Nunca asumimos que una zona sigue abierta por haberla visto antes.
+let zonasPendientesCarga = false;
+let cargaDiferidaHabilitada = false;
 
 
 restaurantName.textContent = `🍽️ ${restauranteActivo.nombre}`;
@@ -46,6 +50,10 @@ let datosReserva = {
   observaciones: ""
 };
 
+const encargosChat = window.ContactiaEncargosConversacion?.crear({ modelo: window.ContactiaEncargos, entrada: window.ContactiaEntrada, datos: () => datosReserva, decir: texto => agregarMensaje(texto,"bot"), paso: estado => { paso=estado; } });
+function pedirObservacionesReserva(){paso="observaciones";agregarMensaje("¿Desea añadir alguna observación? Si no, responda: no.","bot");}
+function preguntarEncargos(continuar=pedirObservacionesReserva){if(encargosChat)encargosChat.comenzar(continuar);else continuar();}
+
 let localizadorGestion = "";
 let reservaGestion = null;
 let reservaGestionOriginal = null;
@@ -57,6 +65,7 @@ let registroConversacionesRemotoHabilitado = false;
 let sesionVozActiva = false;
 let ultimoCorreoConfirmacionEnviado = null;
 let retencionActiva = null;
+let fechaCalendarioComprobada = "";
 
 function liberarRetencionActiva() {
   const anterior = retencionActiva;
@@ -347,10 +356,42 @@ function describirOpcionesZonas(zonas) {
 }
 
 
+async function cargarZonasActivasParaReserva() {
+  if (!zonasPendientesCarga) return true;
+  try {
+    const parametros = new URLSearchParams({ slug: rutaRestaurante.slug_publico });
+    // Sin 'solo_identidad': se consulta el estado de las zonas ahora.
+    const respuesta = await fetch(`/api/restaurante-publico?${parametros}`);
+    const datos = await respuesta.json();
+    const actualizado = window.ContactiaRestaurantePublico
+      .normalizarRestaurantePublico(datos?.restaurante, rutaRestaurante.slug_publico);
+    if (!respuesta.ok || datos.ok === false || !actualizado ||
+        actualizado.id !== restauranteActivo.id || datos.zonas_pendientes === true) {
+      throw new Error("No se pudieron comprobar las zonas.");
+    }
+    // Sólo se actualiza la lista mostrada; la comprobación definitiva en
+    // /api/chat se mantiene, para cierres durante la conversación.
+    restauranteActivo.zonas = actualizado.zonas;
+    zonasPendientesCarga = false;
+    return true;
+  } catch (error) {
+    console.error("Error al consultar zonas:", error);
+    return false;
+  }
+}
+
 function preguntarZonaSiNecesaria() {
   const zonas = nombresZonasDisponibles();
 
-  if (zonas.length === 0 || datosReserva.zona_preferida) {
+  if (datosReserva.zona_preferida || zonas.length === 0) {
+    return false;
+  }
+
+  if (zonas.length === 1) {
+    // No preguntar por una preferencia que no existe. Esta zona se obtuvo
+    // de la lectura operativa de Airtable justo antes de mostrar opciones.
+    // /api/chat volverá a verificarla antes de autorizar la reserva.
+    datosReserva.zona_preferida = zonas[0];
     return false;
   }
 
@@ -370,7 +411,8 @@ async function cargarRestauranteActivo() {
 
   try {
     const parametros = new URLSearchParams({
-      slug: rutaRestaurante.slug_publico
+      slug: rutaRestaurante.slug_publico,
+      solo_identidad: "1"
     });
     const respuesta = await fetch(`/api/restaurante-publico?${parametros}`);
     const datos = await respuesta.json();
@@ -393,6 +435,8 @@ async function cargarRestauranteActivo() {
     registroConversacionesRemotoHabilitado =
       datos.registro_conversaciones_habilitado === true;
     aplicarRestauranteActivo(restaurante);
+    cargaDiferidaHabilitada = datos.zonas_pendientes === true;
+    zonasPendientesCarga = cargaDiferidaHabilitada;
     if (registroConversacionesRemotoHabilitado) {
       gestorGuardadoConversacion.habilitar();
     }
@@ -469,6 +513,7 @@ function analizarDatosPrincipales(texto) {
 
 
 function limpiarDatosPrincipales() {
+  fechaCalendarioComprobada = "";
   datosReserva.fecha = "";
   datosReserva.personas = null;
   datosReserva.hora = "";
@@ -638,6 +683,41 @@ async function validarMomentoReservaAntesDeContinuar() {
 }
 
 
+// Solo evita repetir esta lectura durante la captura del mismo día.
+// La disponibilidad y la creación definitiva vuelven a consultar datos actuales.
+async function comprobarCalendarioAntesDeCapturar() {
+  const fecha = datosReserva.fecha;
+  const clave = `${datosReserva.restaurante_id}:${fecha}`;
+  if (fechaCalendarioComprobada === clave) return true;
+  try {
+    const respuesta = await fetch("/api/chat", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accion: "validar_fecha", restaurante_id: datosReserva.restaurante_id, fecha }) });
+    const datos = await respuesta.json();
+    if (!respuesta.ok || datos.ok !== true || datos.fecha !== fecha || typeof datos.fecha_admitida !== "boolean") {
+      if (String(datos.error || "").startsWith("La fecha debe estar entre hoy")) {
+        agregarMensaje("Ese día ya ha pasado o está fuera del plazo de reservas. Indíqueme otro día.", "bot");
+      } else {
+        agregarMensaje("No he podido comprobar si abrimos ese día. Indíqueme la fecha de nuevo para volver a intentarlo.", "bot");
+      }
+    } else if (!datos.fecha_admitida) {
+      agregarMensaje(`${datos.motivo || "El restaurante está cerrado ese día."} ¿Qué otro día le viene bien?`, "bot");
+    } else {
+      fechaCalendarioComprobada = clave;
+      return true;
+    }
+  } catch {
+    agregarMensaje("No he podido comprobar si abrimos ese día. Indíqueme la fecha de nuevo para volver a intentarlo.", "bot");
+  }
+  fechaCalendarioComprobada = "";
+  datosReserva.fecha = "";
+  solicitudEspera = null;
+  liberarRetencionActiva();
+  paso = "fecha";
+  return false;
+}
+
+
 async function continuarCapturaDatosPrincipales() {
   if (!datosReserva.fecha) {
     paso = "fecha";
@@ -647,6 +727,8 @@ async function continuarCapturaDatosPrincipales() {
     );
     return;
   }
+
+  if (!(await comprobarCalendarioAntesDeCapturar())) return;
 
   if (!datosReserva.personas) {
     paso = "personas";
@@ -667,6 +749,16 @@ async function continuarCapturaDatosPrincipales() {
     return;
   }
 
+  if (!(await cargarZonasActivasParaReserva())) {
+    // No avanzar ni confirmar usando una lista potencialmente obsoleta.
+    // El cliente puede reintentar su hora sin perder el resto de los datos.
+    paso = "hora";
+    agregarMensaje(
+      "No he podido comprobar las zonas disponibles. Indique de nuevo la hora para reintentarlo.",
+      "bot"
+    );
+    return;
+  }
   if (preguntarZonaSiNecesaria()) {
     return;
   }
@@ -820,6 +912,7 @@ async function comprobarDisponibilidad() {
         token: data.retencion_token, vence: data.retencion_hasta,
         restaurante_id: datosReserva.restaurante_id
       } : null;
+      encargosChat?.configurar(data.encargos_disponibles || [], [datosReserva.fecha,datosReserva.hora,datosReserva.personas]);
       solicitudEspera = null;
       const detalleZona = datosReserva.zona_preferida
         ? ` en ${datosReserva.zona_preferida}`
@@ -836,16 +929,14 @@ async function comprobarDisponibilidad() {
         datosReserva.email &&
         datosReserva.telefono
       ) {
-        mostrarConfirmacionNuevaReserva();
+        preguntarEncargos(mostrarConfirmacionNuevaReserva);
         return;
       }
 
-      paso = "nombre";
-
-      agregarMensaje(
-        "¿A nombre de quién hacemos la reserva?",
-        "bot"
-      );
+      preguntarEncargos(() => {
+        paso = "nombre";
+        agregarMensaje("¿A nombre de quién hacemos la reserva?", "bot");
+      });
 
       return;
     }
@@ -964,6 +1055,7 @@ function mostrarConfirmacionNuevaReserva() {
     `📧 Email: ${datosReserva.email}\n` +
     `📱 Teléfono: ${datosReserva.telefono}\n` +
     lineaObservaciones +
+    (encargosChat?.resumen() ? `🍽 Encargo: ${encargosChat.resumen()}\n` : "") +
     `\n¿Confirma la reserva? Indique «Sí, confirmo la reserva» o «No, no confirmo». ` +
     `Si desea corregir un dato, indíquemelo ahora.`,
     "bot"
@@ -1139,6 +1231,7 @@ async function crearReserva() {
         zona_preferida: datosReserva.zona_preferida,
         mensaje: datosReserva.observaciones,
         idioma: idiomaConversacion,
+        ...(encargosChat?.seleccion().length ? {encargos:encargosChat.seleccion()} : {}),
         whatsapp_autorizado: datosReserva.whatsapp_autorizado
       })
     });
@@ -1146,6 +1239,7 @@ async function crearReserva() {
     const data = await respuesta.json();
 
     if (!respuesta.ok || data.ok === false) {
+      if(data.encargos_error){agregarMensaje(data.error+" No se ha creado la reserva; revisemos el encargo.","bot");encargosChat?.configurar(data.encargos_disponibles||[],[datosReserva.fecha,datosReserva.hora,datosReserva.personas,"revisar"]);preguntarEncargos(mostrarConfirmacionNuevaReserva);return;}
       if (data.retencion_error === "caducada" || data.retencion_error === "conflicto") {
         agregarMensaje("La retención temporal ha terminado. Voy a comprobar de nuevo la disponibilidad; sus datos se conservarán.", "bot");
         await comprobarDisponibilidad();
@@ -1408,6 +1502,7 @@ function esIntencionOperativa(texto) {
 
 
 function repetirPreguntaPendiente() {
+  if(paso.startsWith("encargo_")){encargosChat?.repetir();return;}
   const preguntas = {
     inicio: "¿Desea reservar, consultar, modificar o cancelar una reserva?",
     personas: "¿Para cuántas personas desea reservar?",
@@ -1540,11 +1635,11 @@ async function atenderPreguntaInformativa(mensaje, opciones = {}) {
 
     const telefono = telefonoParaEnlace(datos.telefono_restaurante);
     const contacto = telefono
-      ? ` Puede consultarlo directamente con el restaurante: tel:${telefono}`
-      : " Puede consultarlo directamente con el restaurante.";
+      ? ` en el tel:${telefono}`
+      : ".";
 
     agregarMensaje(
-      `No dispongo todavía de una respuesta aprobada para esa pregunta.${contacto}`,
+      `Lo siento, no tengo esa información, pero puede consultarlo directamente con el restaurante${contacto}`,
       "bot"
     );
     repetirPreguntaPendiente();
@@ -1624,6 +1719,8 @@ async function procesarMensaje(texto, opciones = {}) {
     );
     return;
   }
+
+  if (encargosChat?.procesar(mensaje,paso)) return;
 
   if (await atenderPreguntaInformativa(mensaje, opciones)) {
     return;
@@ -2073,6 +2170,7 @@ async function procesarMensaje(texto, opciones = {}) {
       /^si\b/.test(textoMinusculas) ||
       window.ContactiaEntrada.esIntencionReserva(mensaje)
     ) {
+      fechaCalendarioComprobada = "";
       const analisisInicial = analizarDatosPrincipales(mensaje);
 
       if (analisisInicial.ambiguos.length > 0) {
@@ -2397,12 +2495,7 @@ async function procesarMensaje(texto, opciones = {}) {
       agregarMensaje("Si no podemos entregarle el correo, ¿autoriza que le enviemos la confirmación por WhatsApp a este número?", "bot");
       return;
     }
-    paso = "observaciones";
-
-    agregarMensaje(
-      "¿Desea añadir alguna observación? Si no, responda: no.",
-      "bot"
-    );
+    pedirObservacionesReserva();
 
     return;
   }
@@ -2418,8 +2511,7 @@ async function procesarMensaje(texto, opciones = {}) {
       return;
     }
     datosReserva.whatsapp_autorizado = si;
-    paso = "observaciones";
-    agregarMensaje("¿Desea añadir alguna observación? Si no, responda: no.", "bot");
+    pedirObservacionesReserva();
     return;
   }
 
@@ -2700,6 +2792,7 @@ function prepararRespuestasParaVoz(respuestas) {
       `para ${personasParaVoz(datosReserva.personas)} personas${zona} del ` +
       `restaurante, a nombre de ${datosReserva.nombre}, con correo ` +
       `${datosReserva.email} y teléfono ${telefono}. ` +
+      (encargosChat?.resumen() ? `Encargo: ${encargosChat.resumen()}. ` : "") +
       "¿Confirma la reserva?"
     );
   }
@@ -2786,6 +2879,8 @@ window.ContactiaVozBridge = {
 
 // 1️⃣1️⃣ REINICIAR
 function reiniciarReserva() {
+  if (cargaDiferidaHabilitada) zonasPendientesCarga = true;
+  encargosChat?.limpiar();
   liberarRetencionActiva();
   paso = "inicio";
   capturaGuiadaEstricta = false;

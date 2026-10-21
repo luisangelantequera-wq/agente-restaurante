@@ -94,6 +94,14 @@ let listaEsperaActual = [];
 let mesasLibresActuales = [];
 let zonasConfiguracionActuales = [];
 let mesasConfiguracionActuales = [];
+
+function actualizarEstadoZonasAutomaticas(zonas) {
+  // Solo utiliza la respuesta de cargar agenda; cero lecturas extra.
+  const elemento = document.getElementById("estado-zonas-automaticas");
+  const resumen = window.ContactiaZonas.resumenConfiguracionZonas(zonas);
+  elemento.textContent = resumen.descripcion;
+  elemento.dataset.modoZonas = resumen.modo;
+}
 let localizadorEnEdicion = "";
 let reservaEnEdicion = null;
 let accionEnEdicion = "modificar";
@@ -218,6 +226,18 @@ function mostrarPanel() {
   acceso.hidden = true;
   contenido.hidden = false;
   botonCerrarSesion.hidden = false;
+  window.dispatchEvent(new CustomEvent("contactia:panel-abierto"));
+}
+
+
+function actualizarInicio(datos) {
+  document.getElementById("estado-inicio").textContent = "Actualizada ahora";
+  document.getElementById("inicio-mesas").textContent = (datos.mesas_disponibles || []).length;
+  document.getElementById("inicio-espera").textContent = (datos.lista_espera || []).filter(r => ["pendiente", "avisado"].includes(r.estado)).length;
+  const vigentes = datos.reservas.filter(r => r.estado !== "cancelada").slice(0, 4);
+  document.getElementById("inicio-reservas").innerHTML = vigentes.length
+    ? vigentes.map(r => `<div class="resumen-proxima"><strong>${escaparHtml(r.hora)}</strong><span>${escaparHtml(r.nombre || "Reserva")} · ${escaparHtml(r.personas)} personas</span><span>${escaparHtml(r.mesas.join(", "))}</span></div>`).join("")
+    : `<p class="nota-formulario">No hay reservas activas para el día seleccionado.</p>`;
 }
 
 
@@ -293,6 +313,7 @@ function renderizarReservas(reservas) {
         </div>
       `
       : "";
+    const encargo = reserva.encargo?.items?.length ? `<div class="encargo-reserva ${reserva.encargo.visto ? 'encargo-visto' : 'encargo-pendiente'}"><strong>🍽 ${reserva.estado === 'cancelada' ? 'RESERVA CANCELADA · ' : ''}ENCARGO · ${reserva.encargo.items.map(p=>escaparHtml(p.plato)+': '+p.personas+' personas').join('; ')}</strong><span>${reserva.encargo.visto ? 'Visto por el restaurante' : 'Pendiente de ver por el restaurante'}</span>${!reserva.encargo.visto ? `<button type="button" class="boton-secundario" data-accion="encargo-visto" data-localizador="${escaparHtml(reserva.localizador)}">Marcar como visto</button>` : ''}</div>` : '';
     let acciones = '<div class="acciones-reserva">';
 
     if (reserva.anonimizada) {
@@ -363,6 +384,7 @@ function renderizarReservas(reservas) {
       </div>
       ${selectorEstado}
       ${acciones}
+      ${encargo}
       ${observaciones}
     </article>
   `;
@@ -497,8 +519,11 @@ function renderizarMesasLibres(mesas, hora) {
     return;
   }
 
-  mesasLibresContenedor.innerHTML = mesas.map((mesa) => `
-    <article class="mesa-libre">
+  let ultimaZona = null;
+  mesasLibresContenedor.innerHTML = mesas.map((mesa) => {
+    const cabecera = ultimaZona !== mesa.zona ? `<h3 class="grupo-zona">${escaparHtml(mesa.zona)}</h3>` : "";
+    ultimaZona = mesa.zona;
+    return `${cabecera}<article class="mesa-libre">
       <div>
         <strong>${escaparHtml(mesa.nombre)}</strong>
         <span>${escaparHtml(mesa.zona)}</span>
@@ -511,7 +536,7 @@ function renderizarMesasLibres(mesas, hora) {
         data-mesa-id="${escaparHtml(mesa.id)}"
       >Ocupar</button>
     </article>
-  `).join("");
+  `; }).join("");
 }
 
 
@@ -1044,6 +1069,9 @@ function abrirModificacion(reserva, accion = "modificar") {
     : "Guardar cambios";
   referenciaModificar.textContent =
     `${reserva.localizador} · ${reserva.nombre}`;
+  const detalleEncargo = document.getElementById("detalle-encargo-reserva");
+  detalleEncargo.hidden = !reserva.encargo?.items?.length;
+  detalleEncargo.textContent = reserva.encargo?.items?.length ? "🍽 ENCARGO · " + reserva.encargo.items.map(p=>p.plato+": "+p.personas+" personas").join("; ") : "";
   nuevaFecha.value = reserva.fecha;
   mostrarHoraEnSelector(reserva.hora);
   nuevasPersonas.value = reserva.personas;
@@ -1181,10 +1209,13 @@ async function cargarReservas(clave = "") {
       datos.resumen.canceladas;
     zonasConfiguracionActuales = datos.zonas || [];
     mesasConfiguracionActuales = datos.mesas_configuracion || [];
+    actualizarEstadoZonasAutomaticas(zonasConfiguracionActuales);
     renderizarReservas(datos.reservas);
     renderizarListaEspera(datos.lista_espera || []);
     renderizarMesasLibres(datos.mesas_disponibles || [], datos.hora_mesas);
+    actualizarInicio(datos);
     estadoCarga.textContent = `${datos.reservas.length} reservas`;
+    document.getElementById("estado-global-panel").textContent = "";
 
     const nuevaUrl = new URL(window.location.href);
     nuevaUrl.searchParams.set("fecha", fecha);
@@ -1193,6 +1224,10 @@ async function cargarReservas(clave = "") {
     window.history.replaceState({}, "", nuevaUrl);
   } catch (error) {
     estadoCarga.textContent = error.message;
+    document.getElementById("estado-zonas-automaticas").textContent =
+      "No se ha podido actualizar el estado de las zonas. Utilice Actualizar.";
+    document.getElementById("estado-global-panel").textContent = error.message;
+    document.getElementById("estado-inicio").textContent = "Actualización pendiente";
   } finally {
     botonActualizar.disabled = false;
   }
@@ -1212,7 +1247,20 @@ botonActualizar.addEventListener("click", () => {
 
 
 campoFecha.addEventListener("change", () => botonActualizar.click());
-horaMesas.addEventListener("change", () => botonActualizar.click());
+function marcarHoraPendiente() {
+  // Cambiar la hora no vuelve a descargar toda la agenda automáticamente.
+  // Las mesas libres mostradas pertenecían a la hora ANTERIOR: ocultarlas
+  // para no ofrecer ocupación de una mesa sin comprobación actualizada.
+  mesasLibresActuales = [];
+  mesasLibresContenedor.replaceChildren();
+  const aviso = "Hora cambiada. Pulse Actualizar para comprobar mesas disponibles.";
+  resumenMesasLibres.textContent = aviso;
+  estadoCarga.textContent = aviso;
+  document.getElementById("inicio-mesas").textContent = "—";
+  document.getElementById("estado-inicio").textContent = "Disponibilidad pendiente";
+  document.getElementById("estado-global-panel").textContent = aviso;
+}
+horaMesas.addEventListener("change", marcarHoraPendiente);
 
 
 nuevaHoraHoras.addEventListener("change", actualizarHoraSeleccionada);
@@ -1556,6 +1604,12 @@ reservasContenedor.addEventListener("click", async (evento) => {
 
   if (!reserva) {
     return;
+  }
+
+  if (boton.dataset.accion === "encargo-visto") {
+    boton.disabled=true;
+    try { const r=await fetch("/api/restaurante",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({accion:"encargo_visto",restaurante_id:restauranteId,reserva_id:reserva.id,revision:reserva.encargo_revision})});const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||"No se pudo marcar el encargo.");reserva.encargo=d.encargo;reserva.encargo_revision=d.revision;renderizarReservas(reservasActuales); }
+    catch(e){estadoCarga.textContent=e.message;boton.disabled=false;window.alert(e.message);}return;
   }
 
   if (boton.dataset.accion === "modificar") {

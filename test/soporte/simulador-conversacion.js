@@ -9,6 +9,7 @@ const fechas = require("../../lib/fecha-conversacional");
 const entrada = require("../../lib/entrada-conversacional");
 const conocimiento = require("../../lib/conocimiento-restaurante");
 const centroConversaciones = require("../../lib/centro-conversaciones");
+const guardadoConversaciones = require("../../lib/guardado-conversaciones");
 
 
 function crearElemento() {
@@ -89,6 +90,9 @@ function crearServidorSimulado(configuracion = {}) {
   };
 
   function respuestaPredeterminada(solicitud) {
+    if (solicitud.accion === "validar_fecha") {
+      return { ok: true, fecha: solicitud.fecha, fecha_admitida: true };
+    }
     if (solicitud.accion === "verificar") {
       return { ok: true, disponible: true, antelacion_insuficiente: false };
     }
@@ -191,8 +195,11 @@ async function crearSimuladorConversacion(configuracion = {}) {
   };
   const ventana = {
     ContactiaCentroConversaciones: centroConversaciones,
+    ContactiaGuardadoConversaciones: guardadoConversaciones,
     ContactiaConocimiento: conocimiento,
     ContactiaEntrada: entrada,
+    ContactiaEncargos: require("../../lib/encargos-restaurante"),
+    ContactiaEncargosConversacion: require("../../lib/encargos-conversacion"),
     ContactiaFechas: fechas,
     ContactiaRestaurantePublico: restaurantePublico,
     ContactiaRutaPublica: rutaPublica,

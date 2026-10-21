@@ -1,0 +1,11 @@
+# Información gastronómica
+
+Ajustes del restaurante → **05 Información gastronómica** permite guardar hasta 1.000 caracteres con especialidades y condiciones de servicio. Se recomienda una especialidad por línea, por ejemplo un cocido los miércoles o paella los jueves con encargo y mínimo de dos personas. Los ejemplos se muestran aparte del campo y nunca se guardan automáticamente.
+
+Se utiliza el editor de ajustes y su sesión de propietario, revisión de cambios de otra sesión y protección de origen existentes. El contenido se almacena en RESTAURANTES.informacion_publica, clave `gastronomia`, sin crear tablas ni campos nuevos. Su editor independiente solo modifica esa clave; conserva las demás respuestas, dirección, web y horarios. El editor general conserva este contenido en un campo interno oculto y detecta revisiones obsoletas. Guardar vacío retira la información.
+
+El guardado actualiza la memoria pública del restaurante/base/rama. Si falla esa actualización, se informa y se puede reintentar sin escribir de nuevo. Las preguntas utilizan únicamente la información guardada; no llaman a OpenAI ni importan documentos. Las coincidencias de especialidad o día devuelven las líneas del propietario conservando todas sus condiciones. Las preguntas de apertura siguen consultando el calendario; una pregunta como «¿Qué días tenéis cocido?» se responde con la especialidad y no con el horario general. No se confirma un encargo, disponibilidad, ingredientes ni aptitud para alergias o dietas a partir de estas notas.
+
+Carta y bebidas continúa accesible como opción 04 para demostración y para restaurantes interesados en mantenerla. Información gastronómica es la opción 05 y sus respuestas tienen prioridad cuando coinciden con las especialidades indicadas. Su uso no exige utilizar la carta. El guardado de ajustes muestra una caja en el pie fijo, junto a los botones, diferenciando éxito, actualización pendiente y error.
+
+Verificación: modelo y API con guardado, consulta inmediata, condiciones, borrado, conservación de otras respuestas, conflictos de revisión, origen/sesión y recuperación de memoria. La carta desactivada no sirve datos publicados. Comprobación funcional del formulario y de los ejemplos sin valores preestablecidos.

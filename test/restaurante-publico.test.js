@@ -253,3 +253,89 @@ test("no publica restaurantes inexistentes o inactivos", async () => {
     global.fetch = fetchOriginal;
   }
 });
+
+test("portada en Preview puede cargar identidad sin consultar ZONA; al solicitarla se relee", async () => {
+  const anteriorFetch = global.fetch;
+  const variables = ["VERCEL_ENV", "VERCEL_GIT_COMMIT_REF", "AIRTABLE_BASE_ID",
+    "CONTACTIA_SANDBOX_BASE_ID", "AIRTABLE_API_KEY", "CONTACTIA_CACHE_PUBLICA"];
+  const anteriores = Object.fromEntries(variables.map(k => [k, process.env[k]]));
+  const llamadas = [];
+  let zonaCerrada = false;
+  Object.assign(process.env, {
+    VERCEL_ENV: "preview",
+    VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    AIRTABLE_BASE_ID: "app12345678901234",
+    CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    AIRTABLE_API_KEY: "SIMULADA_NO_REAL",
+    CONTACTIA_CACHE_PUBLICA: "0"
+  });
+  global.fetch = async url => {
+    const tabla = new URL(url).pathname.split("/")[3];
+    llamadas.push(tabla);
+    if (tabla === "RESTAURANTES") return {
+      ok: true, status: 200, text: async () => JSON.stringify({ records: [{
+        id: "rec12345678901234",
+        fields: { id: 1, nombre: "Restaurante Sol", slug_publico: "restaurante-sol", estado: "activo" }
+      }] })
+    };
+    if (tabla === "ZONA") return {
+      ok: true, status: 200, text: async () => JSON.stringify({ records: [{
+        id: "recZona1234567890",
+        fields: { restaurante: ["rec12345678901234"], estado: zonaCerrada ? "inactivo" : "activo", nombre: "TERRAZA" }
+      }] })
+    };
+    throw Error("Tabla inesperada en simulación: " + tabla);
+  };
+  try {
+    const portada = await ejecutar("/api/restaurante-publico?slug=restaurante-sol&solo_identidad=1");
+    assert.equal(portada.status, 200);
+    assert.equal(portada.body.zonas_pendientes, true);
+    assert.deepEqual(portada.body.restaurante.zonas, []);
+    assert.deepEqual(llamadas, ["RESTAURANTES"]);
+
+    const zona = await ejecutar("/api/restaurante-publico?slug=restaurante-sol");
+    assert.deepEqual(zona.body.restaurante.zonas, [{ nombre: "TERRAZA" }]);
+    assert.deepEqual(llamadas, ["RESTAURANTES", "RESTAURANTES", "ZONA"]);
+
+    zonaCerrada = true;
+    const posterior = await ejecutar("/api/restaurante-publico?slug=restaurante-sol");
+    assert.deepEqual(posterior.body.restaurante.zonas, []);
+    assert.equal(llamadas.filter(t => t === "ZONA").length, 2);
+  } finally {
+    global.fetch = anteriorFetch;
+    for (const [clave, valor] of Object.entries(anteriores)) {
+      if (valor === undefined) delete process.env[clave];
+      else process.env[clave] = valor;
+    }
+  }
+});
+
+test("solo_identidad no modifica la respuesta tradicional fuera de la rama de prueba", async () => {
+  const anteriorFetch = global.fetch;
+  const keys = ["VERCEL_ENV", "VERCEL_GIT_COMMIT_REF", "AIRTABLE_BASE_ID", "AIRTABLE_API_KEY", "CONTACTIA_CACHE_PUBLICA"];
+  const previo = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+  Object.assign(process.env, {
+    VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main",
+    AIRTABLE_BASE_ID: "appSimulacion00001", AIRTABLE_API_KEY: "SIMULADA_NO_REAL",
+    CONTACTIA_CACHE_PUBLICA: "0"
+  });
+  const hits = [];
+  global.fetch = async url => {
+    const tabla = new URL(url).pathname.split("/")[3];
+    hits.push(tabla);
+    return {
+      ok: true, status: 200,
+      text: async () => JSON.stringify({ records: tabla === "RESTAURANTES" ?
+        [{id:"rec12345678901234",fields:{id:1,nombre:"Restaurante Sol",slug_publico:"restaurante-sol",estado:"activo"}}] : [] })
+    };
+  };
+  try {
+    const r = await ejecutar("/api/restaurante-publico?slug=restaurante-sol&solo_identidad=1");
+    assert.equal(r.status, 200);
+    assert.equal(r.body.zonas_pendientes, undefined);
+    assert.deepEqual(hits, ["RESTAURANTES", "ZONA"]);
+  } finally {
+    global.fetch = anteriorFetch;
+    for (const [k,v] of Object.entries(previo)) { if(v===undefined)delete process.env[k];else process.env[k]=v; }
+  }
+});

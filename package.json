@@ -6,13 +6,16 @@
   "scripts": {
     "start": "vercel dev",
     "test": "node --test",
-    "test:conversacion": "node scripts/ejecutar-bateria-conversacional.js && node scripts/ejecutar-escenarios-conversacion.js"
+    "test:conversacion": "node scripts/ejecutar-bateria-conversacional.js && node scripts/ejecutar-escenarios-conversacion.js",
+    "medir:simulado": "node scripts/medir-consumo-simulado.js",
+    "medir:conversaciones": "node scripts/medir-guardados-simulado.js"
   },
   "engines": {
     "node": "22.x"
   },
   "license": "MIT",
   "dependencies": {
+    "pdf-lib": "^1.17.1",
     "twilio": "^6.1.2"
   }
 }

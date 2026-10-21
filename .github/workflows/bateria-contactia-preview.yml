@@ -1,12 +1,9 @@
 name: Contactia - bateria de pruebas (Preview)
 
 on:
-  push:
-    branches:
-      - panel-sincronizar-cache-publica
   pull_request:
     branches:
-      - cache-publica-upstash
+      - panel-sincronizar-cache-publica
   workflow_dispatch:
 
 permissions:
@@ -58,25 +55,10 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Todos los tests Node
         run: npm test
+      - name: Ensayo de consumo Airtable sin credenciales ni red
+        run: npm run medir:simulado
+      - name: Medir escrituras simuladas de conversaciones
+        run: npm run medir:conversaciones
       - name: Bateria conversacional, incluso si hay fallos en la anterior
-        if: ${{ !cancelled() }}
-        run: npm run test:conversacion
-
-  base-anterior:
-    name: Comparativa - rama anterior sin editor
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: cache-publica-upstash
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Tests de la rama anterior, sin la mejora del panel
-        run: npm test
-      - name: Conversaciones de la rama anterior
         if: ${{ !cancelled() }}
         run: npm run test:conversacion

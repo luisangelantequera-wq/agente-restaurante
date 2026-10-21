@@ -6,7 +6,8 @@ const {
   analizarZonaPreferida,
   extraerZonaPreferida,
   normalizarZonasPublicas,
-  zonaCoincide
+  zonaCoincide,
+  resumenConfiguracionZonas
 } = require("../lib/zona-reserva");
 
 const RESTAURANTE_SOL = "recRestauranteSol";
@@ -113,7 +114,8 @@ function zonas(horarioTerraza = "") {
 
 function instalarAirtableFalso({
   horarioTerraza = "",
-  antelacionMinima = 30
+  antelacionMinima = 30,
+  fechasEspeciales = []
 } = {}) {
   return async (url) => {
     const ruta = new URL(url).pathname;
@@ -126,7 +128,8 @@ function instalarAirtableFalso({
             id: 1,
             nombre: "Restaurante Sol",
             estado: "activo",
-            horario_reservas: horarioParaTodos("13:00-16:00"),
+            horario_reservas: JSON.stringify({ ...JSON.parse(horarioParaTodos("13:00-16:00")),
+              ...(fechasEspeciales.length ? { _contactia: { habitual: ["13:00-16:00"], especiales: fechasEspeciales } } : {}) }),
             intervalo_minutos: 15,
             antelacion_minima_reserva_minutos: antelacionMinima,
             duracion_reserva_minutos: 90,
@@ -374,4 +377,212 @@ test("la confirmación por correo conserva la zona elegida", () => {
   assert.match(fuente, /Zona:\s*\$\{zonaConfirmada\}/);
   assert.match(fuente, /<strong>Zona:<\/strong>/);
   assert.match(fuente, /zona:\s*nombreZona\(zonaReserva\)/);
+});
+
+test("fecha especial: la API bloquea nuevas reservas y no ofrece alternativas en un cierre anual", async () => {
+  const original = global.fetch;
+  const fecha = fechaProxima();
+  global.fetch = instalarAirtableFalso({ fechasEspeciales: [{ fecha: fecha.slice(5), rangos: [] }] });
+  try {
+    const r = await ejecutar({ accion: "verificar", restaurante_id: 1, fecha, hora: "14:00", personas: 2, zona_preferida: "terraza" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.disponible, false);
+    assert.deepEqual(r.body.alternativas, []);
+    assert.match(r.body.motivo, /cerrado en esa fecha/);
+  } finally { global.fetch = original; }
+});
+test("fecha especial: las alternativas usan el servicio excepcional y no el horario semanal", async () => {
+  const original = global.fetch;
+  const fecha = fechaProxima();
+  global.fetch = instalarAirtableFalso({ fechasEspeciales: [{ fecha, rangos: ["17:00-19:00"] }] });
+  try {
+    const r = await ejecutar({ accion: "verificar", restaurante_id: 1, fecha, hora: "16:00", personas: 2, zona_preferida: "terraza" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.disponible, false);
+    assert.ok(r.body.alternativas.length > 0, JSON.stringify(r.body));
+    assert.ok(r.body.alternativas.every(h => (typeof h === "string" ? h : h.hora) >= "17:00"));
+    assert.match(r.body.motivo, /17:00-19:00/);
+  } finally { global.fetch = original; }
+});
+
+test("calendario temprano: fecha sin personas consulta solo el restaurante y relee sus cierres", async () => {
+  const original = global.fetch, especiales = [], leidas = [];
+  const falso = instalarAirtableFalso({ fechasEspeciales: especiales });
+  global.fetch = async (...args) => { leidas.push(new URL(args[0]).pathname.split('/').at(-1)); return falso(...args); };
+  try {
+    const fecha = fechaProxima();
+    const solicitud = { accion: 'validar_fecha', restaurante_id: 1, fecha };
+    const abierta = await ejecutar(solicitud);
+    assert.equal(abierta.status, 200);
+    assert.equal(abierta.body.fecha_admitida, true);
+    especiales.push({ fecha: fecha.slice(5), rangos: [] });
+    const cerrada = await ejecutar(solicitud);
+    assert.equal(cerrada.body.fecha_admitida, false);
+    assert.match(cerrada.body.motivo, /cerrado/);
+    assert.deepEqual(leidas, ['RESTAURANTES', 'RESTAURANTES']);
+    assert.equal(Object.hasOwn(abierta.body, 'disponible'), false);
+  } finally { global.fetch = original; }
+});
+test("calendario temprano: fecha ausente o imposible se rechaza sin consultar Airtable", async () => {
+  const original = global.fetch;
+  global.fetch = () => { throw new Error('No debe consultar datos'); };
+  try {
+    for (const fecha of [undefined, '2026-02-30', 'texto']) {
+      const r = await ejecutar({ accion: 'validar_fecha', restaurante_id: 1, ...(fecha ? { fecha } : {}) });
+      assert.equal(r.status, 400);
+    }
+  } finally { global.fetch = original; }
+});
+
+test("Preview: una única zona activa se asigna sin pedir al cliente que elija", async () => {
+  const prev = global.fetch;
+  const variables = ["VERCEL_ENV", "VERCEL_GIT_COMMIT_REF", "AIRTABLE_BASE_ID",
+    "CONTACTIA_SANDBOX_BASE_ID", "CONTACTIA_MEDIR_AIRTABLE"];
+  const original = Object.fromEntries(variables.map(k => [k, process.env[k]]));
+  const lecturas = [];
+  const falso = instalarAirtableFalso();
+  const modoZonas = "una";
+  Object.assign(process.env, {
+    VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    AIRTABLE_BASE_ID: "app12345678901234", CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    CONTACTIA_MEDIR_AIRTABLE: "false"
+  });
+  global.fetch = async (...args) => {
+    const url = new URL(args[0]);
+    const tabla = url.pathname.split("/")[3];
+    lecturas.push(tabla);
+    if (tabla === "ZONA") return respuestaAirtable({ records: zonas().slice(0, 1) });
+    return falso(...args);
+  };
+  try {
+    const r = await ejecutar({
+      accion: "verificar", restaurante_id: 1,
+      fecha: fechaProxima(), hora: "14:00", personas: 2
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.requiere_zona, undefined);
+    assert.equal(r.body.disponible, true);
+    assert.equal(r.body.zona, "INTERIOR");
+    assert.equal(lecturas.filter(t => t === "ZONA").length, 1,
+      "Se debe comprobar una vez el estado de la zona antes de verificar");
+  } finally {
+    global.fetch = prev;
+    for (const [k,v] of Object.entries(original)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});
+
+test("Preview: con dos zonas sigue preguntando y no elige una arbitrariamente", async () => {
+  const prev = global.fetch;
+  const oldEnv = { VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF,
+    AIRTABLE_BASE_ID: process.env.AIRTABLE_BASE_ID,
+    CONTACTIA_SANDBOX_BASE_ID: process.env.CONTACTIA_SANDBOX_BASE_ID,
+    CONTACTIA_MEDIR_AIRTABLE: process.env.CONTACTIA_MEDIR_AIRTABLE };
+  Object.assign(process.env, {
+    VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    AIRTABLE_BASE_ID: "app12345678901234", CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    CONTACTIA_MEDIR_AIRTABLE: "false"
+  });
+  global.fetch = instalarAirtableFalso();
+  try {
+    const r = await ejecutar({
+      accion: "verificar", restaurante_id: 1, fecha: fechaProxima(),
+      hora: "14:00", personas: 2
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.requiere_zona, true);
+    assert.deepEqual(r.body.zonas_disponibles, ["INTERIOR", "TERRAZA"]);
+  } finally {
+    global.fetch = prev;
+    for (const [k,v] of Object.entries(oldEnv)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});
+
+test("Preview: una zona inactiva nunca se asigna de forma automática", async () => {
+  const prev = global.fetch;
+  const variables = ["VERCEL_ENV", "VERCEL_GIT_COMMIT_REF", "AIRTABLE_BASE_ID",
+    "CONTACTIA_SANDBOX_BASE_ID", "CONTACTIA_MEDIR_AIRTABLE"];
+  const original = Object.fromEntries(variables.map(k => [k, process.env[k]]));
+  const falso = instalarAirtableFalso();
+  const lecturas = [];
+  Object.assign(process.env, {
+    VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    AIRTABLE_BASE_ID: "app12345678901234", CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    CONTACTIA_MEDIR_AIRTABLE: "false"
+  });
+  global.fetch = async (...args) => {
+    const tabla = new URL(args[0]).pathname.split("/")[3];
+    lecturas.push(tabla);
+    if (tabla === "ZONA") {
+      const cerrada = { ...zonas()[0],
+        fields: { ...zonas()[0].fields, estado: "inactivo" } };
+      return respuestaAirtable({records:[cerrada]});
+    }
+    return falso(...args);
+  };
+  try {
+    const r = await ejecutar({ accion: "verificar", restaurante_id: 1,
+      fecha: fechaProxima(), hora: "14:00", personas: 2 });
+    assert.equal(r.status, 200);
+    assert.notEqual(r.body.zona, "INTERIOR");
+    assert.equal(r.body.disponible, false);
+    assert.ok(lecturas.includes("ZONA"));
+  } finally {
+    global.fetch = prev;
+    for (const [k,v] of Object.entries(original)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});
+
+test("panel: identifica automáticamente zona única, varias o todas cerradas", () => {
+  const sol = [{nombre:"INTERIOR",estado:"activo"}];
+  const una = resumenConfiguracionZonas(sol);
+  assert.equal(una.modo, "unica");
+  assert.equal(una.activas, 1);
+  assert.match(una.descripcion, /INTERIOR/);
+  const varias = resumenConfiguracionZonas([...sol, {nombre:"TERRAZA",estado:"activo"}]);
+  assert.equal(varias.modo, "varias");
+  assert.equal(varias.activas, 2);
+  assert.match(varias.descripcion, /pregunta al cliente/);
+  const cierre = resumenConfiguracionZonas([...sol, {nombre:"TERRAZA",estado:"inactivo"}]);
+  assert.equal(cierre.modo, "unica");
+  assert.equal(cierre.configuradas, 2);
+  const todas = resumenConfiguracionZonas([
+    {nombre:"INTERIOR",estado:"inactivo"},
+    {nombre:"TERRAZA",estado:"inactivo"}
+  ]);
+  assert.equal(todas.modo, "cerradas");
+  assert.equal(todas.activas, 0);
+  assert.equal(resumenConfiguracionZonas([]).modo, "sin_configurar");
+});
+
+test("panel: indicador usa la carga existente, sin endpoint ni campo nuevo", () => {
+  const fs = require("node:fs"), vm = require("node:vm");
+  const js = fs.readFileSync(require.resolve("../restaurante.js"), "utf8");
+  const html = fs.readFileSync(require.resolve("../restaurante.html"), "utf8");
+  assert.match(html, /id="estado-zonas-automaticas"/);
+  assert.match(html, /src="lib\/zona-reserva.js"/);
+  const start = js.indexOf("function actualizarEstadoZonasAutomaticas(zonas) {");
+  const end = js.indexOf('let localizadorEnEdicion = "";', start);
+  assert.ok(start > 0 && end > start);
+  const elemento = { textContent: "", dataset: {} };
+  const ctx = vm.createContext({
+    window: { ContactiaZonas: { resumenConfiguracionZonas } },
+    document: { getElementById(id) {
+      assert.equal(id, "estado-zonas-automaticas");
+      return elemento;
+    }},
+    fetch: () => { throw Error("No se debe consultar la red"); }
+  });
+  vm.runInContext(js.slice(start, end) +
+    "\nactualizarEstadoZonasAutomaticas([{nombre:'INTERIOR',estado:'activo'}]);", ctx);
+  assert.equal(elemento.dataset.modoZonas, "unica");
+  assert.match(elemento.textContent, /automáticamente/);
+  vm.runInContext("actualizarEstadoZonasAutomaticas([{nombre:'INTERIOR',estado:'inactivo'}]);", ctx);
+  assert.equal(elemento.dataset.modoZonas, "cerradas");
 });

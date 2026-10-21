@@ -1,4 +1,6 @@
 const crypto = require("crypto");
+// Contabiliza las lecturas de agenda, mesas y zonas sin añadir consultas a Airtable.
+const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedido("panel");
 const gestionarDatosRestaurante = require("../lib/datos-restaurante-panel");
 const { registroDebeAnonimizarse } = require("../lib/privacidad");
 const {
@@ -23,7 +25,7 @@ function responder(res, status, datos) {
 
 
 async function consultarAirtable(url) {
-  const respuesta = await fetch(url, {
+  const respuesta = await fetchAirtableContado(url, {
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`
     }
@@ -186,8 +188,8 @@ module.exports = async (req, res) => {
 
   if (
     (Number.isFinite(longitudDeclarada) &&
-      longitudDeclarada > MAX_REQUEST_BODY_BYTES) ||
-    longitudCalculada > MAX_REQUEST_BODY_BYTES
+      longitudDeclarada > 3500000) ||
+    longitudCalculada > 3500000
   ) {
     return responder(res, 413, {
       ok: false,
@@ -220,9 +222,21 @@ module.exports = async (req, res) => {
     const accion = String(body.accion || (body.clave ? "iniciar_sesion" : "cargar"))
       .trim();
 
+    if (["carta_consultar", "carta_importar", "carta_guardar", "carta_publicar", "carta_sincronizar", "carta_retirar"].includes(accion)) {
+      return require("../lib/carta-panel")(req, res);
+    }
+    if (longitudCalculada > MAX_REQUEST_BODY_BYTES || longitudDeclarada > MAX_REQUEST_BODY_BYTES) {
+      return responder(res, 413, { ok: false, error: "La solicitud es demasiado grande." });
+    }
+
+    if (accion === "encargo_visto") return require("../lib/encargos-panel")(req,res);
+
     // Los datos estables utilizan las mismas funciones desplegadas para
     // el panel, sin superar el máximo de 12 funciones del plan Hobby.
     // Se aplica protección estricta de origen y sesión en la subrutina.
+    if (["ajustes_consultar", "ajustes_guardar", "ajustes_sincronizar"].includes(accion)) {
+      return require("../lib/ajustes-panel")(req, res);
+    }
     if (["datos_consultar", "datos_guardar", "datos_sincronizar"]
       .includes(accion)) {
       return gestionarDatosRestaurante(req, res);
@@ -424,6 +438,7 @@ module.exports = async (req, res) => {
           observaciones: anonimizada
             ? ""
             : normalizarObservaciones(reserva.fields.mensaje),
+          ...(process.env.VERCEL_ENV === "preview" && process.env.CONTACTIA_PANEL_V2 === "1" && !anonimizada ? { encargo: require("../lib/encargos-restaurante").leerReserva(reserva.fields.encargo_json), encargo_revision: require("../lib/encargos-panel").revision(reserva.fields.encargo_json) } : {}),
           estado: normalizarEstado(reserva.fields.estado),
           anonimizada
         };

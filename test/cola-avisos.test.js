@@ -15,7 +15,7 @@ async function entorno(fn, opciones = {}) {
   const seguimiento = new Map();
   const respuesta = result => ({ ok: true, json: async () => ({ result }) });
   try {
-    Object.assign(process.env, { VERCEL_ENV: 'preview', CONTACTIA_AVISOS_SECRET: 'x'.repeat(40), KV_REST_API_URL: 'https://simulado.upstash.io', KV_REST_API_TOKEN: 'simulado', AIRTABLE_BASE_ID: 'appSimulada', AIRTABLE_API_KEY: 'simulada', RESEND_API_KEY: 'simulada' });
+    Object.assign(process.env, { VERCEL_ENV: 'preview', CONTACTIA_AVISOS_SECRET: 'x'.repeat(40), CONTACTIA_PROGRAMADOR_AUTOMATICO: 'true', KV_REST_API_URL: 'https://simulado.upstash.io', KV_REST_API_TOKEN: 'simulado', AIRTABLE_BASE_ID: 'appSimulada', AIRTABLE_API_KEY: 'simulada', RESEND_API_KEY: 'simulada' });
     if (opciones.automatico) Object.assign(process.env, {
       CONTACTIA_WHATSAPP_AUTOMATICO_HABILITADO:'1',
       ...Object.fromEntries(require('../lib/envio-correlacionado-whatsapp').BANDERAS.map(k=>[k,'1'])),

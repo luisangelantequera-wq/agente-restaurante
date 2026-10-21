@@ -17,7 +17,18 @@ function instancia(fetchFalso, almacen = null) {
   const contexto = vm.createContext({
     require: nombre => nombre === "../lib/retenciones-mesas"
       ? { ...moduloRetenciones, desdeEntorno: () => almacen }
-      : requerir(nombre),
+      : nombre === "../lib/contador-airtable"
+        ? {
+          ...requerir(nombre),
+          crearFetchMedido: (origen, opciones = {}) => requerir(nombre)
+            .crearFetchMedido(origen, {
+              ...opciones,
+              // El módulo importado vive fuera del vm; hay que pasar
+              // expresamente la red simulada para que nunca llame fuera.
+              fetchImpl: fetchFalso
+            })
+        }
+        : requerir(nombre),
     module: { exports: {} },
     process: { env: { AIRTABLE_BASE_ID: "appSimulada" } },
     Buffer, URLSearchParams, console, fetch: fetchFalso

@@ -1,0 +1,82 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const m=require('../lib/carta-restaurante');
+const {PDFDocument}=require('pdf-lib');
+const {validarPdf,importar}=require('../lib/importar-carta');
+function carta(){return {...m.vacia(),categorias:[{id:'arroz',nombre:'Arroces',notas:'Mínimo 2 personas. Preparación 40–50 minutos.',platos:[{id:'paella',nombre:'Paella valenciana',descripcion:'Arroz de la casa',precio:'23.50',unidad:'por persona',disponible:true,revisado:true,alergenos:['moluscos'],trazas:['gluten'],alergenos_confirmados:false,nota_alergenos:'Símbolo sin leyenda',pagina:1}]}]};}
+async function pdf(paginas=1){const doc=await PDFDocument.create();for(let i=0;i<paginas;i++)doc.addPage();return Buffer.from(await doc.save()).toString('base64');}
+test('publicación requiere revisión y mantiene precios, unidades y condiciones',()=>{
+ const c=carta();c.categorias[0].platos[0].revisado=false;assert.throws(()=>m.validar(c,true),/Revise/);
+ c.categorias[0].platos[0].revisado=true;const validada=m.validar(c,true);assert.equal(validada.categorias[0].platos[0].precio,'23,50');
+ assert.match(m.responder(validada,'cuánto cuesta la paella valenciana'),/23,50 € por persona/);
+ assert.match(m.responder(validada,'cuánto cuesta la paella valenciana'),/Mínimo 2/);
+ assert.throws(()=>m.validar({...c,categorias:[...c.categorias,...c.categorias]}),/categor/);
+ c.categorias[0].platos[0].precio='23 euros';assert.throws(()=>m.validar(c),/Precio/);
+});
+test('alérgenos pendientes nunca llegan a respuestas públicas como confirmados',()=>{
+ const c=carta(),p=m.publica(c);assert.deepEqual(p.categorias[0].platos[0].alergenos,[]);assert.equal(p.categorias[0].platos[0].nota_alergenos,'');
+ assert.match(m.responder(p,'la paella valenciana lleva gluten?'),/pendiente de confirmar/);
+ assert.match(m.responder(p,'soy alérgico, qué puedo comer'),/qué plato/i);
+ const plato=c.categorias[0].platos[0];plato.alergenos_confirmados=true;
+ assert.match(m.responder(m.publica(c),'la paella valenciana tiene leche?'),/Moluscos/);
+ assert.match(m.responder(m.publica(c),'la paella valenciana tiene leche?'),/Cereales con gluten/);
+ plato.alergenos=[];plato.trazas=[];const respuesta=m.responder(m.publica(c),'la paella valenciana tiene leche?');assert.match(respuesta,/no ha declarado/);assert.match(respuesta,/contacto cruzado/);assert.doesNotMatch(respuesta,/sin alérgenos|seguro|apto/i);
+});
+test('no confunde el nombre de un plato con una consulta de alergia y distingue opciones',()=>{
+ const c=carta();const p=c.categorias[0].platos[0];p.nombre='Huevos rotos';assert.match(m.responder(c,'cuánto cuestan los huevos rotos'),/23.50/);
+ p.nombre='Paella valenciana';c.categorias[0].platos.push({...p,id:'marinera',nombre:'Paella marinera'});
+ assert.match(m.responder(c,'tenéis paella'),/Cuál le interesa/);assert.match(m.responder(c,'qué arroces tenéis'),/Mínimo 2/);
+ assert.equal(m.responder(c,'hay aparcamiento'),null);assert.equal(m.responder(null,'qué carta tenéis'),null);
+});
+test('reimportación compara cambios sin depender de identificadores y sin mutar el publicado',()=>{
+ const a=carta(),b=structuredClone(a);b.categorias[0].platos[0].id='otro';assert.deepEqual(m.diferencias(a,b),{nuevos:0,cambiados:0,eliminados:0});
+ b.categorias[0].platos[0].precio='25';assert.equal(m.diferencias(a,b).cambiados,1);assert.equal(a.categorias[0].platos[0].precio,'23.50');
+});
+test('PDF: valida páginas, tamaño, base64 y contenido real antes de enviarlo',async()=>{
+ assert.equal((await validarPdf(await pdf(5))).paginas,5);await assert.rejects(validarPdf(await pdf(13)),/1 y 12/);
+ await assert.rejects(validarPdf(Buffer.from('esto no es un PDF').toString('base64')),/PDF válido/);
+ await assert.rejects(validarPdf('AAAA!'),/PDF/);await assert.rejects(validarPdf('A'.repeat(3400000)),/2,5/);
+ let llamadas=0;await assert.rejects(importar({base64:await pdf(),env:{},fetchImpl:()=>{llamadas++;}}),/no está activada/);assert.equal(llamadas,0);
+});
+test('importador usa PDF visual, esquema estricto y fuerza revisión de platos y alérgenos',async()=>{
+ const datos={avisos:['Iconos sin leyenda'],categorias:[{nombre:'Arroces',notas:'Mínimo 2 personas',platos:[{nombre:'Paella',descripcion:'',precio:'23,50',unidad:'por persona',pagina:1,alergenos:[],trazas:[],nota_alergenos:'Pendiente',revisado:true,alergenos_confirmados:true}]}]};
+ const c=await importar({base64:await pdf(),nombre:'carta.pdf',env:{OPENAI_API_KEY:'simulada'},fetchImpl:async(url,opts)=>{
+  assert.equal(url,'https://api.openai.com/v1/responses');const b=JSON.parse(opts.body);assert.equal(b.store,false);assert.equal(b.text.format.strict,true);assert.match(b.input[0].content[0].file_data,/^data:application\/pdf;base64,/);assert.equal(b.tools,undefined);
+  return {ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(datos)}]}]})};
+ }});assert.equal(c.fuente.paginas,1);assert.equal(c.categorias[0].platos[0].revisado,false);assert.equal(c.categorias[0].platos[0].alergenos_confirmados,false);assert.throws(()=>m.validar(c,true),/Revise/);
+});
+test('importador rechaza salidas incompletas, negativas y fallos del proveedor sin devolver un borrador',async()=>{
+ const base64=await pdf();for(const respuesta of [{status:'incomplete',output:[]},{status:'completed',output:[{type:'message',content:[{type:'refusal'}]}]},{status:'completed',output:[{type:'message',content:[{type:'output_text',text:'no JSON'}]}]}]){
+  await assert.rejects(importar({base64,env:{OPENAI_API_KEY:'simulada'},fetchImpl:async()=>({ok:true,json:async()=>respuesta})}));
+ }
+ await assert.rejects(importar({base64,env:{OPENAI_API_KEY:'simulada'},fetchImpl:async()=>({ok:false,status:429})}),/límite/);
+});
+
+test('errores del lector distinguen clave, permisos, modelo, crédito y límite temporal sin exponer mensajes privados',async()=>{
+ const base64=await pdf(),casos=[
+  [401,'invalid_api_key','invalid_request_error',/rechazado la clave/],
+  [403,'','permission_error',/no permite esta operación/],
+  [404,'model_not_found','invalid_request_error',/modelo configurado/],
+  [429,'insufficient_quota','insufficient_quota',/crédito disponible/],
+  [429,'billing_not_active','invalid_request_error',/crédito disponible/],
+  [429,'rate_limit_exceeded','rate_limit_error',/límite de solicitudes/],
+  [400,'invalid_request_error','invalid_request_error',/formato del documento/],
+  [503,'server_error','server_error',/Inténtelo más tarde/]
+ ];
+ for(const[status,code,type,mensaje]of casos){await assert.rejects(importar({base64,env:{OPENAI_API_KEY:'simulada'},fetchImpl:async()=>({ok:false,status,json:async()=>({error:{code,type,message:'SECRETO-PRIVADO'}})})}),e=>{assert.match(e.message,mensaje);assert.doesNotMatch(e.message,/SECRETO-PRIVADO/);assert.match(e.message,/carta anterior se conserva/);return true;});}
+});
+
+test('numeración impresa fuera del PDF conserva todos los platos y deja referencias pendientes sin inventarlas',async()=>{
+ const base64=await pdf(5),plato={nombre:'Paella',descripcion:'Arroz',precio:'23,50',unidad:'por persona',alergenos:[],trazas:[],nota_alergenos:''};
+ const extraido={avisos:['Iconos pendientes de revisar'],categorias:[{nombre:'Arroces',notas:'Mínimo 2 personas',platos:[{...plato,pagina:3},{...plato,nombre:'Fideuá',pagina:7}]}]};
+ const leer=async datos=>importar({base64,env:{OPENAI_API_KEY:'simulada'},fetchImpl:async(url,opts)=>{
+  const peticion=JSON.parse(opts.body);assert.match(peticion.input[0].content[1].text,/5 páginas físicas/);
+  return {ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(datos)}]}]})};
+ }});
+ const carta=await leer(extraido);assert.equal(carta.fuente.paginas,5);assert.equal(m.platos(carta).length,2);
+ assert.deepEqual(m.platos(carta).map(p=>p.pagina),[0,0]);assert.deepEqual(m.platos(carta).map(p=>p.precio),['23,50','23,50']);assert.match(carta.avisos[0],/página pendientes/);assert.ok(carta.avisos.includes(extraido.avisos[0]));assert.ok(m.platos(carta).every(p=>!p.revisado&&!p.alergenos_confirmados));
+ extraido.categorias[0].platos[0].pagina=1;extraido.categorias[0].platos[1].pagina=0;
+ const parcial=await leer(extraido);assert.deepEqual(m.platos(parcial).map(p=>p.pagina),[1,0]);
+ extraido.categorias[0].platos[1].pagina=5;
+ const valida=await leer(extraido);assert.deepEqual(m.platos(valida).map(p=>p.pagina),[1,5]);assert.deepEqual(valida.avisos,extraido.avisos);
+});
