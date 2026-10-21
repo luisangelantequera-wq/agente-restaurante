@@ -568,7 +568,7 @@ test("panel: indicador usa la carga existente, sin endpoint ni campo nuevo", () 
   assert.match(html, /id="estado-zonas-automaticas"/);
   assert.match(html, /src="lib\/zona-reserva.js"/);
   const start = js.indexOf("function actualizarEstadoZonasAutomaticas(zonas) {");
-  const end = js.indexOf("let reservasActuales = [];", start);
+  const end = js.indexOf('let localizadorEnEdicion = "";', start);
   assert.ok(start > 0 && end > start);
   const elemento = { textContent: "", dataset: {} };
   const ctx = vm.createContext({
