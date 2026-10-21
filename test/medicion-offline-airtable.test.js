@@ -104,3 +104,58 @@ test("en la portada diferida no se descargan zonas hasta llegar a la selección"
   assert.match(codigo, /await cargarZonasActivasParaReserva\(\)/);
   assert.match(codigo, /if \(cargaDiferidaHabilitada\) zonasPendientesCarga = true/);
 });
+
+test("la selección de zona llama al servidor una sola vez y reconoce el cierre al llegar al paso", async () => {
+  const vm = require("node:vm");
+  const fs = require("node:fs");
+  const fuente = fs.readFileSync(require.resolve("../script.js"), "utf8");
+  const inicio = fuente.indexOf("async function cargarZonasActivasParaReserva() {");
+  const fin = fuente.indexOf("function preguntarZonaSiNecesaria() {", inicio);
+  assert.ok(inicio > 0 && fin > inicio);
+  const codigo = fuente.slice(inicio, fin);
+  const cargar = async (cerrada, fallar = false) => {
+    let lecturas = 0;
+    const variables = {
+      zonasPendientesCarga: true,
+      rutaRestaurante: { slug_publico: "restaurante-sol" },
+      restauranteActivo: { id: 1, zonas: [{ nombre: "TERZAZA ANTIGUA" }] },
+      window: { ContactiaRestaurantePublico: {
+        normalizarRestaurantePublico: require("../lib/restaurante-publico").normalizarRestaurantePublico
+      } },
+      URLSearchParams,
+      fetch: async url => {
+        lecturas++;
+        assert.match(String(url), /slug=restaurante-sol/);
+        if (fallar) return { ok: false, json: async () => ({ok:false}) };
+        return { ok: true, json: async () => ({
+          ok: true, restaurante: {
+            id: 1, nombre: "Restaurante Sol", slug_publico: "restaurante-sol",
+            zonas: cerrada ? [] : [{ nombre: "TERRAZA" }]
+          }
+        }) };
+      },
+      console: { error() {} }
+    };
+    // Declarar variables y el método dentro del mismo contexto aislado.
+    const contexto = vm.createContext({ ...variables });
+    vm.runInContext("var zonasPendientesCarga = true; var restauranteActivo = { id:1, zonas:[{nombre:'ANTERIOR'}] };" + codigo, contexto);
+    const resultado = await vm.runInContext("cargarZonasActivasParaReserva()", contexto);
+    await vm.runInContext("cargarZonasActivasParaReserva()", contexto);
+    return {
+      resultado, lecturas,
+      pendientes: vm.runInContext("zonasPendientesCarga", contexto),
+      zonas: JSON.parse(JSON.stringify(vm.runInContext("restauranteActivo.zonas", contexto)))
+    };
+  };
+  const abierta = await cargar(false);
+  assert.equal(abierta.resultado, true);
+  assert.equal(abierta.lecturas, 1);
+  assert.equal(abierta.pendientes, false);
+  assert.deepEqual(abierta.zonas, [{nombre:"TERRAZA"}]);
+  const cerrada = await cargar(true);
+  assert.deepEqual(cerrada.zonas, [], "Nunca se muestra una terraza cerrada por la copia inicial");
+  const error = await cargar(false, true);
+  assert.equal(error.resultado, false);
+  assert.equal(error.pendientes, true);
+  assert.equal(error.lecturas, 2, "Ante un error de red no se declara válida la lista");
+});
