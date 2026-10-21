@@ -31,6 +31,7 @@
   const resumenConsumoAirtable = document.querySelector("#resumenConsumoAirtable");
   const nombresFuentes = Object.freeze({
     reservas: "Reservas y disponibilidad",
+    panel: "Panel del restaurante (agenda y mesas)",
     configuracion: "Datos de restaurantes",
     conversaciones: "Guardado de conversaciones",
     centro: "Lectura de conversaciones",

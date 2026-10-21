@@ -27,6 +27,7 @@ No integrar en `main` sin revisar pruebas. `test/contador-airtable.test.js` incl
 
 ## Instrumentación
 - `api/chat.js`: acciones de reservas y disponibilidad.
+- `api/restaurante.js`: consultas del panel de agenda, mesas, zonas y lista de espera; se registran como `panel` y no se hacen peticiones nuevas a Airtable.
 - `api/restaurante-publico.js` y `api/informacion-restaurante.js`: configuración.
 - `api/conversaciones.js` y `api/centro-conversaciones.js`: conversaciones.
 - `api/backup.js` y `api/restauracion.js`: copias/restauración.

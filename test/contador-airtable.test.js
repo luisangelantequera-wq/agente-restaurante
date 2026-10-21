@@ -162,3 +162,34 @@ test("las acciones ajenas a la lista permitida no aparecen en métricas", () => 
   assert.equal(accionDeCuerpo({ accion: "nombre@example.invalid" }), "general");
   assert.equal(accionDeCuerpo('json inválido'), "general");
 });
+
+test("el panel contabiliza una sola llamada por consulta y muestra un origen separado", async () => {
+  const solicitudes = [], metricas = [];
+  const medido = crearFetchMedido("panel", {
+    env: envPreview, ahora, registrarLog: () => {},
+    fetchImpl: async (url, opciones) => {
+      solicitudes.push({ url, opciones });
+      return respuesta();
+    },
+    fetchRedis: async (_url, opciones) => {
+      metricas.push(JSON.parse(opciones.body));
+      return { ok: true, json: async () => ({ result: 1 }) };
+    }
+  });
+  const url = "https://api.airtable.com/v0/appEjemplo1234/MESAS";
+  const resultado = await medido(url, { headers: { Authorization: "Bearer simulada" } });
+  assert.equal(resultado.status, 200);
+  assert.equal(solicitudes.length, 1);
+  assert.equal(metricas.length, 1);
+  assert.equal(metricas[0][4], "panel|general|GET|MESAS|correcta");
+  assert.equal(interpretarCampos(["panel|general|GET|MESAS|correcta", "1"]).por_origen.panel, 1);
+});
+
+test("la ruta del panel usa el contador en vez de hacer fetch sin medición", () => {
+  const fs = require("node:fs");
+  const ruta = require.resolve("../api/restaurante.js");
+  const codigo = fs.readFileSync(ruta, "utf8");
+  assert.match(codigo, /crearFetchMedido\("panel"\)/);
+  assert.match(codigo, /const respuesta = await fetchAirtableContado\(url, \{/);
+  assert.doesNotMatch(codigo, /const respuesta = await fetch\(url, \{/);
+});

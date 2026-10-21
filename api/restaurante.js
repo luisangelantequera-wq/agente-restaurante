@@ -1,4 +1,6 @@
 const crypto = require("crypto");
+// Contabiliza las lecturas de agenda, mesas y zonas sin añadir consultas a Airtable.
+const fetchAirtableContado = require("../lib/contador-airtable").crearFetchMedido("panel");
 const gestionarDatosRestaurante = require("../lib/datos-restaurante-panel");
 const { registroDebeAnonimizarse } = require("../lib/privacidad");
 const {
@@ -23,7 +25,7 @@ function responder(res, status, datos) {
 
 
 async function consultarAirtable(url) {
-  const respuesta = await fetch(url, {
+  const respuesta = await fetchAirtableContado(url, {
     headers: {
       Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}`
     }
