@@ -46,3 +46,23 @@ La tabla semanal compatible se conserva en `horario_reservas`. La misma columna 
 El motor de reservas y las alternativas usan las franjas efectivas de la fecha solicitada. Las respuestas informativas agrupan días con horarios iguales y resuelven una fecha concreta, hoy/mañana y días de semana en Europe/Madrid. Las respuestas siguen consultando datos frescos; no cachean los cierres. El horario descrito es el de aceptación de reservas; no se crea un horario comercial independiente.
 
 La captura de nuevas reservas consulta `validar_fecha` al reconocer el día, antes de preguntar por personas u hora. Solo lee RESTAURANTES, aplica cierres semanales y especiales y no comprueba ni promete mesas. Una marca local de la captura evita repetir esa lectura al completar los datos del mismo día; la verificación de disponibilidad y la creación definitiva vuelven a comprobar el calendario actual. Un fallo de consulta pide repetir la fecha. No se pide una zona para descartar un cierre general.
+
+## Zonas de reserva (detección automática, Preview)
+
+En Ajustes aparece el apartado **06. Zonas de reserva**. Muestra si
+hay una única zona activa, varias o todas cerradas, tomando los datos
+que ya devolvió la carga de agenda (`/api/restaurante`). Cerrar/reabrir
+una zona y actualizar la agenda recalcula el estado sin nuevas consultas
+específicas de este apartado. El enlace «Gestionar mesas y zonas» abre
+la pestaña existente.
+
+Por diseño **no se añade una casilla que almacene «zona única» en Airtable**:
+sería un dato duplicado que podría contradecir los cierres reales. La
+selección automática de una única zona activa ya funciona en la rama
+Preview; esta tarjeta hace visible esa decisión al propietario.
+
+No se modifica el esquema de Airtable, ni se crea una nueva función
+Vercel, ni se guardan zonas operativas en Upstash. Al reservar,
+`/api/chat` sigue consultando las zonas reales y comprobando mesas.
+Una sesión sin datos cargados muestra «Se mostrará al cargar la agenda»
+y un error de carga no se presenta como un estado verificado.

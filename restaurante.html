@@ -163,6 +163,7 @@
         <article class="tarjeta ajuste-opcion"><span class="icono-ajuste" aria-hidden="true">03</span><h3>Información del restaurante</h3><p>Dirección, página web y respuestas sobre aparcamiento, accesibilidad, mascotas y más.</p><button type="button" data-ajuste="publico" class="boton-secundario">Editar información</button></article>
         <article class="tarjeta ajuste-opcion"><span class="icono-ajuste" aria-hidden="true">04</span><h3>Carta y bebidas</h3><p>Importe un PDF y revise categorías, precios, disponibilidad y alérgenos.</p><button type="button" data-ir="carta" class="boton-secundario">Editar carta</button></article>
         <article class="tarjeta ajuste-opcion"><span class="icono-ajuste" aria-hidden="true">05</span><h3>Información gastronómica</h3><p>Especialidades, días en los que se sirven y condiciones de encargo o mínimo de personas.</p><button type="button" data-ajuste="gastronomia" class="boton-secundario">Editar información gastronómica</button></article>
+        <article class="tarjeta ajuste-opcion"><span class="icono-ajuste" aria-hidden="true">06</span><h3>Zonas de reserva</h3><p id="estado-zonas-automaticas" aria-live="polite">Se mostrará al cargar la agenda.</p><p class="nota-formulario">La detección es automática y no necesita un campo nuevo en Airtable. Los cierres se vuelven a comprobar al reservar.</p><button type="button" data-ir="mesas" class="boton-secundario">Gestionar mesas y zonas</button></article>
       </section>
       <section data-paginas="carta" id="seccion-carta" hidden>
         <div class="tarjeta carta-importar">
@@ -523,6 +524,7 @@
 
   <script src="lib/encargos-restaurante.js"></script>
   <script src="lib/ajustes-restaurante.js"></script>
+  <script src="lib/zona-reserva.js"></script>
   <script src="restaurante.js"></script>
   <script src="panel-navegacion.js"></script>
   <script src="panel-ajustes.js"></script>

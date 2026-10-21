@@ -94,6 +94,14 @@ let listaEsperaActual = [];
 let mesasLibresActuales = [];
 let zonasConfiguracionActuales = [];
 let mesasConfiguracionActuales = [];
+
+function actualizarEstadoZonasAutomaticas(zonas) {
+  // Solo utiliza la respuesta de cargar agenda; cero lecturas extra.
+  const elemento = document.getElementById("estado-zonas-automaticas");
+  const resumen = window.ContactiaZonas.resumenConfiguracionZonas(zonas);
+  elemento.textContent = resumen.descripcion;
+  elemento.dataset.modoZonas = resumen.modo;
+}
 let localizadorEnEdicion = "";
 let reservaEnEdicion = null;
 let accionEnEdicion = "modificar";
@@ -1201,6 +1209,7 @@ async function cargarReservas(clave = "") {
       datos.resumen.canceladas;
     zonasConfiguracionActuales = datos.zonas || [];
     mesasConfiguracionActuales = datos.mesas_configuracion || [];
+    actualizarEstadoZonasAutomaticas(zonasConfiguracionActuales);
     renderizarReservas(datos.reservas);
     renderizarListaEspera(datos.lista_espera || []);
     renderizarMesasLibres(datos.mesas_disponibles || [], datos.hora_mesas);
@@ -1215,6 +1224,8 @@ async function cargarReservas(clave = "") {
     window.history.replaceState({}, "", nuevaUrl);
   } catch (error) {
     estadoCarga.textContent = error.message;
+    document.getElementById("estado-zonas-automaticas").textContent =
+      "No se ha podido actualizar el estado de las zonas. Utilice Actualizar.";
     document.getElementById("estado-global-panel").textContent = error.message;
     document.getElementById("estado-inicio").textContent = "Actualización pendiente";
   } finally {

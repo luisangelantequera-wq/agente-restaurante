@@ -6,7 +6,8 @@ const {
   analizarZonaPreferida,
   extraerZonaPreferida,
   normalizarZonasPublicas,
-  zonaCoincide
+  zonaCoincide,
+  resumenConfiguracionZonas
 } = require("../lib/zona-reserva");
 
 const RESTAURANTE_SOL = "recRestauranteSol";
@@ -536,4 +537,52 @@ test("Preview: una zona inactiva nunca se asigna de forma automática", async ()
       if (v === undefined) delete process.env[k]; else process.env[k] = v;
     }
   }
+});
+
+test("panel: identifica automáticamente zona única, varias o todas cerradas", () => {
+  const sol = [{nombre:"INTERIOR",estado:"activo"}];
+  const una = resumenConfiguracionZonas(sol);
+  assert.equal(una.modo, "unica");
+  assert.equal(una.activas, 1);
+  assert.match(una.descripcion, /INTERIOR/);
+  const varias = resumenConfiguracionZonas([...sol, {nombre:"TERRAZA",estado:"activo"}]);
+  assert.equal(varias.modo, "varias");
+  assert.equal(varias.activas, 2);
+  assert.match(varias.descripcion, /pregunta al cliente/);
+  const cierre = resumenConfiguracionZonas([...sol, {nombre:"TERRAZA",estado:"inactivo"}]);
+  assert.equal(cierre.modo, "unica");
+  assert.equal(cierre.configuradas, 2);
+  const todas = resumenConfiguracionZonas([
+    {nombre:"INTERIOR",estado:"inactivo"},
+    {nombre:"TERRAZA",estado:"inactivo"}
+  ]);
+  assert.equal(todas.modo, "cerradas");
+  assert.equal(todas.activas, 0);
+  assert.equal(resumenConfiguracionZonas([]).modo, "sin_configurar");
+});
+
+test("panel: indicador usa la carga existente, sin endpoint ni campo nuevo", () => {
+  const fs = require("node:fs"), vm = require("node:vm");
+  const js = fs.readFileSync(require.resolve("../restaurante.js"), "utf8");
+  const html = fs.readFileSync(require.resolve("../restaurante.html"), "utf8");
+  assert.match(html, /id="estado-zonas-automaticas"/);
+  assert.match(html, /src="lib\/zona-reserva.js"/);
+  const start = js.indexOf("function actualizarEstadoZonasAutomaticas(zonas) {");
+  const end = js.indexOf("let reservasActuales = [];", start);
+  assert.ok(start > 0 && end > start);
+  const elemento = { textContent: "", dataset: {} };
+  const ctx = vm.createContext({
+    window: { ContactiaZonas: { resumenConfiguracionZonas } },
+    document: { getElementById(id) {
+      assert.equal(id, "estado-zonas-automaticas");
+      return elemento;
+    }},
+    fetch: () => { throw Error("No se debe consultar la red"); }
+  });
+  vm.runInContext(js.slice(start, end) +
+    "\nactualizarEstadoZonasAutomaticas([{nombre:'INTERIOR',estado:'activo'}]);", ctx);
+  assert.equal(elemento.dataset.modoZonas, "unica");
+  assert.match(elemento.textContent, /automáticamente/);
+  vm.runInContext("actualizarEstadoZonasAutomaticas([{nombre:'INTERIOR',estado:'inactivo'}]);", ctx);
+  assert.equal(elemento.dataset.modoZonas, "cerradas");
 });
