@@ -432,3 +432,108 @@ test("calendario temprano: fecha ausente o imposible se rechaza sin consultar Ai
     }
   } finally { global.fetch = original; }
 });
+
+test("Preview: una única zona activa se asigna sin pedir al cliente que elija", async () => {
+  const prev = global.fetch;
+  const variables = ["VERCEL_ENV", "VERCEL_GIT_COMMIT_REF", "AIRTABLE_BASE_ID",
+    "CONTACTIA_SANDBOX_BASE_ID", "CONTACTIA_MEDIR_AIRTABLE"];
+  const original = Object.fromEntries(variables.map(k => [k, process.env[k]]));
+  const lecturas = [];
+  const falso = instalarAirtableFalso();
+  const modoZonas = "una";
+  Object.assign(process.env, {
+    VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    AIRTABLE_BASE_ID: "app12345678901234", CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    CONTACTIA_MEDIR_AIRTABLE: "false"
+  });
+  global.fetch = async (...args) => {
+    const url = new URL(args[0]);
+    const tabla = url.pathname.split("/")[3];
+    lecturas.push(tabla);
+    if (tabla === "ZONA") return respuestaAirtable({ records: zonas().slice(0, 1) });
+    return falso(...args);
+  };
+  try {
+    const r = await ejecutar({
+      accion: "verificar", restaurante_id: 1,
+      fecha: fechaProxima(), hora: "14:00", personas: 2
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.requiere_zona, undefined);
+    assert.equal(r.body.disponible, true);
+    assert.equal(r.body.zona, "INTERIOR");
+    assert.equal(lecturas.filter(t => t === "ZONA").length, 1,
+      "Se debe comprobar una vez el estado de la zona antes de verificar");
+  } finally {
+    global.fetch = prev;
+    for (const [k,v] of Object.entries(original)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});
+
+test("Preview: con dos zonas sigue preguntando y no elige una arbitrariamente", async () => {
+  const prev = global.fetch;
+  const oldEnv = { VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_GIT_COMMIT_REF: process.env.VERCEL_GIT_COMMIT_REF,
+    AIRTABLE_BASE_ID: process.env.AIRTABLE_BASE_ID,
+    CONTACTIA_SANDBOX_BASE_ID: process.env.CONTACTIA_SANDBOX_BASE_ID,
+    CONTACTIA_MEDIR_AIRTABLE: process.env.CONTACTIA_MEDIR_AIRTABLE };
+  Object.assign(process.env, {
+    VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    AIRTABLE_BASE_ID: "app12345678901234", CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    CONTACTIA_MEDIR_AIRTABLE: "false"
+  });
+  global.fetch = instalarAirtableFalso();
+  try {
+    const r = await ejecutar({
+      accion: "verificar", restaurante_id: 1, fecha: fechaProxima(),
+      hora: "14:00", personas: 2
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.requiere_zona, true);
+    assert.deepEqual(r.body.zonas_disponibles, ["INTERIOR", "TERRAZA"]);
+  } finally {
+    global.fetch = prev;
+    for (const [k,v] of Object.entries(oldEnv)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});
+
+test("Preview: una zona inactiva nunca se asigna de forma automática", async () => {
+  const prev = global.fetch;
+  const variables = ["VERCEL_ENV", "VERCEL_GIT_COMMIT_REF", "AIRTABLE_BASE_ID",
+    "CONTACTIA_SANDBOX_BASE_ID", "CONTACTIA_MEDIR_AIRTABLE"];
+  const original = Object.fromEntries(variables.map(k => [k, process.env[k]]));
+  const falso = instalarAirtableFalso();
+  const lecturas = [];
+  Object.assign(process.env, {
+    VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    AIRTABLE_BASE_ID: "app12345678901234", CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    CONTACTIA_MEDIR_AIRTABLE: "false"
+  });
+  global.fetch = async (...args) => {
+    const tabla = new URL(args[0]).pathname.split("/")[3];
+    lecturas.push(tabla);
+    if (tabla === "ZONA") {
+      const cerrada = { ...zonas()[0],
+        fields: { ...zonas()[0].fields, estado: "inactivo" } };
+      return respuestaAirtable({records:[cerrada]});
+    }
+    return falso(...args);
+  };
+  try {
+    const r = await ejecutar({ accion: "verificar", restaurante_id: 1,
+      fecha: fechaProxima(), hora: "14:00", personas: 2 });
+    assert.equal(r.status, 200);
+    assert.notEqual(r.body.zona, "INTERIOR");
+    assert.equal(r.body.disponible, false);
+    assert.ok(lecturas.includes("ZONA"));
+  } finally {
+    global.fetch = prev;
+    for (const [k,v] of Object.entries(original)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});

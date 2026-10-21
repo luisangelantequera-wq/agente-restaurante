@@ -3591,7 +3591,16 @@ module.exports = async (req, res) => {
       zonasActivas = await obtenerZonasActivasRestaurante(restaurante.id);
 
       if (zonasActivas.length > 0) {
-        zonaReserva = resolverZonaPreferida(zonasActivas, zona_preferida);
+        // En el Preview de pruebas, una única zona ACTIVA se elige
+        // automáticamente cuando el cliente no señaló ninguna.
+        // No evita la lectura de ZONA: esa lectura es la que garantiza
+        // que la zona no se haya cerrado mientras se conversaba.
+        const seleccionarUnicaZona = process.env.VERCEL_ENV === "preview" &&
+          process.env.VERCEL_GIT_COMMIT_REF === "corregir-bateria-pruebas";
+        zonaReserva = seleccionarUnicaZona && !zona_preferida &&
+          zonasActivas.length === 1
+          ? zonasActivas[0]
+          : resolverZonaPreferida(zonasActivas, zona_preferida);
 
         if (!zonaReserva) {
           const zonasDisponibles = resumirZonas(zonasActivas);

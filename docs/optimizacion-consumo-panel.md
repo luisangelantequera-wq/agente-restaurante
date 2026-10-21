@@ -114,3 +114,27 @@ Importante: el ahorro es condicionado, **no** implica eliminar las 110
 consultas históricas. Las verificaciones de disponibilidad deben mantener
 sus lecturas propias, pues los cierres externos pueden cambiar entre
 peticiones.
+
+## Restaurantes con una sola zona
+
+La lista de zonas activas se lee como hasta ahora en el momento de
+necesitarla, pero si únicamente existe **una zona activa**, el cliente no
+tiene que escoger entre una única opción: Contactia la asigna y confirma
+los demás datos. En Preview la acción `verificar` también utiliza
+automáticamente esa zona si el cliente no especificó ninguna.
+
+- **Una zona activa:** cero preguntas de elección; la comprobación de
+  `ZONA` en el servidor sigue siendo una lectura real, nunca se omite.
+- **Dos o más zonas activas:** se mantiene la elección del cliente.
+- **Todas cerradas:** no se selecciona ninguna zona. Las comprobaciones
+  de mesas y disponibilidad del servidor siguen decidiendo si se puede
+  reservar.
+- **Zona explícita no disponible:** no se sustituye silenciosamente por
+  otra; se devuelve una petición de nueva elección.
+
+Esto evita repreguntas y posibles comprobaciones derivadas de las
+correcciones. Por sí mismo **no garantiza ahorro directo de lecturas
+ZONA** en una reserva terminada. Para eliminar otra lectura en el caso
+de zona única sería necesario guardar explícitamente un metadato estable
+de configuración y garantizar la lectura operativa final de zona. Se
+evaluará sin introducir ese dato en Airtable hasta reabrir la cuota.

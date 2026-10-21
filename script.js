@@ -383,7 +383,15 @@ async function cargarZonasActivasParaReserva() {
 function preguntarZonaSiNecesaria() {
   const zonas = nombresZonasDisponibles();
 
-  if (zonas.length === 0 || datosReserva.zona_preferida) {
+  if (datosReserva.zona_preferida || zonas.length === 0) {
+    return false;
+  }
+
+  if (zonas.length === 1) {
+    // No preguntar por una preferencia que no existe. Esta zona se obtuvo
+    // de la lectura operativa de Airtable justo antes de mostrar opciones.
+    // /api/chat volverá a verificarla antes de autorizar la reserva.
+    datosReserva.zona_preferida = zonas[0];
     return false;
   }
 

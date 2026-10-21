@@ -159,3 +159,34 @@ test("la selección de zona llama al servidor una sola vez y reconoce el cierre 
   assert.equal(error.pendientes, true);
   assert.equal(error.lecturas, 2, "Ante un error de red no se declara válida la lista");
 });
+
+test("la zona única se selecciona localmente sin repregunta ni una lectura adicional", async () => {
+  const fs = require("node:fs"), vm = require("node:vm");
+  const src = fs.readFileSync(require.resolve("../script.js"), "utf8");
+  const inicio = src.indexOf("function preguntarZonaSiNecesaria() {");
+  const fin = src.indexOf("async function cargarRestauranteActivo() {", inicio);
+  assert.ok(inicio >= 0 && fin > inicio);
+  const ejecutar = zonas => {
+    const estado = { paso: "inicio",
+      datosReserva: { zona_preferida: "" },
+      nombresZonasDisponibles: () => zonas,
+      llamadas: 0, mensaje: "",
+      agregarMensaje(t) { this.mensaje=t; },
+      describirOpcionesZonas: x => x.join(", ")
+    };
+    // Estado de la simulación queda dentro del mismo contexto de la función.
+    const contexto = vm.createContext({ ...estado });
+    vm.runInContext(src.slice(inicio,fin), contexto);
+    const requierePregunta = vm.runInContext("preguntarZonaSiNecesaria()", contexto);
+    return { requierePregunta, zona: contexto.datosReserva.zona_preferida,
+      paso: contexto.paso };
+  };
+  const una = ejecutar(["INTERIOR"]);
+  assert.equal(una.requierePregunta, false);
+  assert.equal(una.zona, "INTERIOR");
+  const dos = ejecutar(["INTERIOR", "TERRAZA"]);
+  assert.equal(dos.requierePregunta, true);
+  assert.equal(dos.paso, "zona");
+  const ninguna = ejecutar([]);
+  assert.equal(ninguna.zona, "");
+});
