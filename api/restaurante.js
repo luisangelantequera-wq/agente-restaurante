@@ -230,7 +230,6 @@ module.exports = async (req, res) => {
     }
 
     if (accion === "encargo_visto") return require("../lib/encargos-panel")(req,res);
-    if (accion === "zonas_crear") return require("../lib/zonas-panel")(req, res);
 
     // Los datos estables utilizan las mismas funciones desplegadas para
     // el panel, sin superar el máximo de 12 funciones del plan Hobby.
@@ -570,7 +569,6 @@ module.exports = async (req, res) => {
       zonas: zonasRestaurante.sort((a, b) =>
         a.nombre.localeCompare(b.nombre, "es")
       ),
-      crear_zonas_habilitado: require("../lib/zonas-panel").habilitado(),
       mesas_configuracion: mesasConfiguracion
     });
   } catch (error) {

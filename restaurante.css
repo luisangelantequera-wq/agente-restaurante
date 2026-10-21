@@ -1559,20 +1559,3 @@ button:focus-visible, summary:focus-visible { outline: 3px solid #bf8d2e; outlin
 .encargo-reserva.encargo-visto { border-color: #b8cbb0; background: #f1f5ee; }
 .encargo-reserva.encargo-visto strong, .encargo-reserva.encargo-visto > span { color: #344b3b; }
 .encargo-dias input[type="checkbox"] { width: 18px; height: 18px; min-height: 18px; flex: 0 0 auto; accent-color: #344b3b; }
-
-/* Alta de zonas: aprovechamos el diálogo existente, sin otro menú. */
-.nueva-zona-panel {
-  margin: 16px 0 22px;
-  padding: 16px;
-  background: #faf8f2;
-  border: 1px solid var(--borde);
-  border-radius: 12px;
-}
-.nueva-zona-panel h3 { margin: 0 0 6px; }
-.nueva-zona-panel label { display: block; font-weight: 600; margin: 12px 0 6px; }
-.form-crear-zona-fila { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.form-crear-zona-fila input {
-  flex: 1 1 210px; min-width: 180px; padding: 10px 12px;
-  border: 1px solid var(--borde); border-radius: 9px;
-}
-.form-crear-zona-fila button { flex: 0 0 auto; }

@@ -77,10 +77,6 @@ const recursosDisponibilidad = document.getElementById(
   "recursos-disponibilidad"
 );
 const errorDisponibilidad = document.getElementById("error-disponibilidad");
-const formularioCrearZona = document.getElementById("form-crear-zona");
-const nombreZonaNueva = document.getElementById("nombre-zona-nueva");
-const botonCrearZona = document.getElementById("guardar-zona-nueva");
-const estadoZonaNueva = document.getElementById("estado-zona-nueva");
 const botonEditarDatos = document.getElementById("editar-datos-restaurante");
 const dialogoDatos = document.getElementById("dialogo-datos-restaurante");
 const formularioDatos = document.getElementById("form-datos-restaurante");
@@ -98,18 +94,6 @@ let listaEsperaActual = [];
 let mesasLibresActuales = [];
 let zonasConfiguracionActuales = [];
 let mesasConfiguracionActuales = [];
-let crearZonasHabilitado = false;
-
-function actualizarEstadoCreacionZonas() {
-  botonCrearZona.disabled = !crearZonasHabilitado;
-  nombreZonaNueva.disabled = !crearZonasHabilitado;
-  if (!crearZonasHabilitado) {
-    estadoZonaNueva.textContent =
-      "La creación de zonas estará disponible tras las pruebas controladas de noviembre.";
-  } else {
-    estadoZonaNueva.textContent = "La zona nueva se crea cerrada, sin mesas.";
-  }
-}
 
 function actualizarEstadoZonasAutomaticas(zonas) {
   // Solo utiliza la respuesta de cargar agenda; cero lecturas extra.
@@ -689,50 +673,6 @@ function cerrarGestionDisponibilidad() {
   errorDisponibilidad.textContent = "";
 }
 
-async function crearNuevaZona(evento) {
-  evento.preventDefault();
-  if (!crearZonasHabilitado) return;
-  const nombre = nombreZonaNueva.value.trim().replace(/\s+/g, " ");
-  if (nombre.length < 2 || nombre.length > 60) {
-    estadoZonaNueva.textContent = "Introduzca un nombre de 2 a 60 caracteres.";
-    return;
-  }
-  botonCrearZona.disabled = true;
-  estadoZonaNueva.textContent = "Creando zona cerrada…";
-  try {
-    const respuesta = await fetch("/api/restaurante", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accion: "zonas_crear",
-        restaurante_id: restauranteId,
-        nombre_zona: nombre
-      })
-    });
-    const datos = await respuesta.json();
-    if (!respuesta.ok || !datos.ok || !datos.zona) {
-      throw new Error(datos.error || "No se pudo crear la zona.");
-    }
-    if (zonasConfiguracionActuales.some(z => z.id === datos.zona.id)) {
-      throw new Error("La zona ya figura en el panel. Revise la agenda.");
-    }
-    // La respuesta del POST confirma el nuevo registro; no hace falta
-    // recargar toda la agenda ni gastar cinco GET adicionales.
-    zonasConfiguracionActuales.push(datos.zona);
-    zonasConfiguracionActuales.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-    actualizarEstadoZonasAutomaticas(zonasConfiguracionActuales);
-    renderizarDisponibilidad();
-    nombreZonaNueva.value = "";
-    estadoZonaNueva.textContent = datos.mensaje ||
-      "Zona creada y cerrada. Asigne sus mesas antes de abrirla.";
-  } catch (error) {
-    estadoZonaNueva.textContent = error.message;
-  } finally {
-    botonCrearZona.disabled = !crearZonasHabilitado;
-  }
-}
-
 
 function describirReservasAfectadas(reservas) {
   const visibles = reservas.slice(0, 6).map((reserva) =>
@@ -1269,8 +1209,6 @@ async function cargarReservas(clave = "") {
       datos.resumen.canceladas;
     zonasConfiguracionActuales = datos.zonas || [];
     mesasConfiguracionActuales = datos.mesas_configuracion || [];
-    crearZonasHabilitado = datos.crear_zonas_habilitado === true;
-    actualizarEstadoCreacionZonas();
     actualizarEstadoZonasAutomaticas(zonasConfiguracionActuales);
     renderizarReservas(datos.reservas);
     renderizarListaEspera(datos.lista_espera || []);
@@ -1425,7 +1363,6 @@ botonGestionarDisponibilidad.addEventListener(
   "click",
   abrirGestionDisponibilidad
 );
-formularioCrearZona.addEventListener("submit", crearNuevaZona);
 
 
 recursosDisponibilidad.addEventListener("click", (evento) => {

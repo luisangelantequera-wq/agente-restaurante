@@ -484,7 +484,7 @@
     <div class="dialogo-cabecera">
       <div>
         <p class="etiqueta">GESTIÓN DE DISPONIBILIDAD</p>
-        <h2>GESTIONAR ZONAS Y MESAS</h2>
+        <h2>CIERRE DE ZONAS/MESAS</h2>
       </div>
       <button
         id="cerrar-dialogo-disponibilidad"
@@ -500,22 +500,6 @@
       las vuelvas a abrir.
     </p>
 
-    <section class="nueva-zona-panel" aria-labelledby="titulo-crear-zona">
-      <h3 id="titulo-crear-zona">Añadir una zona</h3>
-      <p class="nota-formulario">Por ejemplo: Patio, Salón principal o Comedor privado.
-        La nueva zona se crea cerrada y no se ofrece a clientes hasta que tenga mesas.</p>
-      <form id="form-crear-zona">
-        <label for="nombre-zona-nueva">Nombre de la zona</label>
-        <div class="form-crear-zona-fila">
-          <input id="nombre-zona-nueva" type="text" minlength="2" maxlength="60"
-            autocomplete="off" placeholder="Ejemplo: Patio" disabled required>
-          <button type="submit" id="guardar-zona-nueva" disabled>Crear zona</button>
-        </div>
-        <p id="estado-zona-nueva" class="nota-formulario" role="status">
-          Preparado para habilitarlo después de las pruebas de noviembre.
-        </p>
-      </form>
-    </section>
     <div id="recursos-disponibilidad" class="recursos-disponibilidad"></div>
     <p id="error-disponibilidad" class="mensaje-error" role="alert"></p>
 
