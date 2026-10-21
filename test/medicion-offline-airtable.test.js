@@ -95,3 +95,12 @@ test("al cambiar de hora el manejador invalida mesas sin llamar a ninguna API", 
   assert.equal(avisos.get("inicio-mesas").textContent, "—");
   assert.match(avisos.get("estado-global-panel").textContent, /Hora cambiada/);
 });
+
+test("en la portada diferida no se descargan zonas hasta llegar a la selección", () => {
+  const fs = require("node:fs");
+  const codigo = fs.readFileSync(require.resolve("../script.js"), "utf8");
+  assert.match(codigo, /solo_identidad: "1"/);
+  assert.match(codigo, /zonasPendientesCarga = cargaDiferidaHabilitada/);
+  assert.match(codigo, /await cargarZonasActivasParaReserva\(\)/);
+  assert.match(codigo, /if \(cargaDiferidaHabilitada\) zonasPendientesCarga = true/);
+});

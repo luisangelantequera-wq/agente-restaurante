@@ -20,6 +20,10 @@ let restauranteActivo = {
   slug_publico: rutaRestaurante.slug_publico,
   zonas: []
 };
+// Únicamente la rama de pruebas difiere la lectura operativa de zonas.
+// Nunca asumimos que una zona sigue abierta por haberla visto antes.
+let zonasPendientesCarga = false;
+let cargaDiferidaHabilitada = false;
 
 
 restaurantName.textContent = `🍽️ ${restauranteActivo.nombre}`;
@@ -352,6 +356,30 @@ function describirOpcionesZonas(zonas) {
 }
 
 
+async function cargarZonasActivasParaReserva() {
+  if (!zonasPendientesCarga) return true;
+  try {
+    const parametros = new URLSearchParams({ slug: rutaRestaurante.slug_publico });
+    // Sin 'solo_identidad': se consulta el estado de las zonas ahora.
+    const respuesta = await fetch(`/api/restaurante-publico?${parametros}`);
+    const datos = await respuesta.json();
+    const actualizado = window.ContactiaRestaurantePublico
+      .normalizarRestaurantePublico(datos?.restaurante, rutaRestaurante.slug_publico);
+    if (!respuesta.ok || datos.ok === false || !actualizado ||
+        actualizado.id !== restauranteActivo.id || datos.zonas_pendientes === true) {
+      throw new Error("No se pudieron comprobar las zonas.");
+    }
+    // Sólo se actualiza la lista mostrada; la comprobación definitiva en
+    // /api/chat se mantiene, para cierres durante la conversación.
+    restauranteActivo.zonas = actualizado.zonas;
+    zonasPendientesCarga = false;
+    return true;
+  } catch (error) {
+    console.error("Error al consultar zonas:", error);
+    return false;
+  }
+}
+
 function preguntarZonaSiNecesaria() {
   const zonas = nombresZonasDisponibles();
 
@@ -375,7 +403,8 @@ async function cargarRestauranteActivo() {
 
   try {
     const parametros = new URLSearchParams({
-      slug: rutaRestaurante.slug_publico
+      slug: rutaRestaurante.slug_publico,
+      solo_identidad: "1"
     });
     const respuesta = await fetch(`/api/restaurante-publico?${parametros}`);
     const datos = await respuesta.json();
@@ -398,6 +427,8 @@ async function cargarRestauranteActivo() {
     registroConversacionesRemotoHabilitado =
       datos.registro_conversaciones_habilitado === true;
     aplicarRestauranteActivo(restaurante);
+    cargaDiferidaHabilitada = datos.zonas_pendientes === true;
+    zonasPendientesCarga = cargaDiferidaHabilitada;
     if (registroConversacionesRemotoHabilitado) {
       gestorGuardadoConversacion.habilitar();
     }
@@ -710,6 +741,16 @@ async function continuarCapturaDatosPrincipales() {
     return;
   }
 
+  if (!(await cargarZonasActivasParaReserva())) {
+    // No avanzar ni confirmar usando una lista potencialmente obsoleta.
+    // El cliente puede reintentar su hora sin perder el resto de los datos.
+    paso = "hora";
+    agregarMensaje(
+      "No he podido comprobar las zonas disponibles. Indique de nuevo la hora para reintentarlo.",
+      "bot"
+    );
+    return;
+  }
   if (preguntarZonaSiNecesaria()) {
     return;
   }
@@ -2830,6 +2871,7 @@ window.ContactiaVozBridge = {
 
 // 1️⃣1️⃣ REINICIAR
 function reiniciarReserva() {
+  if (cargaDiferidaHabilitada) zonasPendientesCarga = true;
   encargosChat?.limpiar();
   liberarRetencionActiva();
   paso = "inicio";

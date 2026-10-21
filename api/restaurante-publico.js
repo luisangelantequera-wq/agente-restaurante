@@ -93,6 +93,19 @@ async function consultarRestaurante(slugPublico) {
 }
 
 
+// Esta optimización solo se utiliza en el Preview de ensayos. En producción
+// se mantiene íntegra la respuesta anterior por compatibilidad.
+function soloIdentidadSinZonas(req, env = process.env) {
+  if (env.VERCEL_ENV !== "preview" ||
+      env.VERCEL_GIT_COMMIT_REF !== "corregir-bateria-pruebas") return false;
+  let valor = req.query?.solo_identidad;
+  if (valor === undefined) {
+    try { valor = new URL(req.url || "/", "https://contactia.net").searchParams.get("solo_identidad"); }
+    catch { return false; }
+  }
+  return valor === "1";
+}
+
 async function consultarZonasActivas(restauranteRecordId) {
   const registros = [];
   let offset = "";
@@ -213,10 +226,11 @@ module.exports = async (req, res) => {
       });
     }
 
-    // CRÍTICO: en cada visita se comprueba la configuración de zonas
-    // directamente en Airtable. Una terraza cerrada no puede permanecer
-    // abierta en una copia de 24 horas.
-    const zonas = await consultarZonasActivas(ficha.restaurante_record_id);
+    // La portada puede cargar solo identidad, sin gastar una lectura ZONA.
+    // En el paso de escoger zona, el navegador hace una NUEVA solicitud sin
+    // el indicador: las zonas se obtienen directamente de Airtable.
+    const diferidas = soloIdentidadSinZonas(req);
+    const zonas = diferidas ? [] : await consultarZonasActivas(ficha.restaurante_record_id);
 
     // Los permisos de WhatsApp dependen del entorno, no de Airtable.
     const whatsappHabilitado =
@@ -231,6 +245,7 @@ module.exports = async (req, res) => {
         zonas,
         ...(whatsappHabilitado ? { consentimiento_whatsapp: true } : {})
       },
+      ...(diferidas ? { zonas_pendientes: true } : {}),
       ...(registroConversacionesHabilitado(slugPublico)
         ? { registro_conversaciones_habilitado: true }
         : {})

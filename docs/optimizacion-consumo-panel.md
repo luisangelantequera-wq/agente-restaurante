@@ -87,3 +87,30 @@ El ahorro se medirá en simulación con la batería de `test/ajustes-panel.test.
 No inferir que se ahorran todas las 191 llamadas de configuración: la
 mayoría de accesos corresponden a peticiones distintas y a necesidades
 de seguridad operativa.
+
+## Tercera mejora: zonas bajo demanda en la portada (solo Preview)
+
+Cada entrada al chat solicitaba los datos de zona de Airtable antes de saber
+si se trataba de una reserva. Ahora, en `corregir-bateria-pruebas`, la
+primera petición `/api/restaurante-publico?slug=...&solo_identidad=1`
+devuelve la identidad y la marca `zonas_pendientes: true`, pero **no
+consulta ZONA**. Se solicita la lista de zonas al terminar la captura de
+fecha/personas/hora, antes de ofrecer las opciones al cliente.
+
+- Visitas informativas o solicitudes que no lleguen a la selección de zona:
+  **ahorran una lectura ZONA** por visita, respecto al arranque previo.
+- Reservas que llegan a seleccionar zona: **mantienen una lectura fresca**
+  de zonas al llegar a ese paso; la validación final del servidor sigue
+  consultando Airtable y las reservas mantienen sus bloqueos.
+- Al reiniciar una nueva reserva, se vuelve a pedir la configuración en el
+  siguiente paso de zonas, para no ofrecer opciones antiguas.
+- Si falla la consulta de zonas, la conversación no avanza a confirmación.
+  Solicita repetir la hora y reintenta la lectura.
+- Compatibilidad: la opción `solo_identidad=1` se respeta únicamente en
+  Preview de esta rama. Producción y las URLs convencionales mantienen
+  la respuesta íntegra. No se guardan zonas ni cierres en caché.
+
+Importante: el ahorro es condicionado, **no** implica eliminar las 110
+consultas históricas. Las verificaciones de disponibilidad deben mantener
+sus lecturas propias, pues los cierres externos pueden cambiar entre
+peticiones.
