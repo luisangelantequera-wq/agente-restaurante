@@ -55,3 +55,13 @@ ejecutarse con los secretos vacíos en GitHub Actions.
 
 Queda por medir el ahorro en uso real después de que se restablezca
 la cuota de Airtable en noviembre.
+
+## Medición de escrituras con el historial ficticio
+
+Ejecutar `npm run medir:conversaciones` sin red ni credenciales.
+Se comprueba un cierre normal (1 PATCH), incidencia crítica seguida de cierre
+(2 PATCH) y un saludo sin cliente (0 PATCH). Las escrituras duplicadas
+después de colgar se descartan. No supone que las 57 llamadas históricas
+sean duplicadas: esas cifras agrupan múltiples conversaciones.
+
+No se modifica la persistencia existente ni se pierden avisos de revisión.

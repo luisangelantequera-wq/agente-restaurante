@@ -7,7 +7,8 @@
     "start": "vercel dev",
     "test": "node --test",
     "test:conversacion": "node scripts/ejecutar-bateria-conversacional.js && node scripts/ejecutar-escenarios-conversacion.js",
-    "medir:simulado": "node scripts/medir-consumo-simulado.js"
+    "medir:simulado": "node scripts/medir-consumo-simulado.js",
+    "medir:conversaciones": "node scripts/medir-guardados-simulado.js"
   },
   "engines": {
     "node": "22.x"
