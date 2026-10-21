@@ -79,10 +79,13 @@
     try {
       const datos = await solicitar({ accion: "consumo_airtable" });
       estadoConsumoAirtable.textContent =
-        "Mes " + datos.mes + " · Solo llamadas registradas desde esta rama de Preview.";
+        "Mes " + datos.mes + " · Solo llamadas registradas desde esta rama de Preview." +
+        (datos.pausa_activa ? " · SANDBOX EN PAUSA (sin acceso a Airtable)." : " · Sandbox sin pausa.");
       mostrarCifrasConsumo("Peticiones a Airtable", datos.total || 0);
       mostrarCifrasConsumo("Errores de API", datos.errores || 0);
       mostrarCifrasConsumo("Errores 429 (cuota)", datos.cuota_429 || 0);
+      mostrarCifrasConsumo("Intentos bloqueados antes de Airtable (no consumen cuota)", datos.bloqueadas || 0);
+      if (datos.bloqueadas) mostrarDistribucionConsumo("Intentos bloqueados por función", datos.bloqueadas_por_origen, nombresFuentes);
       mostrarDistribucionConsumo("Por función", datos.por_origen, nombresFuentes);
       mostrarDistribucionConsumo("Por operación", datos.por_operacion);
       mostrarDistribucionConsumo("Por tabla", datos.por_tabla);

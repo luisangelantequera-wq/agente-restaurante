@@ -193,3 +193,101 @@ test("la ruta del panel usa el contador en vez de hacer fetch sin medición", ()
   assert.match(codigo, /const respuesta = await fetchAirtableContado\(url, \{/);
   assert.doesNotMatch(codigo, /const respuesta = await fetch\(url, \{/);
 });
+
+test("el modo de pausa es voluntario y exclusivo del Sandbox Preview", () => {
+  const { pausaSandbox } = require("../lib/contador-airtable");
+  const env = {
+    ...envPreview,
+    VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    AIRTABLE_BASE_ID: "app12345678901234",
+    CONTACTIA_SANDBOX_BASE_ID: "app12345678901234"
+  };
+  assert.equal(pausaSandbox(env), false);
+  assert.equal(pausaSandbox({ ...env, CONTACTIA_PAUSA_SANDBOX_AIRTABLE: "0" }), false);
+  assert.equal(pausaSandbox({ ...env, CONTACTIA_PAUSA_SANDBOX_AIRTABLE: "1" }), true);
+  assert.equal(pausaSandbox({ ...env, CONTACTIA_PAUSA_SANDBOX_AIRTABLE: "1", VERCEL_ENV: "production" }), false);
+  assert.equal(pausaSandbox({ ...env, CONTACTIA_PAUSA_SANDBOX_AIRTABLE: "1", VERCEL_GIT_COMMIT_REF: "otra-rama" }), false);
+});
+
+test("en pausa bloquea GET, POST y PATCH sin consumir cuota y registra los intentos aparte", async () => {
+  const env = { ...envPreview, AIRTABLE_BASE_ID: "app12345678901234",
+    CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    CONTACTIA_PAUSA_SANDBOX_AIRTABLE: "1" };
+  let airtable = 0;
+  const campos = [];
+  const medido = crearFetchMedido("panel", {
+    env, ahora, registrarLog: () => {},
+    fetchImpl: async () => { airtable++; throw new Error("No debería consultar Airtable"); },
+    fetchRedis: async (_url, opciones) => {
+      campos.push(JSON.parse(opciones.body)[4]);
+      return { ok: true, json: async () => ({ result: 1 }) };
+    }
+  });
+  for (const metodo of ["GET", "POST", "PATCH"]) {
+    const respuestaBloqueada = await medido("https://api.airtable.com/v0/app12345678901234/RESERVAS", { method: metodo });
+    assert.equal(respuestaBloqueada.status, 503);
+    assert.equal((await respuestaBloqueada.json()).error.type, "SANDBOX_EN_PAUSA");
+  }
+  assert.equal(airtable, 0);
+  assert.deepEqual(campos, [
+    "panel|general|GET|RESERVAS|bloqueada",
+    "panel|general|POST|RESERVAS|bloqueada",
+    "panel|general|PATCH|RESERVAS|bloqueada"
+  ]);
+  const resumen = interpretarCampos(campos.flatMap(c => [c, "1"]));
+  assert.equal(resumen.total, 0);
+  assert.equal(resumen.errores, 0);
+  assert.equal(resumen.bloqueadas, 3);
+  assert.equal(resumen.bloqueadas_por_origen.panel, 3);
+});
+
+test("la pausa sigue bloqueando Airtable aunque Upstash no funcione", async () => {
+  const env = { ...envPreview, AIRTABLE_BASE_ID: "app12345678901234",
+    CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    CONTACTIA_PAUSA_SANDBOX_AIRTABLE: "1" };
+  let airtable = 0;
+  const medido = crearFetchMedido("reservas", {
+    env, registrarLog: () => {},
+    fetchImpl: async () => { airtable++; return respuesta(); },
+    fetchRedis: async () => { throw new Error("Upstash no disponible"); }
+  });
+  assert.equal((await medido("https://api.airtable.com/v0/app12345678901234/MESAS")).status, 503);
+  assert.equal(airtable, 0);
+});
+
+test("con el interruptor desactivado se conserva la consulta original", async () => {
+  const env = { ...envPreview, AIRTABLE_BASE_ID: "app12345678901234",
+    CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    CONTACTIA_PAUSA_SANDBOX_AIRTABLE: "0" };
+  let airtable = 0;
+  const medido = crearFetchMedido("panel", {
+    env, registrarLog: () => {},
+    fetchImpl: async () => { airtable++; return respuesta(200); },
+    fetchRedis: async () => ({ ok: true, json: async () => ({ result: 1 }) })
+  });
+  assert.equal((await medido("https://api.airtable.com/v0/app12345678901234/RESTAURANTES")).status, 200);
+  assert.equal(airtable, 1);
+});
+
+test("la pausa no intercepta otros proveedores, ni las lecturas del contador en Redis", async () => {
+  const env = { ...envPreview, AIRTABLE_BASE_ID: "app12345678901234",
+    CONTACTIA_SANDBOX_BASE_ID: "app12345678901234",
+    VERCEL_GIT_COMMIT_REF: "corregir-bateria-pruebas",
+    CONTACTIA_PAUSA_SANDBOX_AIRTABLE: "1" };
+  let externas = 0;
+  const medido = crearFetchMedido("avisos", {
+    env, registrarLog: () => {},
+    fetchImpl: async () => { externas++; return respuesta(); },
+    fetchRedis: async () => ({ ok: true, json: async () => ({ result: [] }) })
+  });
+  assert.equal((await medido("https://api.resend.com/emails")).status, 200);
+  assert.equal(externas, 1);
+  const resumen = await leerConsumo({env, ahora, fetchRedis: async () =>
+    ({ok:true,json:async()=>({result:[]})})});
+  assert.equal(resumen.pausa_activa, true);
+  assert.equal(resumen.total, 0);
+  assert.equal(resumen.bloqueadas, 0);
+});

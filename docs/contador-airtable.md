@@ -38,3 +38,42 @@ No integrar en `main` sin revisar pruebas. `test/contador-airtable.test.js` incl
 - `lib/prueba-reserva-whatsapp.js`: avisos WhatsApp.
 
 Si se añaden otras rutas que accedan directamente a la API de Airtable, deberán instrumentarse expresamente. El contador no intercepta la actividad de herramientas externas.
+
+## Pausa preventiva del Sandbox (preparada para noviembre)
+
+La rama `corregir-bateria-pruebas` admite el interruptor **opt-in**
+`CONTACTIA_PAUSA_SANDBOX_AIRTABLE=1`, únicamente con `VERCEL_ENV=preview`.
+Por defecto está **DESACTIVADO** y no afecta a Production ni a otras ramas.
+
+- En pausa, cualquier GET/POST/PATCH/DELETE dirigido a la API de Airtable y que pase
+  por `crearFetchMedido` devuelve HTTP 503 **sin efectuar la llamada real**.
+  No se confirma ninguna reserva a través de las rutas bloqueadas.
+- El contador en Upstash continúa accesible desde el centro administrativo. Los
+  intentos interceptados se registran como `bloqueada`, separados de las peticiones
+  reales y de los errores 429. Si Upstash falla, el bloqueo sigue funcionando;
+  únicamente puede perderse el registro del intento.
+- Este interruptor no intercepta llamadas hechas por otras ramas, despliegues
+  antiguos, el propio panel de Airtable, Apps Script externos o integraciones ajenas
+  a Contactia. No detiene proveedores no-Airtable.
+- Solo habilitar la pausa mientras no se utilice el Sandbox para reservas o
+  pruebas de integración. No sustituye las comprobaciones de disponibilidad.
+
+### Activar la pausa (cuando se acuerde)
+
+En Vercel > proyecto `agente-restaurante` > Settings > Environment Variables,
+crear la variable `CONTACTIA_PAUSA_SANDBOX_AIRTABLE` con valor `1` SOLO
+en Preview, rama `corregir-bateria-pruebas`, y redesplegar esa rama.
+Volver a consultar el centro: indicará **SANDBOX EN PAUSA**.
+Para reanudar pruebas, cambiarla a `0` o eliminarla y **redesplegar**.
+El cambio de variable no altera despliegues antiguos ya publicados; utilizar
+siempre la URL de Preview de la rama correspondiente.
+
+No usar un interruptor global de Vercel ni cambiar credenciales del Sandbox,
+porque otras ramas podrían necesitar acceso. No solicitar ninguna llamada real
+a Airtable para validar este control mientras la cuota esté próxima al límite.
+
+### Noviembre
+
+Una vez recuperada la cuota, medir una carga de agenda con y sin cache,
+una conversación representativa y una reserva de prueba; después definir umbral
+de consumo y reducir lecturas duplicadas sin omitir verificaciones finales.
