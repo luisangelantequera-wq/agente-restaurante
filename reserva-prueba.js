@@ -5,8 +5,12 @@ const peticion=crypto.randomUUID();
 let token='',widget=null,enviando=false,siteKey='';
 function estado(texto){$('estado').textContent=texto;}
 async function pedir(accion,datos={}) {
- const respuesta=await fetch('/api/restaurante',{method:'POST',credentials:'omit',cache:'no-store',
+ // La Preview protegida necesita la cookie de acceso de Vercel también en la API.
+ const respuesta=await fetch('/api/restaurante',{method:'POST',credentials:'same-origin',cache:'no-store',
   headers:{'Content-Type':'application/json'},body:JSON.stringify({accion,slug,...datos})});
+ if(!respuesta.headers.get('content-type')?.includes('application/json')) {
+  throw new Error('No se pudo acceder al servicio de pruebas. Recarga la página y comprueba tu acceso a Vercel.');
+ }
  const contenido=await respuesta.json();
  if(!respuesta.ok||!contenido.ok)throw new Error(contenido.error||'No se pudo completar la solicitud.');
  return contenido;
