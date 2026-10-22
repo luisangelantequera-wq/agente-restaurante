@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Reservar · Contactia</title>
+<link rel="stylesheet" href="acceso-restaurante.css">
+<script src="reserva-prueba.js" defer></script>
+</head>
+<body><main>
+<header><p class="marca">CONTACTIA</p><h1 id="nombre-restaurante">Reserva tu mesa.</h1>
+<p class="nota">Prueba de desarrollo. No crea reservas en un restaurante real ni envía correos o WhatsApp.</p></header>
+<section class="tarjeta">
+<form id="reserva">
+<fieldset id="campos" disabled>
+<legend>Datos de la reserva</legend>
+<label for="fecha">Fecha</label><input type="date" id="fecha" required>
+<label for="hora">Hora</label><input type="time" id="hora" step="900" required>
+<label for="personas">Personas</label><input type="number" id="personas" min="1" max="1000" value="2" required>
+<label for="zona">Zona</label><select id="zona" required></select>
+<label for="nombre">Nombre</label><input id="nombre" maxlength="200" autocomplete="name" required>
+<label for="email">Correo electrónico</label><input type="email" id="email" maxlength="254" autocomplete="email" required>
+<label for="telefono">Teléfono</label><input type="tel" id="telefono" maxlength="40" autocomplete="tel" required>
+<label for="observaciones">Observaciones (opcional)</label><input id="observaciones" maxlength="4000">
+<div id="verificacion"></div>
+<button id="confirmar" type="submit" disabled>Confirmar reserva de prueba</button>
+</fieldset>
+</form>
+<p id="estado" role="status" aria-live="polite">Cargando formulario…</p>
+<p id="resultado" aria-live="polite"></p>
+</section>
+</main></body></html>

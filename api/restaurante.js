@@ -229,6 +229,10 @@ module.exports = async (req, res) => {
       return responder(res, 413, { ok: false, error: "La solicitud es demasiado grande." });
     }
 
+    if (["supabase_web_config", "supabase_web_reservar"].includes(accion)) {
+      return require("../lib/reservas-web-supabase")(req, res, body);
+    }
+
     if (accion.startsWith("supabase_")) {
       return require("../lib/acceso-supabase")(req, res, body);
     }
