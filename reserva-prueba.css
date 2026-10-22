@@ -1,0 +1,17 @@
+:root{color-scheme:dark;color:#e5ece7;background:#101815}
+body{background:radial-gradient(ellipse at top right,#20382b 0,transparent 65%),#101815;min-height:100vh}
+.marca{color:#9bc5aa}
+.nota{color:#aebdb3}
+.tarjeta{background:#1a2520;border-color:#35483c;box-shadow:0 16px 45px #0003}
+form{max-width:none}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{font-size:18px;font-weight:650;color:#c4dbcc;margin-bottom:4px}
+input,select{color:#e5ece7;background:#111c16;border-color:#52695a}
+input:disabled,select:disabled{color:#aebdb3;opacity:.7}
+button{background:#a4cbb0;color:#102318;border-color:#a4cbb0;width:100%}
+button:hover:not(:disabled){background:#bddcc6;border-color:#bddcc6}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline-color:#b4dfc2}
+#verificacion{margin-top:24px}
+#estado{color:#c5d4ca}
+#resultado{color:#bce5ca;overflow-wrap:anywhere}

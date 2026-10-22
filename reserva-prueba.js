@@ -13,7 +13,7 @@ async function pedir(accion,datos={}) {
 }
 function renderizar() {
  if(!window.turnstile||!siteKey||widget!==null)return;
- widget=window.turnstile.render('#verificacion',{sitekey:siteKey,action:'reservar',cData:peticion,
+ widget=window.turnstile.render('#verificacion',{sitekey:siteKey,theme:'dark',action:'reservar',cData:peticion,
   callback:valor=>{token=valor;$('confirmar').disabled=enviando;},
   'expired-callback':()=>{token='';$('confirmar').disabled=true;},
   'error-callback':()=>{token='';$('confirmar').disabled=true;estado('No se pudo completar la verificación. Recarga la página.');}});
