@@ -21,12 +21,14 @@
     form.append(el('p',`Horas del restaurante: ${r.zona_horaria}. Hasta cuatro franjas por día, dentro del mismo día.`,'nota'));
     if(!puedeEditar)form.append(el('p','Puedes consultar estos ajustes. Para guardarlos necesitas el rol de propietario o encargado.','nota'));
     function grupo(rangos,titulo) {
-      const conjunto=el('fieldset'); conjunto.append(el('legend',titulo));
+      const conjunto=el('fieldset',null,'grupo-horario'); conjunto.append(el('legend',titulo));
+      const contenido=el('div',null,'contenido-horario');conjunto.append(contenido);
       const cerrar=campo('checkbox');cerrar.checked=!rangos.length;
-      const etiqueta=el('label',null,'opcion-horario');etiqueta.append(cerrar,document.createTextNode('Cerrado'));conjunto.append(etiqueta);
-      const lista=el('div');conjunto.append(lista);const filas=[];
+      const etiqueta=el('label',null,'opcion-horario');etiqueta.append(cerrar,document.createTextNode('Cerrado'));contenido.append(etiqueta);
+      const lista=el('div',null,'lista-franjas');contenido.append(lista);const filas=[];
       function ajustar() {
         const deshabilitado=!puedeEditar||guardando||cerrar.checked;
+        conjunto.classList.toggle('dia-cerrado',cerrar.checked);
         cerrar.disabled=!puedeEditar||guardando;
         for(const fila of filas)for(const c of fila.controles)c.disabled=deshabilitado;
         anadir.disabled=deshabilitado||filas.length>=4;
@@ -36,11 +38,11 @@
         const desde=campo('time',rango.slice(0,5)),hasta=campo('time',rango.slice(6));desde.step=hasta.step='60';desde.required=hasta.required=true;
         const l1=el('label','Desde'),l2=el('label','Hasta');l1.append(desde);l2.append(hasta);
         const datosFila={fila,desde,hasta,controles:[desde,hasta]};
-        const quitar=boton('Quitar franja',()=>{
+        const quitar=boton('×',()=>{
           filas.splice(filas.indexOf(datosFila),1);fila.remove();if(!filas.length){cerrar.checked=true;franja();}ajustar();
-        });datosFila.controles.push(quitar);fila.append(l1,l2,quitar);lista.append(fila);filas.push(datosFila);
+        });quitar.setAttribute('aria-label',`Quitar franja de ${titulo}`);quitar.title='Quitar franja';datosFila.controles.push(quitar);fila.append(l1,l2,quitar);lista.append(fila);filas.push(datosFila);
       }
-      const anadir=boton('Añadir franja',()=>{franja();ajustar();});conjunto.append(anadir);
+      const anadir=boton('Añadir franja',()=>{franja();ajustar();});anadir.classList.add('anadir-franja');contenido.append(anadir);
       (rangos.length?rangos:['']).forEach(franja);cerrar.addEventListener('change',ajustar);ajustar();
       return {elemento:conjunto,ajustar,leer:()=>cerrar.checked?[]:A.validarRangos(filas.map(f=>`${f.desde.value}-${f.hasta.value}`),false)};
     }
