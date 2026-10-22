@@ -14,3 +14,12 @@ th,td{border-color:#35483c}
 dialog{color:#e5ece7;background:#1a2520;border:1px solid #52695a;border-radius:18px;padding:28px;width:min(540px,calc(100% - 32px));max-height:90vh;overflow:auto}
 dialog::backdrop{background:#000a}dialog form{max-width:none}
 #mensaje-cambio{color:#f0c291}
+.editor-horarios{margin-top:32px;border-top:1px solid #35483c;padding-top:20px}
+.editor-horarios summary{font-size:22px;font-weight:650;cursor:pointer}
+.editor-horarios form{max-width:none}.editor-horarios fieldset{border:1px solid #52695a;border-radius:10px;padding:16px;margin:22px 0;min-width:0}
+.editor-horarios legend{padding:0 8px;font-weight:650}.editor-horarios input{margin-top:8px}
+.editor-horarios .opcion-horario{display:flex;align-items:center;gap:10px;margin:8px 0}
+.opcion-horario input[type=checkbox]{width:20px;min-height:20px;height:20px;margin:0;flex:none;accent-color:#a4cbb0}
+.franja-horario{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;margin:12px 0}
+.franja-horario label{margin:0}.franja-horario button{grid-column:1/-1;justify-self:start;margin:0;padding:6px 12px;font-size:13px;min-height:36px}
+.fecha-especial{border-bottom:1px solid #52695a;padding-bottom:16px}.editor-horarios input:disabled{opacity:.55}

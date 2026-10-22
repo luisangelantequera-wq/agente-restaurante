@@ -136,6 +136,30 @@ test('reprogramación envía fecha civil y versión previa a la RPC de usuario y
     assert.ok(!JSON.stringify(salida.body).includes('PRIVADO'));
   }
 });
+test('horarios exigen sesión y solo aceptan calendario, reglas y versión válidos', async()=>{
+ const datos={accion:'supabase_guardar_horarios',restaurante_id:1,version:0,configuracion:{
+  horario:Object.fromEntries(['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map(d=>[d,['13:00-16:00']])),
+  especiales:[{fecha:'12-25',rangos:[]}],antelacion:30,intervalo:15}};
+ const sinSesion=cliente({usuario:null});sinSesion.rpc=()=>assert.fail('sin sesión');
+ assert.equal((await ejecutar(datos,sinSesion)).statusCode,401);
+ const cambios=[{version:-1},{configuracion:{...datos.configuracion,antelacion:'30'}},
+  {configuracion:{...datos.configuracion,horario:{...datos.configuracion.horario,lunes:['16:00-13:00']}}},
+  {configuracion:{...datos.configuracion,especiales:[{fecha:'2027-02-30',rangos:[]}]}},
+  {configuracion:{...datos.configuracion,rol:'propietario'}},{usuario_id:'otro'}];
+ for(const cambio of cambios){const c=cliente();c.rpc=()=>assert.fail('entrada inválida');assert.equal((await ejecutar({...datos,...cambio},c)).statusCode,400);}
+});
+test('guardar horarios usa RPC del usuario y traduce permisos y versiones obsoletas sin exponer SQL', async()=>{
+ const cfg={horario:Object.fromEntries(['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map(d=>[d,[]])),especiales:[],antelacion:60,intervalo:30};
+ for(const [codigo,status] of [[null,200],['42501',403],['40001',409],['22023',422],['XX000',503]]){
+  const c=cliente();c.rpc=async(nombre,parametros)=>{
+   assert.equal(nombre,'guardar_horarios_panel');assert.deepEqual(parametros,{p_restaurante:1,p_version:2,p_horario:cfg.horario,p_especiales:[],p_antelacion:60,p_intervalo:30});
+   return {data:codigo?null:{version:3,reservas_a_revisar:2},error:codigo?{code:codigo,message:'SQL PRIVADO'}:null};
+  };
+  const salida=await ejecutar({accion:'supabase_guardar_horarios',restaurante_id:1,version:2,configuracion:cfg},c);
+  assert.equal(salida.statusCode,status);assert.ok(!JSON.stringify(salida.body).includes('PRIVADO'));
+  if(!codigo)assert.equal(salida.body.reservas_a_revisar,2);
+ }
+});
 test('SDK real emite cookies HttpOnly, Secure, SameSite y no comparte clientes', async () => {
   const anterior=global.fetch;
   const payload=Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600})).toString('base64url');

@@ -68,7 +68,18 @@ async function cargar() {
     nota.textContent = datos.reservas.length ? 'Horas del restaurante. Pulsa Actualizar para consultar nuevas reservas.' : 'Todavía no hay reservas para este restaurante.';
     $('configuracion').append(reservas, nota, resumen,
       tabla('Zonas', ['Nombre', 'Estado'], datos.zonas.map(z => [z.nombre, z.estado === 'activo' ? 'Abierta' : 'Cerrada'])),
-      tabla('Mesas', ['Nombre', 'Personas', 'Estado'], datos.mesas.map(m => [m.nombre, `${m.min_personas}–${m.capacidad}`, m.estado])));
+      tabla('Mesas', ['Nombre', 'Personas', 'Estado'], datos.mesas.map(m => [m.nombre, `${m.min_personas}–${m.capacidad}`, m.estado])),
+      window.ContactiaHorariosPanel.crear(datos.restaurante,datos.puede_editar_horarios,async datosHorario=>{
+        const controles=[...document.querySelectorAll('#panel button'),$('restaurante')].map(n=>[n,n.disabled]);
+        controles.forEach(([n])=>{n.disabled=true;});
+        try{
+          const resultado=await pedir('supabase_guardar_horarios',datosHorario);
+          resumen.textContent=`Duración de la reserva: ${datos.restaurante.duracion_reserva_minutos} minutos. Antelación mínima: ${datosHorario.configuracion.antelacion} minutos.`;
+          return resultado;
+        }
+        catch(error){if(error.status===401){mostrarAcceso();mensaje(error.message);}throw error;}
+        finally{controles.forEach(([n,anterior])=>{n.disabled=anterior;});}
+      }));
     mensaje('');
   } catch (error) { if (error.status === 401) mostrarAcceso(); mensaje(error.message); }
   finally { $('restaurante').disabled = false; $('actualizar').disabled = false; }

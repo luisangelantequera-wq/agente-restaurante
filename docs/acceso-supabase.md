@@ -82,6 +82,35 @@ destino ya aplicado devuelve éxito. Se registra el último reprogramado_por/en.
 Los permisos de escritura directa siguen revocados. Pruebas SQL reversibles
 comprueban aislamiento, conflictos, rollback, auditoría, estado y versión previa.
 
+## Horarios y cierres
+
+La sección desplegable «Horarios y cierres» consulta el horario semanal, las
+fechas especiales (concretas o anuales), antelación e intervalo de entradas.
+Permite hasta cuatro franjas ordenadas por día y cien fechas especiales. Las
+franjas deben empezar y terminar dentro del mismo día, entre 00:00 y 23:59,
+sin solapamientos. Un día puede cerrarse con su casilla. Los cierres anteriores
+se integran en las fechas especiales al abrir el editor, conservando la prioridad
+de una excepción de fecha exacta frente a un cierre o excepción anual.
+
+Solo propietarios y encargados activos pueden guardar. La API valida Auth,
+origen y contenido; la RPC valida independientemente el calendario, el rol y
+la pertenencia almacenados en base de datos. Una función privada de capacidad
+limitada actualiza los campos y deriva dias_cierre; no concede UPDATE directo.
+Guarda horarios_version y autor/fecha para detectar cambios simultáneos. Una
+versión obsoleta exige volver a cargar antes de guardar, incluso tras perder la
+respuesta de un guardado exitoso. La duración de las reservas no se edita aquí.
+
+Las nuevas reglas afectan inmediatamente al formulario público y a la
+reprogramación, que leen la misma configuración sin caché. No cancelan ni
+desplazan reservas existentes ni envían avisos. El resultado cuenta las reservas
+futuras no canceladas que requieren revisión por horarios, cierres, intervalos,
+antelación o fechas/horas no válidas según las reglas actuales. El aviso informa
+del total; no lista todavía cada reserva afectada.
+
+La sección usa la sesión del usuario, nunca la clave privada del formulario.
+Los empleados tienen acceso de lectura. Las pruebas 06_horarios_panel.sql se
+ejecutan con datos ficticios dentro de una transacción que siempre se revierte.
+
 No habilita todavía creación de reservas desde el panel, alta de restaurantes o zonas, registro
 público de cuentas ni recuperación desde la interfaz. La recuperación la gestiona
 administración hasta preparar SMTP y el flujo de restablecimiento.
