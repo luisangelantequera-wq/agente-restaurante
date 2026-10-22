@@ -5,9 +5,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { PGlite } = require('@electric-sql/pglite');
+const { btree_gist } = require('@electric-sql/pglite/contrib/btree_gist');
 
 async function main() {
-  const db = new PGlite();
+  const db = new PGlite({ extensions: { btree_gist } });
   try {
     await db.exec(`
       create role anon;
@@ -26,7 +27,10 @@ async function main() {
       await db.exec(fs.readFileSync(path.join(raiz, 'migrations', archivo), 'utf8'));
       console.log(`Migración correcta: ${archivo}`);
     }
-    await db.exec(fs.readFileSync(path.join(raiz, 'tests', '01_aislamiento.sql'), 'utf8'));
+    for (const archivo of fs.readdirSync(path.join(raiz, 'tests')).filter(f => f.endsWith('.sql')).sort()) {
+      await db.exec(fs.readFileSync(path.join(raiz, 'tests', archivo), 'utf8'));
+      console.log(`Prueba SQL correcta: ${archivo}`);
+    }
     console.log('Aislamiento Sol/Luna, usuario desactivado, bloqueo anónimo, permisos y relaciones: OK.');
   } finally {
     await db.close();

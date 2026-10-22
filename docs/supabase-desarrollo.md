@@ -10,7 +10,7 @@
 ## Estado verificado el 22 de octubre de 2026
 
 Se aplicó la migración `configuracion_y_accesos` del archivo
-`supabase/migrations/20261022000100_configuracion_y_accesos.sql`.
+`supabase/migrations/20261022145123_configuracion_y_accesos.sql`.
 Las tablas restaurantes, restaurante_usuarios, zonas y mesas están creadas.
 
 La prueba `supabase/tests/01_aislamiento.sql` pasó en el PostgreSQL alojado:
@@ -32,3 +32,4 @@ Esto verifica la estructura actual; no constituye una auditoría de toda la apli
 
 Contactia sigue usando Airtable. No se ha cambiado producción ni se han
 copiado datos reales. Esta referencia de proyecto es pública y no contiene claves.
+
