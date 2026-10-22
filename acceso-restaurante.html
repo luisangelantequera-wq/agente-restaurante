@@ -35,5 +35,19 @@
     <div id="configuracion" aria-live="polite"></div>
   </section>
 </main>
+<dialog id="cambio-reserva" aria-labelledby="titulo-cambio">
+  <h2 id="titulo-cambio">Cambiar fecha y hora</h2>
+  <p id="resumen-cambio"></p>
+  <form id="formulario-cambio">
+    <label for="nueva-fecha">Nueva fecha</label>
+    <input id="nueva-fecha" type="date" required>
+    <label for="nueva-hora">Nueva hora</label>
+    <input id="nueva-hora" type="time" required>
+    <p class="nota">Se conservarán la zona y las mesas. Si no hay disponibilidad, la reserva original se mantiene. Esta prueba no envía avisos.</p>
+    <p id="mensaje-cambio" role="status" aria-live="polite"></p>
+    <button id="guardar-cambio" type="submit">Guardar nueva fecha y hora</button>
+    <button id="cerrar-cambio" class="secundario" type="button">Volver sin guardar</button>
+  </form>
+</dialog>
 </body>
 </html>

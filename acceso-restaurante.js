@@ -1,6 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const mensaje = texto => { $('mensaje').textContent = texto; };
+let edicion=null, enviandoCambio=false;
 async function pedir(accion, datos = {}) {
   const respuesta = await fetch('/api/restaurante', {
     method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -16,6 +17,7 @@ async function pedir(accion, datos = {}) {
   return contenido;
 }
 function mostrarAcceso() {
+  $('cambio-reserva').close(); edicion=null;
   $('panel').hidden = true;
   $('acceso').hidden = false;
   $('configuracion').replaceChildren();
@@ -50,9 +52,15 @@ async function cargar() {
       datos.reservas.map(r => {
         let accion='—';
         if(['confirmada','con retraso'].includes(r.estado) && new Date(r.inicio).getTime()>Date.now()) {
-          accion=document.createElement('button'); accion.type='button'; accion.className='cancelar'; accion.textContent='Cancelar';
-          accion.setAttribute('aria-label',`Cancelar reserva de ${r.nombre}`);
-          accion.addEventListener('click',()=>cancelar(r,datos.restaurante.id,formatoFecha));
+          accion=document.createElement('div'); accion.className='acciones-reserva';
+          if(r.estado==='confirmada') {
+            const cambiar=document.createElement('button'); cambiar.type='button'; cambiar.className='cambiar'; cambiar.textContent='Cambiar fecha/hora';
+            cambiar.setAttribute('aria-label',`Cambiar fecha y hora de la reserva de ${r.nombre}`);
+            cambiar.addEventListener('click',()=>abrirCambio(r,datos.restaurante,formatoFecha)); accion.append(cambiar);
+          }
+          const boton=document.createElement('button'); boton.type='button'; boton.className='cancelar'; boton.textContent='Cancelar';
+          boton.setAttribute('aria-label',`Cancelar reserva de ${r.nombre}`);
+          boton.addEventListener('click',()=>cancelar(r,datos.restaurante.id,formatoFecha)); accion.append(boton);
         }
         return [formatoFecha.format(new Date(r.inicio)), r.nombre, r.personas, zonas.get(r.zona_id) || 'Zona no disponible', r.estado,accion];
       })));
@@ -65,6 +73,34 @@ async function cargar() {
   } catch (error) { if (error.status === 401) mostrarAcceso(); mensaje(error.message); }
   finally { $('restaurante').disabled = false; $('actualizar').disabled = false; }
 }
+function abrirCambio(reserva, restaurante, formatoFecha) {
+  edicion={reserva,restaurante};
+  const partes=new Intl.DateTimeFormat('en-GB',{timeZone:restaurante.zona_horaria,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(reserva.inicio));
+  const valores=Object.fromEntries(partes.map(p=>[p.type,p.value]));
+  $('nueva-fecha').value=`${valores.year}-${valores.month}-${valores.day}`;
+  $('nueva-hora').value=`${valores.hour}:${valores.minute}`;
+  // El intervalo se valida en servidor respecto al inicio de cada turno.
+  $('nueva-hora').step='60';
+  $('resumen-cambio').textContent=`${reserva.nombre} · ${reserva.personas} personas. Reserva actual: ${formatoFecha.format(new Date(reserva.inicio))}. Horas de ${restaurante.zona_horaria}.`;
+  $('mensaje-cambio').textContent=''; $('cambio-reserva').showModal(); $('nueva-fecha').focus();
+}
+$('cerrar-cambio').addEventListener('click',()=>{if(!enviandoCambio) $('cambio-reserva').close();});
+$('cambio-reserva').addEventListener('cancel',evento=>{if(enviandoCambio) evento.preventDefault();});
+$('cambio-reserva').addEventListener('close',()=>{edicion=null;});
+$('formulario-cambio').addEventListener('submit',async evento=>{
+  evento.preventDefault(); if(!edicion || enviandoCambio) return;
+  const actual=edicion; enviandoCambio=true;
+  const campos=[$('nueva-fecha'),$('nueva-hora'),$('guardar-cambio'),$('cerrar-cambio')];
+  campos.forEach(c=>{c.disabled=true;}); $('mensaje-cambio').textContent='Comprobando disponibilidad y guardando…';
+  try {
+    const resultado=await pedir('supabase_reprogramar',{restaurante_id:actual.restaurante.id,reserva_id:actual.reserva.id,
+      fecha:$('nueva-fecha').value,hora:$('nueva-hora').value,inicio_anterior:actual.reserva.inicio});
+    $('cambio-reserva').close(); await cargar(); mensaje(resultado.mensaje);
+  } catch(error) {
+    if(error.status===401) {mostrarAcceso();mensaje(error.message);}
+    else $('mensaje-cambio').textContent=error.message;
+  } finally {enviandoCambio=false; campos.forEach(c=>{c.disabled=false;});}
+});
 async function cancelar(reserva, restauranteId, formatoFecha) {
   if(!window.confirm(`¿Cancelar la reserva de ${reserva.nombre}, para ${reserva.personas} personas, del ${formatoFecha.format(new Date(reserva.inicio))}?\nLa mesa quedará libre. Esta prueba no envía avisos.`)) return;
   const botones=[...document.querySelectorAll('#panel button'),$('restaurante')];

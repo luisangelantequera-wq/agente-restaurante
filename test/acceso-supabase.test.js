@@ -115,6 +115,27 @@ test('configuración consulta reservas con sesión verificada, filtro y límite 
   assert.deepEqual(reservas.orden,[['creado_en',{ascending:false}],['id',{ascending:false}]]);
   assert.ok(!/email|telefono|observaciones/.test(reservas.campos));
 });
+test('reprogramación exige sesión y rechaza mesas, zona, usuario y fechas u horas inválidas', async () => {
+  const datos={accion:'supabase_reprogramar',restaurante_id:1,reserva_id:'40000000-0000-4000-8000-000000000041',fecha:'2027-02-28',hora:'14:00',inicio_anterior:'2027-02-27T13:00:00+00:00'};
+  const sinSesion=cliente({usuario:null});sinSesion.rpc=()=>assert.fail('sin sesión');
+  assert.equal((await ejecutar(datos,sinSesion)).statusCode,401);
+  for(const cambio of [{fecha:'2027-02-30'},{hora:'24:00'},{hora:{}},{inicio_anterior:'mañana'},{mesas:['otra']},{zona_id:'otra'},{usuario_id:'otro'},{restaurante_id:'1'}]) {
+    const c=cliente();c.rpc=()=>assert.fail('parámetros inválidos');
+    assert.equal((await ejecutar({...datos,...cambio},c)).statusCode,400);
+  }
+});
+test('reprogramación envía fecha civil y versión previa a la RPC de usuario y traduce conflictos', async () => {
+  const datos={accion:'supabase_reprogramar',restaurante_id:1,reserva_id:'40000000-0000-4000-8000-000000000041',fecha:'2027-02-28',hora:'14:00',inicio_anterior:'2027-02-27T13:00:00+00:00'};
+  for(const [codigo,status,detalle] of [[null,200],['42501',403],['P0002',404],['55000',409],['40001',409],['23P01',409],['22023',422],['P0001',422,'FUERA_HORARIO'],['XX000',503]]) {
+    const c=cliente();c.rpc=async(nombre,parametros)=>{
+      assert.equal(nombre,'reprogramar_reserva_panel');
+      assert.deepEqual(parametros,{p_restaurante:1,p_reserva:datos.reserva_id,p_fecha:datos.fecha,p_hora:datos.hora,p_inicio_anterior:datos.inicio_anterior});
+      return {data:codigo?null:true,error:codigo?{code:codigo,message:detalle||'SQL PRIVADO'}:null};
+    };
+    const salida=await ejecutar(datos,c);assert.equal(salida.statusCode,status);
+    assert.ok(!JSON.stringify(salida.body).includes('PRIVADO'));
+  }
+});
 test('SDK real emite cookies HttpOnly, Secure, SameSite y no comparte clientes', async () => {
   const anterior=global.fetch;
   const payload=Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600})).toString('base64url');

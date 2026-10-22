@@ -2,7 +2,7 @@
 
 Pantalla: `/acceso-restaurante.html`. Usa el mismo endpoint `/api/restaurante`
 con acciones `supabase_entrar`, `supabase_estado`, `supabase_configuracion` y
-`supabase_salir` y `supabase_cancelar`, sin añadir otra función de Vercel.
+`supabase_salir`, `supabase_cancelar` y `supabase_reprogramar`, sin añadir otra función de Vercel.
 
 Solo está habilitado en Preview de `migracion-supabase-fase-1`. Producción y
 otras ramas responden 404 antes de consultar proveedores. Para ejecución local,
@@ -67,7 +67,22 @@ No acepta un usuario del navegador, no concede escritura directa ni reutiliza
 service_role. Los triggers liberan las mesas de forma atómica. Se guardan
 cancelado_por y cancelado_en; al borrar una cuenta se conserva la fecha.
 
-No habilita todavía creación de reservas desde el panel, reprogramación, alta de restaurantes o zonas, registro
+La reprogramación abre un diálogo con fecha/hora local del restaurante. Permite
+cambiar únicamente reservas futuras confirmadas, conservando mesas, zona,
+personas y duración histórica. Reutiliza el motor de ocupación y el validador de
+horarios del formulario: días especiales, cierres, intervalos, antelación,
+horizonte de 365 días y horas inexistentes/ambiguas de Europe/Madrid. No cambia
+la mesa por otra aunque haya hueco: el usuario recibe un conflicto y la reserva
+original queda intacta. No se envían avisos.
+
+`reprogramar_reserva_panel` usa el mismo patrón de wrapper invoker y función
+privada definer con auth.uid(), pertenencia activa y bloqueo de reserva. Exige
+el inicio anterior para detectar ediciones simultáneas; un reintento del mismo
+destino ya aplicado devuelve éxito. Se registra el último reprogramado_por/en.
+Los permisos de escritura directa siguen revocados. Pruebas SQL reversibles
+comprueban aislamiento, conflictos, rollback, auditoría, estado y versión previa.
+
+No habilita todavía creación de reservas desde el panel, alta de restaurantes o zonas, registro
 público de cuentas ni recuperación desde la interfaz. La recuperación la gestiona
 administración hasta preparar SMTP y el flujo de restablecimiento.
 
