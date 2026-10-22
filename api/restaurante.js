@@ -229,6 +229,10 @@ module.exports = async (req, res) => {
       return responder(res, 413, { ok: false, error: "La solicitud es demasiado grande." });
     }
 
+    if (accion.startsWith("supabase_")) {
+      return require("../lib/acceso-supabase")(req, res, body);
+    }
+
     if (accion === "encargo_visto") return require("../lib/encargos-panel")(req,res);
 
     // Los datos estables utilizan las mismas funciones desplegadas para
