@@ -49,8 +49,13 @@ sesión. Estas verificaciones quedan pendientes hasta tener cuentas de prueba.
 
 ## Alcance y validación
 
-La pantalla permite entrar, ver configuración autorizada y cerrar sesión. No
-habilita todavía reservas, edición, alta de restaurantes o zonas, registro
+La pantalla permite entrar, ver configuración autorizada, consultar las últimas
+50 reservas creadas y cerrar sesión. Las reservas se leen con la sesión del
+usuario y RLS, filtradas además por restaurante. Muestran nombre, fecha/hora
+en la zona horaria del restaurante, personas, zona y estado; no incluyen correo,
+teléfono u observaciones. No hay sondeo automático: se usa Actualizar. La lista
+incluye canceladas y es de lectura, sin paginación ni edición por ahora.
+No habilita todavía creación de reservas desde el panel, edición, alta de restaurantes o zonas, registro
 público de cuentas ni recuperación desde la interfaz. La recuperación la gestiona
 administración hasta preparar SMTP y el flujo de restablecimiento.
 

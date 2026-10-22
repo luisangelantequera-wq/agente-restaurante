@@ -39,7 +39,16 @@ async function cargar() {
     $('titulo-panel').textContent = datos.restaurante.nombre;
     const resumen = document.createElement('p');
     resumen.textContent = `Duración de la reserva: ${datos.restaurante.duracion_reserva_minutos} minutos. Antelación mínima: ${datos.restaurante.antelacion_minima_reserva_minutos} minutos.`;
-    $('configuracion').append(resumen,
+    const formatoFecha = new Intl.DateTimeFormat('es-ES', { timeZone: datos.restaurante.zona_horaria,
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const zonas = new Map(datos.zonas.map(z => [z.id, z.nombre]));
+    const reservas = document.createElement('div'); reservas.className = 'tabla-reservas';
+    reservas.tabIndex = 0; reservas.setAttribute('role', 'region'); reservas.setAttribute('aria-label', 'Reservas recientes');
+    reservas.append(tabla('Últimas 50 reservas creadas', ['Fecha y hora', 'Nombre', 'Personas', 'Zona', 'Estado'],
+      datos.reservas.map(r => [formatoFecha.format(new Date(r.inicio)), r.nombre, r.personas, zonas.get(r.zona_id) || 'Zona no disponible', r.estado])));
+    const nota = document.createElement('p'); nota.className = 'nota';
+    nota.textContent = datos.reservas.length ? 'Horas del restaurante. Pulsa Actualizar para consultar nuevas reservas.' : 'Todavía no hay reservas para este restaurante.';
+    $('configuracion').append(reservas, nota, resumen,
       tabla('Zonas', ['Nombre', 'Estado'], datos.zonas.map(z => [z.nombre, z.estado === 'activo' ? 'Abierta' : 'Cerrada'])),
       tabla('Mesas', ['Nombre', 'Personas', 'Estado'], datos.mesas.map(m => [m.nombre, `${m.min_personas}–${m.capacidad}`, m.estado])));
     mensaje('');

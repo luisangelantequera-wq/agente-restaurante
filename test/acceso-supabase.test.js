@@ -71,6 +71,27 @@ test('cerrar sesión afecta únicamente a la sesión actual', async () => {
   assert.equal((await ejecutar({accion:'supabase_salir'},c)).statusCode,200);
   assert.deepEqual(c.llamadas,[['salir',{scope:'local'}]]);
 });
+test('configuración consulta reservas con sesión verificada, filtro y límite sin datos de contacto', async () => {
+  const c=cliente(); const consultas=[];
+  c.from=tabla=>{
+    const consulta={tabla,filtros:[],orden:[]}; consultas.push(consulta);
+    const respuesta={data:tabla==='reservas'?[{id:'reserva-prueba',nombre:'Prueba',personas:2}]:[],error:null};
+    return {select(campos){consulta.campos=campos;return this;},
+      eq(campo,valor){consulta.filtros.push([campo,valor]);return this;},
+      order(campo,opciones){consulta.orden.push([campo,opciones]);return this;},
+      limit(n){consulta.limite=n;return this;},
+      maybeSingle:async()=>({data:{id:1,nombre:'Sol'},error:null}),
+      then(resolve,reject){return Promise.resolve(respuesta).then(resolve,reject);}};
+  };
+  const salida=await ejecutar({accion:'supabase_configuracion',restaurante_id:1},c);
+  assert.equal(salida.statusCode,200);
+  assert.equal(salida.body.reservas[0].nombre,'Prueba');
+  const reservas=consultas.find(q=>q.tabla==='reservas');
+  assert.deepEqual(reservas.filtros,[['restaurante_id',1]]);
+  assert.equal(reservas.limite,50);
+  assert.deepEqual(reservas.orden,[['creado_en',{ascending:false}],['id',{ascending:false}]]);
+  assert.ok(!/email|telefono|observaciones/.test(reservas.campos));
+});
 test('SDK real emite cookies HttpOnly, Secure, SameSite y no comparte clientes', async () => {
   const anterior=global.fetch;
   const payload=Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600})).toString('base64url');

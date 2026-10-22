@@ -1,0 +1,10 @@
+:root{color-scheme:dark;color:#e5ece7;background:#101815}
+.marca{color:#9bc5aa}.nota,#usuario{color:#aebdb3}
+.tarjeta{background:#1a2520;border-color:#35483c;box-shadow:0 16px 45px #0003}
+input,select{color:#e5ece7;background:#111c16;border-color:#52695a}
+button{background:#a4cbb0;color:#102318;border-color:#a4cbb0}
+.secundario{color:#c4dbcc;border-color:#6d927a}
+:focus-visible{outline-color:#b4dfc2}
+#mensaje{color:#f0c291}
+th,td{border-color:#35483c}
+.tabla-reservas{overflow-x:auto}.tabla-reservas table{min-width:560px}
