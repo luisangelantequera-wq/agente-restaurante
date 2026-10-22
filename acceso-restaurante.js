@@ -67,8 +67,11 @@ async function cargar() {
     const nota = document.createElement('p'); nota.className = 'nota';
     nota.textContent = datos.reservas.length ? 'Horas del restaurante. Pulsa Actualizar para consultar nuevas reservas.' : 'Todavía no hay reservas para este restaurante.';
     $('configuracion').append(reservas, nota, resumen,
-      tabla('Zonas', ['Nombre', 'Estado'], datos.zonas.map(z => [z.nombre, z.estado === 'activo' ? 'Abierta' : 'Cerrada'])),
-      tabla('Mesas', ['Nombre', 'Personas', 'Estado'], datos.mesas.map(m => [m.nombre, `${m.min_personas}–${m.capacidad}`, m.estado])),
+      tabla('Zonas', ['Nombre', 'Estado', 'Acciones'], datos.zonas.map(z => [z.nombre, z.estado === 'activo' ? 'Abierta' : 'Cerrada',
+        botonDisponibilidad('zona',z,datos.restaurante.id,datos.puede_editar_disponibilidad)])),
+      tabla('Mesas', ['Nombre', 'Zona', 'Personas', 'Estado', 'Acciones'], datos.mesas.map(m => [m.nombre,zonas.get(m.zona_id)||'',`${m.min_personas}–${m.capacidad}`,
+        m.estado==='libre'?'Operativa'+(datos.zonas.find(z=>z.id===m.zona_id)?.estado==='inactivo'?' · zona cerrada':''):'Fuera de servicio',
+        botonDisponibilidad('mesa',m,datos.restaurante.id,datos.puede_editar_disponibilidad)])),
       window.ContactiaHorariosPanel.crear(datos.restaurante,datos.puede_editar_horarios,async datosHorario=>{
         const controles=[...document.querySelectorAll('#panel button'),$('restaurante')].map(n=>[n,n.disabled]);
         controles.forEach(([n])=>{n.disabled=true;});
@@ -83,6 +86,30 @@ async function cargar() {
     mensaje('');
   } catch (error) { if (error.status === 401) mostrarAcceso(); mensaje(error.message); }
   finally { $('restaurante').disabled = false; $('actualizar').disabled = false; }
+}
+function botonDisponibilidad(tipo,elemento,restauranteId,permitido) {
+  if(!permitido)return 'Solo consulta';
+  const cerrar=tipo==='zona'?elemento.estado==='activo':elemento.estado==='libre';
+  const boton=document.createElement('button');boton.type='button';boton.className='cambiar';
+  boton.textContent=tipo==='zona'?(cerrar?'Cerrar zona':'Abrir zona'):(cerrar?'Fuera de servicio':'Poner operativa');
+  boton.setAttribute('aria-label',`${boton.textContent}: ${elemento.nombre}`);
+  boton.addEventListener('click',()=>cambiarDisponibilidad(tipo,elemento,restauranteId,cerrar));return boton;
+}
+async function cambiarDisponibilidad(tipo,elemento,restauranteId,cerrar) {
+  const controles=[...document.querySelectorAll('#panel button,#panel input,#panel select')].map(n=>[n,n.disabled]);
+  controles.forEach(([n])=>{n.disabled=true;});mensaje('Comprobando reservas afectadas…');
+  const solicitud={restaurante_id:restauranteId,tipo,elemento_id:elemento.id,version:elemento.estado_version,
+    estado:tipo==='zona'?(cerrar?'inactivo':'activo'):(cerrar?'fuera de servicio':'libre')};
+  try {
+    const previo=await pedir('supabase_disponibilidad',{...solicitud,aplicar:false});
+    const accion=tipo==='zona'?(cerrar?'Cerrar zona':'Abrir zona'):(cerrar?'Poner fuera de servicio':'Poner operativa');
+    const aviso=cerrar?`Reservas pendientes o en curso afectadas: ${previo.afectadas}. Se conservarán y sus mesas seguirán reservadas. Se bloquearán nuevas asignaciones.`:
+      (tipo==='zona'?'Las mesas fuera de servicio seguirán desactivadas.':'La mesa admitirá reservas si su zona está abierta y hay disponibilidad.');
+    if(!window.confirm(`${accion}: ${elemento.nombre}\n\n${aviso}\nNo se enviarán avisos a clientes.\n\n¿Aplicar el cambio?`)){mensaje('Cambio descartado.');return;}
+    const resultado=await pedir('supabase_disponibilidad',{...solicitud,aplicar:true,afectadas_esperadas:previo.afectadas});
+    await cargar();mensaje(resultado.mensaje);
+  } catch(error){if(error.status===401)mostrarAcceso();mensaje(error.message);}
+  finally{controles.forEach(([n,anterior])=>{n.disabled=anterior;});}
 }
 function abrirCambio(reserva, restaurante, formatoFecha) {
   edicion={reserva,restaurante};

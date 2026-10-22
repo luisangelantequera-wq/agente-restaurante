@@ -111,6 +111,33 @@ La sección usa la sesión del usuario, nunca la clave privada del formulario.
 Los empleados tienen acceso de lectura. Las pruebas 06_horarios_panel.sql se
 ejecutan con datos ficticios dentro de una transacción que siempre se revierte.
 
+## Disponibilidad de zonas y mesas
+
+El panel permite abrir/cerrar zonas y marcar mesas operativas o fuera de
+servicio. Propietarios y encargados activos pueden cambiar el estado; empleados
+solo lo consultan. No permite crear, borrar ni mover zonas o mesas.
+
+La acción `supabase_disponibilidad` llama a `disponibilidad_panel` usando la
+sesión del usuario. Primero previsualiza el recuento de reservas pendientes o en
+curso (fin futuro y ocupación activa), contando una combinación una sola vez.
+El navegador muestra este recuento antes de confirmar. Al aplicar, la función
+privada vuelve a comprobar pertenencia, rol, versión del elemento y recuento;
+si cambia el estado o el total, exige actualizar y confirmar de nuevo.
+
+Los bloqueos siguen el orden restaurante → zona → mesa y se coordinan con el
+motor de asignación para impedir nuevas reservas mientras se aplica un cierre.
+La función actualiza exclusivamente estado, estado_version y autor/fecha.
+El wrapper público es SECURITY INVOKER; la escritura limitada vive en esquema
+privado con auth.uid() obligatorio. No hay UPDATE directo ni service_role en
+el panel. La vista previa no modifica datos ni incrementa versiones.
+
+Cerrar no cancela ni libera reservas existentes y no envía avisos. Reabrir una
+zona conserva las mesas que estuvieran fuera de servicio; poner operativa una
+mesa tampoco abre su zona ni libera periodos reservados. Estos estados son
+generales hasta volver a cambiarlos, no cierres programados para una fecha.
+El motor comprueba los estados en cada alta o reprogramación. Las pruebas
+07_disponibilidad_panel.sql se ejecutan con datos ficticios y rollback.
+
 No habilita todavía creación de reservas desde el panel, alta de restaurantes o zonas, registro
 público de cuentas ni recuperación desde la interfaz. La recuperación la gestiona
 administración hasta preparar SMTP y el flujo de restablecimiento.

@@ -160,6 +160,25 @@ test('guardar horarios usa RPC del usuario y traduce permisos y versiones obsole
   if(!codigo)assert.equal(salida.body.reservas_a_revisar,2);
  }
 });
+test('disponibilidad exige sesión, estados válidos y recuento para confirmar',async()=>{
+ const datos={accion:'supabase_disponibilidad',restaurante_id:1,tipo:'zona',elemento_id:'10000000-0000-4000-8000-000000000041',estado:'inactivo',version:0,aplicar:false};
+ const sinSesion=cliente({usuario:null});sinSesion.rpc=()=>assert.fail('sin sesión');
+ assert.equal((await ejecutar(datos,sinSesion)).statusCode,401);
+ for(const cambio of [{tipo:'restaurante'},{estado:'libre'},{elemento_id:{}},{aplicar:'true'},{aplicar:true},{aplicar:true,afectadas_esperadas:-1},{version:-1},{usuario_id:'otro'}]){
+  const c=cliente();c.rpc=()=>assert.fail('entrada inválida');assert.equal((await ejecutar({...datos,...cambio},c)).statusCode,400);
+ }
+});
+test('disponibilidad previsualiza y aplica con RPC del usuario y traduce estados obsoletos',async()=>{
+ for(const aplicar of [false,true])for(const [codigo,status] of [[null,200],['42501',403],['40001',409],['P0002',404],['22023',422],['XX000',503]]){
+  const c=cliente();c.rpc=async(nombre,p)=>{
+   assert.equal(nombre,'disponibilidad_panel');assert.deepEqual(p,{p_restaurante:1,p_tipo:'mesa',p_elemento:'20000000-0000-4000-8000-000000000041',p_estado:'fuera de servicio',p_version:0,p_aplicar:aplicar,p_afectadas_esperadas:aplicar?2:null});
+   return {data:codigo?null:{version:aplicar?1:0,estado:aplicar?'fuera de servicio':'libre',afectadas:2,aplicado:aplicar},error:codigo?{code:codigo,message:'SQL PRIVADO'}:null};
+  };
+  const salida=await ejecutar({accion:'supabase_disponibilidad',restaurante_id:1,tipo:'mesa',elemento_id:'20000000-0000-4000-8000-000000000041',estado:'fuera de servicio',version:0,aplicar,afectadas_esperadas:2},c);
+  assert.equal(salida.statusCode,status);assert.ok(!JSON.stringify(salida.body).includes('PRIVADO'));
+  if(!codigo)assert.equal(salida.body.afectadas,2);
+ }
+});
 test('SDK real emite cookies HttpOnly, Secure, SameSite y no comparte clientes', async () => {
   const anterior=global.fetch;
   const payload=Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600})).toString('base64url');
