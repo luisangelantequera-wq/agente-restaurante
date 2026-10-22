@@ -8,3 +8,4 @@ button{background:#a4cbb0;color:#102318;border-color:#a4cbb0}
 #mensaje{color:#f0c291}
 th,td{border-color:#35483c}
 .tabla-reservas{overflow-x:auto}.tabla-reservas table{min-width:560px}
+.cancelar{background:transparent;color:#efc4a1;border-color:#a47755;font-size:13px;padding:8px 12px;margin:0;min-height:40px}

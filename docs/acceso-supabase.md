@@ -2,7 +2,7 @@
 
 Pantalla: `/acceso-restaurante.html`. Usa el mismo endpoint `/api/restaurante`
 con acciones `supabase_entrar`, `supabase_estado`, `supabase_configuracion` y
-`supabase_salir`, sin añadir otra función de Vercel.
+`supabase_salir` y `supabase_cancelar`, sin añadir otra función de Vercel.
 
 Solo está habilitado en Preview de `migracion-supabase-fase-1`. Producción y
 otras ramas responden 404 antes de consultar proveedores. Para ejecución local,
@@ -54,8 +54,20 @@ La pantalla permite entrar, ver configuración autorizada, consultar las última
 usuario y RLS, filtradas además por restaurante. Muestran nombre, fecha/hora
 en la zona horaria del restaurante, personas, zona y estado; no incluyen correo,
 teléfono u observaciones. No hay sondeo automático: se usa Actualizar. La lista
-incluye canceladas y es de lectura, sin paginación ni edición por ahora.
-No habilita todavía creación de reservas desde el panel, edición, alta de restaurantes o zonas, registro
+incluye canceladas, sin paginación por ahora.
+
+La cancelación requiere confirmación en pantalla y una sesión validada. Todos los
+miembros activos del restaurante pueden cancelar reservas futuras confirmadas o
+con retraso; las ocupadas, cobradas o ya iniciadas se rechazan. Un reintento sobre
+una cancelada devuelve éxito sin alterar su autor o fecha. No se envían avisos.
+La RPC pública `cancelar_reserva_panel` es SECURITY INVOKER; llama a una función
+privada SECURITY DEFINER de capacidad limitada, con search_path vacío. Esta
+exige auth.uid() y bloquea la pertenencia activa y reserva durante la operación.
+No acepta un usuario del navegador, no concede escritura directa ni reutiliza
+service_role. Los triggers liberan las mesas de forma atómica. Se guardan
+cancelado_por y cancelado_en; al borrar una cuenta se conserva la fecha.
+
+No habilita todavía creación de reservas desde el panel, reprogramación, alta de restaurantes o zonas, registro
 público de cuentas ni recuperación desde la interfaz. La recuperación la gestiona
 administración hasta preparar SMTP y el flujo de restablecimiento.
 

@@ -71,6 +71,29 @@ test('cerrar sesión afecta únicamente a la sesión actual', async () => {
   assert.equal((await ejecutar({accion:'supabase_salir'},c)).statusCode,200);
   assert.deepEqual(c.llamadas,[['salir',{scope:'local'}]]);
 });
+test('cancelación exige sesión, identificadores válidos y no acepta cambios de datos', async () => {
+  const datos={accion:'supabase_cancelar',restaurante_id:1,reserva_id:'40000000-0000-4000-8000-000000000041'};
+  const sinSesion=cliente({usuario:null}); sinSesion.rpc=()=>assert.fail('sin sesión');
+  assert.equal((await ejecutar(datos,sinSesion)).statusCode,401);
+  for(const cambio of [{restaurante_id:'1'},{reserva_id:{}},{estado:'confirmada'},{restaurante_id:0}]) {
+    const c=cliente(); c.rpc=()=>assert.fail('entrada inválida');
+    assert.equal((await ejecutar({...datos,...cambio},c)).statusCode,400);
+  }
+});
+test('cancelación usa la sesión y RPC limitada; errores no revelan SQL', async () => {
+  const datos={accion:'supabase_cancelar',restaurante_id:1,reserva_id:'40000000-0000-4000-8000-000000000041'};
+  for(const [codigo,status] of [[null,200],['42501',403],['P0002',404],['55000',409],['XX000',503]]) {
+    const c=cliente();
+    c.rpc=async(nombre,parametros)=>{
+      assert.equal(nombre,'cancelar_reserva_panel');
+      assert.deepEqual(parametros,{p_restaurante:1,p_reserva:datos.reserva_id});
+      return {data:codigo?null:true,error:codigo?{code:codigo,message:'SQL PRIVADO'}:null};
+    };
+    const salida=await ejecutar(datos,c);
+    assert.equal(salida.statusCode,status);
+    assert.ok(!JSON.stringify(salida.body).includes('PRIVADO'));
+  }
+});
 test('configuración consulta reservas con sesión verificada, filtro y límite sin datos de contacto', async () => {
   const c=cliente(); const consultas=[];
   c.from=tabla=>{
