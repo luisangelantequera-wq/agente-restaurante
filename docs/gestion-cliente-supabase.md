@@ -1,6 +1,6 @@
 # Gestión privada de reservas en Supabase (desarrollo)
 
-El chat y el formulario muestran un enlace «Consultar, cambiar o cancelar mi reserva» al confirmar una reserva nueva. Las pruebas anteriores a este cambio no reciben enlace automáticamente. Ruta: `gestion-prueba.html#restaurante=prueba-sol&token=…` (también Luna). Se mantiene la protección de Vercel de la Preview. No se envían correos ni WhatsApp.
+El chat y el formulario muestran un enlace «Consultar, cambiar o cancelar mi reserva» al confirmar una reserva nueva. Las pruebas anteriores a este cambio no reciben enlace automáticamente. Ruta: `gestion-prueba.html#restaurante=prueba-sol&token=…` (también Luna). Se mantiene la protección de Vercel de la Preview. El envío de confirmaciones por correo está preparado con interruptor y lista de direcciones de prueba; véase `correo-supabase.md`. Los cambios y cancelaciones no envían avisos. WhatsApp sigue desactivado.
 
 El secreto de 256 bits se deriva mediante HMAC-SHA256, con dominio `contactia:gestion:v1`, slug y UUID de petición, usando la clave privada del servidor. Esto permite recuperar el mismo enlace si se reintenta una creación cuyo resultado no llegó al navegador. Solo se guarda su SHA-256 en `contactia_privado.enlaces_gestion`. `reservar_web_con_gestion` crea la reserva y registra la autorización en una transacción. Nunca se devuelve la clave del servidor. Si se rota la clave, los enlaces existentes siguen funcionando por su hash; un reintento de creación puede emitir otro enlace válido para la misma reserva.
 
