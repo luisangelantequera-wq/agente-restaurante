@@ -47,7 +47,7 @@ test('hora fuera de turno recuerda todos los tramos de ese día y permite indica
   return{disponible:true};
  }});
  for(const t of ['mañana','2','12:00','si'])await chat.enviar(t);
- assert.match(mensajes.at(-1),/Nuestro horario de apertura ese día es de 13:00 a 16:00 y de 20:00 a 23:00/);
+ assert.equal(mensajes.at(-1),'Nuestro horario de apertura ese día es de 13:00 a 16:00 y de 20:00 a 23:00. ¿A qué otra hora desea reservar?');
  assert.equal(chat.estado().paso,'hora');await chat.enviar('14:00');await chat.enviar('si');
  assert.equal(chat.estado().paso,'nombre');assert.equal(llamadas.filter(l=>l.a==='supabase_web_fecha').length,1);
 });
