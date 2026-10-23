@@ -229,6 +229,14 @@ module.exports = async (req, res) => {
       return responder(res, 413, { ok: false, error: "La solicitud es demasiado grande." });
     }
 
+    if (["supabase_web_config", "supabase_web_reservar", "supabase_web_chat_config", "supabase_web_fecha", "supabase_web_disponibilidad", "supabase_gestion_consultar", "supabase_gestion_cancelar", "supabase_gestion_reprogramar"].includes(accion)) {
+      return require("../lib/reservas-web-supabase")(req, res, body);
+    }
+
+    if (accion.startsWith("supabase_")) {
+      return require("../lib/acceso-supabase")(req, res, body);
+    }
+
     if (accion === "encargo_visto") return require("../lib/encargos-panel")(req,res);
 
     // Los datos estables utilizan las mismas funciones desplegadas para
