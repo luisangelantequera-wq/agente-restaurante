@@ -77,3 +77,27 @@ test('error del limitador impide reservar y no filtra errores internos',async()=
  const c=cliente();c.rpc=async()=>({error:{message:'privado'}});
  const {r,comprobaciones}=await ejecutar({c});assert.equal(r.statusCode,503);assert.equal(comprobaciones,0);
 });
+test('lecturas del chat proyectan solo calendario o disponibilidad y consumen cuota de lectura',async()=>{
+ for(const [accion,extra,resultado,esperado] of [
+  ['supabase_web_fecha',{}, {fecha_admitida:true,horario:['13:00-16:00'],privado:'secreto'}, {ok:true,fecha_admitida:true,horario:['13:00-16:00']}],
+  ['supabase_web_disponibilidad',{hora:'14:00',zona_id:datos.zona_id,personas:2},{disponible:false,cliente:'secreto'},{ok:true,disponible:false}]]){
+  const c=cliente();const rpc=c.rpc;c.rpc=async(n,a)=>n==='consultar_disponibilidad_web'?{data:resultado}:rpc(n,a);
+  const {r,comprobaciones}=await ejecutar({c,body:{accion,slug:'prueba-sol',fecha:datos.fecha,...extra}});
+  assert.equal(r.statusCode,200);assert.deepEqual(r.body,esperado);assert.equal(comprobaciones,0);assert.equal(c.llamadas[0].args.p_accion,'lectura');
+ }
+});
+test('lecturas del chat rechazan campos de escritura, fechas imposibles y horarios inválidos antes de consultar',async()=>{
+ for(const body of [
+  {accion:'supabase_web_fecha',slug:'prueba-sol',fecha:'2026-02-30'},
+  {accion:'supabase_web_fecha',slug:'prueba-sol',fecha:datos.fecha,mesa_ids:[]},
+  {accion:'supabase_web_disponibilidad',slug:'prueba-sol',fecha:datos.fecha,hora:'24:00',zona_id:datos.zona_id,personas:2}]){
+  const {r,c}=await ejecutar({body});assert.equal(r.statusCode,400);assert.equal(c.llamadas.length,0);
+ }
+});
+test('respuestas de lectura malformadas y errores privados fallan sin filtrar información',async()=>{
+ for(const resultado of [{data:{disponible:'si',privado:'secreto'}},{error:{code:'500',message:'secreto'}}]){
+  const c=cliente();const rpc=c.rpc;c.rpc=(n,a)=>n==='consultar_disponibilidad_web'?resultado:rpc(n,a);
+  const {r}=await ejecutar({c,body:{accion:'supabase_web_disponibilidad',slug:'prueba-sol',fecha:datos.fecha,hora:'14:00',zona_id:datos.zona_id,personas:2}});
+  assert.equal(r.statusCode,503);assert.ok(!JSON.stringify(r.body).includes('secreto'));
+ }
+});
