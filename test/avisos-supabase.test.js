@@ -42,6 +42,17 @@ test('consulta Resend por ID correlacionado y persiste solo el estado operativo'
  assert.equal(resultado.estado,'entregado');assert.deepEqual(c.llamadas[1].a.p_resultado,{estado:'entregado',motivo:'entregado_servidor',evento:'delivered'});
  assert.ok(!JSON.stringify(c.llamadas).includes('contenido privado'));assert.ok(!JSON.stringify(resultado).includes('privado'));
 });
+test('identificador UUID v7 de Resend llega al proveedor y registra entrega',async()=>{
+ const id='019a1cde-1234-7abc-b123-123456789abc',c=cliente({...t,id_proveedor:id});let consultas=0;
+ const {resultado}=await ejecutarAccion('consultar_correo',{c,fetchImpl:async url=>{consultas++;assert.equal(url,`https://api.resend.com/emails/${id}`);
+  return{ok:true,json:async()=>({id,last_event:'delivered'})};}});
+ assert.equal(consultas,1);assert.equal(resultado.estado,'entregado');assert.equal(c.llamadas.at(-1).a.p_resultado.estado,'entregado');
+});
+test('la espera entre revisiones se distingue de una operación en curso y de un estado bloqueado',async()=>{
+ for(const [motivo,texto] of [['ESPERE_REVISION',/se acaba de comprobar/],['OPERACION_EN_CURSO',/otra operación en curso/],['RESERVA_NO_ELEGIBLE',/estado actual/]]){
+  await assert.rejects(ejecutarAccion('consultar_correo',{c:{rpc:async()=>({error:{code:'55000',message:motivo}})}}),e=>e.status===409&&texto.test(e.message));
+ }
+});
 test('rechazo de clave, ID ajeno y fallo de red no acreditan entrega y liberan la operación',async()=>{
  for(const fetchImpl of [async()=>({ok:false,status:403}),async()=>({ok:true,json:async()=>({id:'ajeno',last_event:'delivered'})}),async()=>{throw Error('red');}]){
   const c=cliente();await assert.rejects(ejecutarAccion('consultar_correo',{c,fetchImpl}));

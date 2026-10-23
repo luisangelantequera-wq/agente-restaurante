@@ -19,6 +19,8 @@ La lista se carga al abrir la sección y muestra los últimos 50 avisos del rest
 
 Se distingue aceptación de entrega. Abrir o hacer clic en el correo no se utiliza como prueba de entrega. Una demora no revierte una entrega ya acreditada; un rebote, queja o supresión se conservan como incidencias. Los cuerpos, direcciones y enlaces que Resend devuelve no se guardan ni se devuelven al panel: solo se persiste el resultado operativo.
 
+Los IDs de Resend se validan como identificadores hexadecimales con formato UUID, incluidas las versiones nuevas como UUID v7; no se aplica la restricción de versión de nuestros identificadores de formulario. La respuesta debe conservar exactamente el ID solicitado. Los mensajes de espera entre revisiones, operación en curso y estado no elegible se muestran por separado.
+
 «Reintentar correo» requiere confirmación del operador, reutiliza el envío existente y conserva su enlace. Se bloquea si la reserva cambió, está cancelada o iniciada, venció la ventana, se agotaron los intentos o hay un envío en curso. No se crea una reserva nueva. Si cambia la clave del servidor que deriva el token, el caso requiere revisión.
 
 ## WhatsApp
