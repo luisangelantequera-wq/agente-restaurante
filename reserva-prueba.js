@@ -26,6 +26,7 @@ window.contactiaTurnstileListo=renderizar;
 async function iniciar() {
  try {
   const datos=await pedir('supabase_web_config');
+  $('opcion-whatsapp').hidden=datos.whatsappDisponible!==true;
   $('nombre-restaurante').textContent=datos.nombre;
   $('zona').replaceChildren(...datos.zonas.map(z=>{const o=document.createElement('option');o.value=z.id;o.textContent=z.nombre;return o;}));
   if(!datos.zonas.length){estado('No hay zonas abiertas para reservar.');return;}
@@ -41,7 +42,8 @@ $('reserva').addEventListener('submit',async evento=>{
  enviando=true;$('campos').disabled=true;estado('Confirmando la reserva…');
  const datos={peticion_id:peticion,zona_id:$('zona').value,fecha:$('fecha').value,hora:$('hora').value,
   personas:Number($('personas').value),nombre:$('nombre').value,email:$('email').value,telefono:$('telefono').value,
-  observaciones:$('observaciones').value,turnstile_token:token};
+  observaciones:$('observaciones').value,turnstile_token:token,whatsapp_autorizado:$('whatsapp-autorizado').checked};
+ $('whatsapp-autorizado').disabled=true;
  try {
   const resultado=await pedir('supabase_web_reservar',datos);
   estado(resultado.mensaje);$('resultado').textContent=`Referencia: ${resultado.referencia}`;

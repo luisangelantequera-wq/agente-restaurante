@@ -67,6 +67,7 @@ async function cargar() {
     const nota = document.createElement('p'); nota.className = 'nota';
     nota.textContent = datos.reservas.length ? 'Horas del restaurante. Pulsa Actualizar para consultar nuevas reservas.' : 'Todavía no hay reservas para este restaurante.';
     $('configuracion').append(reservas, nota, resumen,
+      window.ContactiaAvisosPanel.crear(datos.restaurante,pedir),
       tabla('Zonas', ['Nombre', 'Estado', 'Acciones'], datos.zonas.map(z => [z.nombre, z.estado === 'activo' ? 'Abierta' : 'Cerrada',
         botonDisponibilidad('zona',z,datos.restaurante.id,datos.puede_editar_disponibilidad)])),
       tabla('Mesas', ['Nombre', 'Zona', 'Personas', 'Estado', 'Acciones'], datos.mesas.map(m => [m.nombre,zonas.get(m.zona_id)||'',`${m.min_personas}–${m.capacidad}`,

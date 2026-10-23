@@ -49,7 +49,7 @@ test('token inválido no llega a la función de escritura',async()=>{
  const {r,c}=await ejecutar({humano:false});assert.equal(r.statusCode,403);assert.equal(c.llamadas.length,1);
 });
 test('crear usa únicamente campos validados y devuelve una referencia sin secretos',async()=>{
- const {r,c}=await ejecutar();assert.equal(r.statusCode,200);assert.equal(c.llamadas[1].nombre,'reservar_web_con_gestion');
+ const {r,c}=await ejecutar();assert.equal(r.statusCode,200);assert.equal(c.llamadas[1].nombre,'reservar_web_con_avisos');assert.equal(c.llamadas[1].args.p_whatsapp,false);
  assert.equal(c.llamadas[1].args.p_peticion,datos.peticion_id);assert.ok(!('p_mesas' in c.llamadas[1].args));
  assert.deepEqual(Object.keys(r.body).sort(),['gestion_url','mensaje','ok','referencia']);assert.ok(!JSON.stringify(r.body).includes(env.CONTACTIA_SUPABASE_SERVER_KEY));
  const secreto=r.body.gestion_url.split('token=')[1];assert.match(secreto,/^[a-f0-9]{64}$/);

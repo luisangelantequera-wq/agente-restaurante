@@ -1,7 +1,7 @@
 'use strict';
 (function(){
  const $=id=>document.getElementById(id),slug=new URLSearchParams(location.search).get('restaurante')||'prueba-sol';
- let chat,config,widget=null,token='',cargando=false,scriptCargado=false;
+ let chat,config,widget=null,token='',cargando=false,scriptCargado=false,consentimientoPendiente=null;
  async function pedir(accion,datos={}){
   const r=await fetch('/api/restaurante',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},
    body:JSON.stringify({accion,slug,...datos}),signal:AbortSignal.timeout(30000)});
@@ -34,6 +34,7 @@
  }
  async function iniciar(){cargando=true;$('nueva').disabled=true;$('texto').disabled=true;$('enviar').disabled=true;$('seguridad').hidden=true;$('gestion').hidden=true;$('enlace-gestion').removeAttribute('href');quitarWidget();chat=null;
   try{config=await pedir('supabase_web_chat_config');$('restaurante').textContent=config.nombre;
+   consentimientoPendiente=null;$('opcion-whatsapp').hidden=config.whatsappDisponible!==true;$('whatsapp-autorizado').checked=false;$('whatsapp-autorizado').disabled=false;
    if(!config.zonas.length){$('estado').textContent='No hay zonas abiertas para reservar.';$('nueva').disabled=false;return;}
    quitarWidget();$('mensajes').replaceChildren();chat=ContactiaChatSupabase.crear({config,pedir,decir});chat.iniciar();
   }catch(e){$('estado').textContent=e.message;$('nueva').disabled=false;return;}finally{cargando=false;}
@@ -45,8 +46,10 @@
   if(cargando||!chat)return;
   if(!token){quitarWidget();$('confirmar').textContent='Verificar y confirmar';cargarWidget();return;}
   const usarToken=token;token='';cargando=true;actualizar();
+  if(consentimientoPendiente===null)consentimientoPendiente=$('whatsapp-autorizado').checked;
+  $('whatsapp-autorizado').disabled=true;
   await chat.confirmar(async datos=>{
-   const r=await pedir('supabase_web_reservar',{...datos,turnstile_token:usarToken});
+   const r=await pedir('supabase_web_reservar',{...datos,turnstile_token:usarToken,whatsapp_autorizado:consentimientoPendiente});
    if(typeof r.gestion_url==='string'&&/^\/gestion-prueba\.html#restaurante=prueba-(?:sol|luna)&token=[a-f0-9]{64}$/.test(r.gestion_url)){
     $('enlace-gestion').href=r.gestion_url;$('gestion').hidden=false;
    }return r;
