@@ -6,7 +6,7 @@
   const r=await fetch('/api/restaurante',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},
    body:JSON.stringify({accion,slug,...datos}),signal:AbortSignal.timeout(30000)});
   if(!r.headers.get('content-type')?.includes('application/json'))throw new Error('No se pudo acceder al servicio. Recargue y compruebe su acceso a Vercel.');
-  const d=await r.json();if(!r.ok||!d.ok){const e=new Error(d.error||'No se pudo completar la solicitud.');e.status=r.status;throw e;}return d;
+  const d=await r.json();if(!r.ok||!d.ok){const e=new Error(d.error||'No se pudo completar la solicitud.');e.status=r.status;e.codigo=d.codigo;throw e;}return d;
  }
  function decir(texto,usuario=false){const p=document.createElement('p'),autor=document.createElement('span');p.className='mensaje'+(usuario?' usuario':'');
   autor.className='autor';autor.textContent=usuario?'Usted':'Contactia';p.append(autor,document.createTextNode(texto));$('mensajes').append(p);$('mensajes').scrollTop=$('mensajes').scrollHeight;}

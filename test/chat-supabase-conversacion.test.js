@@ -40,3 +40,14 @@ test('rechazo conocido sin envío anterior permite corregir sin dejar una solici
  const {chat}=escenario();await completar(chat);await chat.confirmar(async()=>{throw Object.assign(new Error('sin mesas'),{status:409});});
  assert.equal(chat.estado().paso,'corregir');assert.equal(chat.estado().pendiente,null);
 });
+test('hora fuera de turno recuerda todos los tramos de ese día y permite indicar otra hora directamente',async()=>{
+ const {chat,mensajes,llamadas}=escenario({pedir:async(a,d)=>{
+  if(a==='supabase_web_fecha')return{fecha_admitida:true,horario:['13:00-16:00','20:00-23:00']};
+  if(d.hora==='12:00')throw Object.assign(new Error('El restaurante no admite reservas a esa hora o en esa fecha.'),{status:422,codigo:'FUERA_HORARIO'});
+  return{disponible:true};
+ }});
+ for(const t of ['mañana','2','12:00','si'])await chat.enviar(t);
+ assert.match(mensajes.at(-1),/Nuestro horario de apertura ese día es de 13:00 a 16:00 y de 20:00 a 23:00/);
+ assert.equal(chat.estado().paso,'hora');await chat.enviar('14:00');await chat.enviar('si');
+ assert.equal(chat.estado().paso,'nombre');assert.equal(llamadas.filter(l=>l.a==='supabase_web_fecha').length,1);
+});
