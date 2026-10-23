@@ -1,6 +1,6 @@
 # Chat de reservas de prueba con Supabase
 
-Ruta: `/chat-prueba.html?restaurante=prueba-sol`, en la Preview de `migracion-supabase-fase-1`. Admite también `prueba-luna`. El chat original, voz, correos y WhatsApp siguen pendientes de migración.
+Ruta: `/chat-prueba.html?restaurante=prueba-sol`, en la Preview de `migracion-supabase-fase-1`. Admite también `prueba-luna`. Al confirmar muestra el enlace privado descrito en [gestión del cliente](gestion-cliente-supabase.md). El chat original, voz, correos y WhatsApp siguen pendientes de migración.
 
 El navegador usa `/api/restaurante` con cookies del mismo origen para atravesar la protección de Vercel. El servidor aplica la misma restricción de rama, activación, origen, IP y cuotas del formulario. La clave privada de Supabase y el secreto de Turnstile permanecen en el servidor.
 

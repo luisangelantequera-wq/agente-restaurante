@@ -15,3 +15,4 @@ button:disabled{opacity:.5;cursor:not-allowed}
 #verificacion{margin-top:24px}
 #estado{color:#c5d4ca}
 #resultado{color:#bce5ca;overflow-wrap:anywhere}
+#resultado a{color:#bce5ca;text-underline-offset:4px}

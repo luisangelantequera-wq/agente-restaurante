@@ -49,9 +49,12 @@ test('token inválido no llega a la función de escritura',async()=>{
  const {r,c}=await ejecutar({humano:false});assert.equal(r.statusCode,403);assert.equal(c.llamadas.length,1);
 });
 test('crear usa únicamente campos validados y devuelve una referencia sin secretos',async()=>{
- const {r,c}=await ejecutar();assert.equal(r.statusCode,200);assert.equal(c.llamadas[1].nombre,'reservar_web');
+ const {r,c}=await ejecutar();assert.equal(r.statusCode,200);assert.equal(c.llamadas[1].nombre,'reservar_web_con_gestion');
  assert.equal(c.llamadas[1].args.p_peticion,datos.peticion_id);assert.ok(!('p_mesas' in c.llamadas[1].args));
- assert.deepEqual(Object.keys(r.body).sort(),['mensaje','ok','referencia']);assert.ok(!JSON.stringify(r.body).includes(env.CONTACTIA_SUPABASE_SERVER_KEY));
+ assert.deepEqual(Object.keys(r.body).sort(),['gestion_url','mensaje','ok','referencia']);assert.ok(!JSON.stringify(r.body).includes(env.CONTACTIA_SUPABASE_SERVER_KEY));
+ const secreto=r.body.gestion_url.split('token=')[1];assert.match(secreto,/^[a-f0-9]{64}$/);
+ assert.notEqual(c.llamadas[1].args.p_hash,secreto);assert.ok(!JSON.stringify(c.llamadas).includes(secreto));
+ const segundo=await ejecutar();assert.equal(segundo.r.body.gestion_url,r.body.gestion_url);
 });
 test('configuración pública solo ofrece nombre, zonas y clave pública de Turnstile',async()=>{
  const {r}=await ejecutar({body:{accion:'supabase_web_config',slug:'prueba-sol'}});
@@ -99,5 +102,28 @@ test('respuestas de lectura malformadas y errores privados fallan sin filtrar in
   const c=cliente();const rpc=c.rpc;c.rpc=(n,a)=>n==='consultar_disponibilidad_web'?resultado:rpc(n,a);
   const {r}=await ejecutar({c,body:{accion:'supabase_web_disponibilidad',slug:'prueba-sol',fecha:datos.fecha,hora:'14:00',zona_id:datos.zona_id,personas:2}});
   assert.equal(r.statusCode,503);assert.ok(!JSON.stringify(r.body).includes('secreto'));
+ }
+});
+test('gestión exige secreto, limita campos y nunca acepta elegir otra reserva o restaurante ajeno',async()=>{
+ for(const extra of [{token:''},{reserva_id:'otra'},{mesa_ids:['otra']},{slug:'real-sol'},{accion:'supabase_gestion_cancelar',operacion_id:'x'}]){
+  const {r,c}=await ejecutar({body:{accion:'supabase_gestion_consultar',slug:'prueba-sol',token:'a'.repeat(64),...extra}});
+  assert.equal(r.statusCode,400);assert.equal(c.llamadas.length,0);
+ }
+});
+test('gestión usa solo hash del secreto, proyecta datos mínimos y separa lectura de escritura',async()=>{
+ for(const accion of ['consultar','cancelar','reprogramar']){
+  const c=cliente();const rpc=c.rpc;let parametros;
+  c.rpc=async(n,a)=>{if(n!=='gestionar_reserva_web')return rpc(n,a);parametros=a;return{data:{referencia:'PRUEBA-id',inicio:'2026-11-10T13:00:00+00:00',puede_cambiar:true,puede_cancelar:true,nombre:'Ficticio',email:'privado'}};};
+  const {r,comprobaciones}=await ejecutar({c,body:{accion:`supabase_gestion_${accion}`,slug:'prueba-sol',token:'a'.repeat(64),
+   ...(accion!=='consultar'?{operacion_id:datos.peticion_id,inicio_anterior:'2026-11-10T13:00:00Z'}:{}),...(accion==='reprogramar'?{fecha:datos.fecha,hora:'15:00'}:{})}});
+  assert.equal(r.statusCode,200);assert.equal(comprobaciones,0);assert.notEqual(parametros.p_hash,'a'.repeat(64));assert.equal(r.body.reserva.email,undefined);
+  assert.equal(c.llamadas[0].args.p_accion,accion==='consultar'?'lectura':'reserva');
+ }
+});
+test('gestión devuelve mensajes seguros para enlace inválido, conflicto y vista desactualizada',async()=>{
+ for(const [code,status] of [['P0002',404],['23P01',409],['40001',409],['55000',409],['22023',422],['XX000',503]]){
+  const c=cliente();const rpc=c.rpc;c.rpc=(n,a)=>n==='gestionar_reserva_web'?{error:{code,message:'secreto interno'}}:rpc(n,a);
+  const {r}=await ejecutar({c,body:{accion:'supabase_gestion_consultar',slug:'prueba-sol',token:'a'.repeat(64)}});
+  assert.equal(r.statusCode,status);assert.ok(!JSON.stringify(r.body).includes('secreto interno'));
  }
 });

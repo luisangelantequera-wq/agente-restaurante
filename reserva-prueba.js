@@ -45,6 +45,10 @@ $('reserva').addEventListener('submit',async evento=>{
  try {
   const resultado=await pedir('supabase_web_reservar',datos);
   estado(resultado.mensaje);$('resultado').textContent=`Referencia: ${resultado.referencia}`;
+  if(typeof resultado.gestion_url==='string'&&/^\/gestion-prueba\.html#restaurante=prueba-(?:sol|luna)&token=[a-f0-9]{64}$/.test(resultado.gestion_url)){
+   const a=document.createElement('a');a.href=resultado.gestion_url;a.textContent='Consultar, cambiar o cancelar mi reserva';
+   $('resultado').append(document.createElement('br'),a);
+  }
   // Evitar un segundo envío accidental. Para otra prueba se abre un formulario nuevo.
  }catch(error){
   estado(error.message);$('campos').disabled=false;enviando=false;token='';$('confirmar').disabled=true;

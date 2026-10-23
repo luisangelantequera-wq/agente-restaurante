@@ -32,7 +32,7 @@
   $('estado').textContent=cargando?'Un momento…':fin?'Reserva confirmada. Puede iniciar otra prueba.':pendiente?'Pendiente de confirmar. No cierre ni recargue esta pestaña durante los reintentos.':'';
   if(pendiente)cargarWidget();else quitarWidget();
  }
- async function iniciar(){cargando=true;$('nueva').disabled=true;$('texto').disabled=true;$('enviar').disabled=true;$('seguridad').hidden=true;quitarWidget();chat=null;
+ async function iniciar(){cargando=true;$('nueva').disabled=true;$('texto').disabled=true;$('enviar').disabled=true;$('seguridad').hidden=true;$('gestion').hidden=true;$('enlace-gestion').removeAttribute('href');quitarWidget();chat=null;
   try{config=await pedir('supabase_web_chat_config');$('restaurante').textContent=config.nombre;
    if(!config.zonas.length){$('estado').textContent='No hay zonas abiertas para reservar.';$('nueva').disabled=false;return;}
    quitarWidget();$('mensajes').replaceChildren();chat=ContactiaChatSupabase.crear({config,pedir,decir});chat.iniciar();
@@ -45,7 +45,12 @@
   if(cargando||!chat)return;
   if(!token){quitarWidget();$('confirmar').textContent='Verificar y confirmar';cargarWidget();return;}
   const usarToken=token;token='';cargando=true;actualizar();
-  await chat.confirmar(datos=>pedir('supabase_web_reservar',{...datos,turnstile_token:usarToken}));
+  await chat.confirmar(async datos=>{
+   const r=await pedir('supabase_web_reservar',{...datos,turnstile_token:usarToken});
+   if(typeof r.gestion_url==='string'&&/^\/gestion-prueba\.html#restaurante=prueba-(?:sol|luna)&token=[a-f0-9]{64}$/.test(r.gestion_url)){
+    $('enlace-gestion').href=r.gestion_url;$('gestion').hidden=false;
+   }return r;
+  });
   cargando=false;quitarWidget();actualizar();
  });
  window.addEventListener('beforeunload',e=>{if(chat?.estado().paso==='pendiente'){e.preventDefault();e.returnValue='';}});
