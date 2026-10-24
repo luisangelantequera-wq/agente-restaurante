@@ -47,7 +47,7 @@ El 24/10/2026 el usuario completó una conversación real con el worker de Windo
 ## Alojamiento del agente en LiveKit Cloud
 
 Preparado para el proyecto de pruebas `contactia-pruebas-pg0dqjqp.livekit.cloud`.
-Se han instalado y comprobado las 70 dependencias en un entorno Linux aislado con Python 3.12 y se ha ejecutado `agent.py start --help` correctamente. No hay Docker disponible en el entorno de preparación: la construcción de la imagen, el alta remota y la comprobación sin worker local están pendientes. No se cambia
+El usuario construyó y desplegó la imagen el 24/10/2026: agente `CA_vkyHrJpZtdWT`, región `eu-central`, worker registrado correctamente. Desde la nube recibe la voz y responde en texto, pero no se oye audio. El recorrido completo sin worker local sigue pendiente. No se cambia
 el nombre de despacho ni se despliega el sitio a producción.
 
 En `experimentos/livekit/`:
@@ -55,7 +55,7 @@ En `experimentos/livekit/`:
 - `Dockerfile`: Python 3.12 en Debian, usuario sin privilegios y arranque
   `python agent.py start`. Solo copia el agente y las dependencias.
 - `requirements-cloud.in`: fija LiveKit Agents 1.8.6 y transporte 1.1.20,
-  observados en el registro de la llamada; dotenv se fija en 1.2.1.
+  observados en el registro de la llamada; fija además las dependencias que diferían de la instalación local probada (dotenv 1.2.4).
 - `requirements-cloud.txt`: dependencias transitivas fijadas para Python 3.12.
   Se regeneran con `uv pip compile requirements-cloud.in --python-version 3.12
   --no-header --no-annotate -o requirements-cloud.txt` desde esta carpeta.
@@ -69,7 +69,7 @@ la anterior. No pedir ni copiar claves al chat.
 
 Usar una carpeta nueva para estos archivos, conservando intacta la copia local
 probada. Una vez identificado el proyecto con `lk project set-default NOMBRE`,
-desde esa carpeta ejecutar `lk agent create --region eu-central`. LiveKit
+asegurarse de incluir también `requirements.txt` para que el CLI detecte Python/pip. En una descarga mínima, crearlo con `Copy-Item requirements-cloud.txt requirements.txt`; después ejecutar `lk agent create --region eu-central`. LiveKit
 generará `livekit.toml`: conservarlo localmente para futuras actualizaciones.
 No importar `.env.local`: LiveKit Cloud inyecta sus tres credenciales de conexión;
 los modelos usan Inference y este agente no necesita secretos de Supabase.
@@ -95,3 +95,43 @@ Referencias verificadas el 24/10/2026:
 - https://docs.livekit.io/deploy/agents/builds/
 - https://docs.livekit.io/deploy/admin/regions/agent-deployment/
 - https://docs.livekit.io/reference/developer-tools/livekit-cli/projects/
+
+
+## Diagnóstico del silencio en Cloud (24/10/2026)
+
+El registro aportado muestra `failed to synthesize speech`, con
+`ClientConnectionResetError: Cannot write to closing transport`. Hay turnos STT
+y LLM completados. El error identifica un fallo en una operación TTS, pero por
+sí solo no establece la causa de todo el silencio ni permite culpar al navegador.
+Desactivar la restricción regional de Inference no recuperó el audio; esa
+hipótesis no quedó confirmada. Se indicó volver a `Enabled`.
+
+La lista de paquetes de Windows aportada por el usuario muestra once diferencias
+respecto al primer lock de Cloud. Se igualan diez para una comparación controlada:
+
+| Paquete | Primera imagen Cloud | Local probado y nuevo lock |
+| --- | --- | --- |
+| av | 19.0.2 | 19.0.1 |
+| googleapis-common-protos | 1.76.0 | 1.75.5 |
+| grpcio | 1.84.1 | 1.84.0 |
+| jiter | 0.18.0 | 0.17.0 |
+| livekit-api | 1.2.2 | 1.2.1 |
+| livekit-blingfire | 1.2.0 | 1.1.0 |
+| livekit-protocol | 1.1.28 | 1.1.27 |
+| multidict | 7.2.0 | 7.1.0 |
+| pycparser | 3.12 | 3.11 |
+| python-dotenv | 1.2.1 | 1.2.4 |
+
+Se conserva `certifi==2026.10.23` de la primera imagen en lugar del paquete
+2026.7.22 de Windows para mantener actualizada la confianza de certificados.
+La versión de pip es una herramienta de instalación; no se copia desde Windows.
+No se modifica agente, modelo, voz, región ni interfaz en esta comparación.
+
+Validación del nuevo lock: 70 paquetes instalados en un entorno Linux aislado, `uv pip check` correcto, `agent.py start --help` correcto y constructores STT/LLM/TTS comprobados sin red. No se ha generado audio real desde este entorno ni se ha desplegado esta revisión en Cloud.
+
+Este cambio elimina diferencias conocidas; no se presenta como una reparación
+confirmada. Hay que actualizar `requirements-cloud.txt` en la carpeta Cloud,
+copiarlo también a `requirements.txt` y ejecutar `lk agent deploy` (no `create`)
+con el `livekit.toml` existente. Conservar la primera versión en Git para poder
+volver a desplegarla si fuera necesario. La siguiente prueba debe ser solo el
+saludo o una pregunta breve, sin repetir una reserva completa.

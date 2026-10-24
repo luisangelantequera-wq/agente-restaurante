@@ -1,4 +1,16 @@
-# Versiones del SDK y transporte observadas en la llamada real del 24/10/2026.
+# SDK y transporte observados en la llamada real del 24/10/2026.
 livekit-agents==1.8.6
 livekit==1.1.20
-python-dotenv==1.2.1
+# Igualar las dependencias de la instalacion local que produjo voz.
+av==19.0.1
+googleapis-common-protos==1.75.5
+grpcio==1.84.0
+jiter==0.17.0
+livekit-api==1.2.1
+livekit-blingfire==1.1.0
+livekit-protocol==1.1.27
+multidict==7.1.0
+pycparser==3.11
+python-dotenv==1.2.4
+# Conservar el certificado actualizado de la imagen inicial.
+certifi==2026.10.23
