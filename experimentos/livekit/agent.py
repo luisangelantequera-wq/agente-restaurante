@@ -80,7 +80,13 @@ async def contactia(ctx: JobContext):
     session = AgentSession(
         stt=inference.STT(model="deepgram/nova-3", language="es"),
         llm=inference.LLM(model="openai/gpt-4.1-mini"),
-        tts=inference.TTS(model="rime/coda", voice="lark", language="es"),
+        # Rime Coda no admite el servicio EU: REGION_RESTRICTED en Cloud.
+        # Voz predeterminada Daniela del catálogo oficial de LiveKit/Cartesia.
+        tts=inference.TTS(
+            model="cartesia/sonic-3",
+            voice="5c5ad5e7-1020-476b-8b91-fdcbe9cc313c",
+            language="es",
+        ),
     )
     @session.on("metrics_collected")
     def on_metrics(ev):

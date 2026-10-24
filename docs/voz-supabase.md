@@ -4,7 +4,7 @@
 
 ## Reutilización
 
-Se recupera `experimentos/livekit/agent.py` sin modificar de `prueba-livekit-cartesia` (HEAD consultado `9df8a97`). Es el worker ejecutado en Windows durante la prueba del 11 de octubre. Conserva el despacho `contactia-cartesia-prueba`. Aunque su nombre histórico dice Cartesia, el código recuperado usa Deepgram Nova-3, GPT-4.1 mini y Rime Coda con voz `lark` (Alondra), mediante LiveKit Inference.
+Se recuperó inicialmente `experimentos/livekit/agent.py` sin modificar de `prueba-livekit-cartesia` (HEAD consultado `9df8a97`). Es el worker ejecutado en Windows durante la prueba del 11 de octubre. Conserva el despacho `contactia-cartesia-prueba`. Aunque su nombre histórico dice Cartesia, el código recuperado usa Deepgram Nova-3, GPT-4.1 mini y Rime Coda con voz `lark` (Alondra), mediante LiveKit Inference. La revisión del 25/10 sustituye únicamente TTS por Cartesia Sonic 3, Daniela (`5c5ad5e7-1020-476b-8b91-fdcbe9cc313c`), para resolver el rechazo explícito `REGION_RESTRICTED` en EU.
 
 El worker llama por RPC a `contactia.procesar_turno` en el navegador. La nueva interfaz dirige esa llamada al chat de Supabase, con su calendario, información pública y disponibilidad. No utiliza Airtable ni el prototipo anterior de OpenAI Realtime. Se conservan `record=False`, las métricas numéricas y la ausencia de archivos de audio o transcripciones. No se añade almacenamiento de conversaciones en el navegador.
 
@@ -24,7 +24,7 @@ El worker probado está en Windows, bajo `Downloads\agente-restaurante-prueba-li
 .\.venv\Scripts\python.exe agent.py dev
 ```
 
-Puede atender la página nueva sin cambiar su código. Vercel no ejecuta ese Python. Para una copia nueva del worker, instalar antes sus requisitos y configurar las credenciales como en la prueba original.
+La copia local original puede atender la página nueva sin cambiar su código; conserva la voz Rime. La revisión Cloud usa Cartesia compatible con EU. Vercel no ejecuta ese Python. Para una copia nueva del worker, instalar antes sus requisitos y configurar las credenciales como en la prueba original.
 
 ## Acceso y transporte
 
@@ -135,3 +135,32 @@ copiarlo también a `requirements.txt` y ejecutar `lk agent deploy` (no `create`
 con el `livekit.toml` existente. Conservar la primera versión en Git para poder
 volver a desplegarla si fuera necesario. La siguiente prueba debe ser solo el
 saludo o una pregunta breve, sin repetir una reserva completa.
+
+
+## Causa confirmada y corrección EU (25/10/2026)
+
+El detalle de Events aportado por el usuario confirma el código
+`REGION_RESTRICTED`: `TTS model rime/coda is not available in the data region
+serving this request (eu)`. Se reproduce el silencio en Agent Console, fuera del
+chat de Contactia. El bloqueo está confirmado para esa solicitud; no se conoce
+por qué el intento previo de cambiar el ajuste regional no alteró el resultado.
+La alineación de dependencias no solucionó el silencio.
+
+Se sustituye solo `inference.TTS` por `cartesia/sonic-3`, voz oficial Daniela,
+`5c5ad5e7-1020-476b-8b91-fdcbe9cc313c`, idioma `es`. Es una voz femenina de español
+mexicano y no pretende reproducir Alondra. Sonic 3 tiene endpoint EU según la
+documentación oficial. No requiere una clave Cartesia adicional y se conserva
+Inference region restriction en Enabled. El resto del motor, credenciales,
+despacho, región de alojamiento y dependencias se mantienen.
+
+La sintaxis y construcción de la configuración se verifican localmente sin
+credenciales ni conexión a proveedores. La publicación en Cloud requiere
+actualizar `agent.py` en la carpeta Windows `contactia-livekit-cloud` y ejecutar
+`lk agent deploy --id CA_vkyHrJpZtdWT`. No basta con actualizar Git/Vercel: la
+imagen Cloud es independiente. Tras el despliegue hay que cerrar la sesión
+anterior y abrir una nueva; la comprobación pendiente es escuchar el saludo.
+No se afirma que el audio esté restaurado hasta esa comprobación real.
+
+Fuentes verificadas:
+- https://docs.livekit.io/agents/models/tts/cartesia/ (Sonic 3 EU y catálogo oficial de voces)
+- https://docs.livekit.io/agents/models/tts/rime/ (Coda sin endpoint EU)
