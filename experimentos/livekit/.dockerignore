@@ -1,0 +1,6 @@
+# Contexto mínimo: ni credenciales, ni entorno Windows, ni conversaciones.
+**
+!Dockerfile
+!.dockerignore
+!agent.py
+!requirements-cloud.txt

@@ -42,4 +42,56 @@ En el paso final se apaga el micrófono, se indica revisar el resumen y se cierr
 
 `test/voz-supabase.test.js`: firma y permisos JWT, rama, configuración, origen, cuotas, validación y separación de acciones Turnstile. `test/voz-supabase-interfaz.test.js`: worker simulado, consulta informativa, deduplicación RPC, recorrido al resumen, apagado del micrófono y creación únicamente con el botón final. El worker se comprueba sintácticamente.
 
-La conexión real con LiveKit Cloud y Supabase queda pendiente de una llamada con datos ficticios. Correo, panel y disponibilidad ya se probaron y no requieren repetir sus ensayos por separado.
+El 24/10/2026 el usuario completó una conversación real con el worker de Windows y el chat Supabase, incluida la pregunta del cocido y la vuelta a la reserva. La voz se oyó entrecortada; la causa no está diagnosticada (posible wifi). Correo, panel y disponibilidad ya se probaron y no requieren repetir sus ensayos por separado.
+
+## Alojamiento del agente en LiveKit Cloud
+
+Preparado para el proyecto de pruebas `contactia-pruebas-pg0dqjqp.livekit.cloud`.
+Se han instalado y comprobado las 70 dependencias en un entorno Linux aislado con Python 3.12 y se ha ejecutado `agent.py start --help` correctamente. No hay Docker disponible en el entorno de preparación: la construcción de la imagen, el alta remota y la comprobación sin worker local están pendientes. No se cambia
+el nombre de despacho ni se despliega el sitio a producción.
+
+En `experimentos/livekit/`:
+
+- `Dockerfile`: Python 3.12 en Debian, usuario sin privilegios y arranque
+  `python agent.py start`. Solo copia el agente y las dependencias.
+- `requirements-cloud.in`: fija LiveKit Agents 1.8.6 y transporte 1.1.20,
+  observados en el registro de la llamada; dotenv se fija en 1.2.1.
+- `requirements-cloud.txt`: dependencias transitivas fijadas para Python 3.12.
+  Se regeneran con `uv pip compile requirements-cloud.in --python-version 3.12
+  --no-header --no-annotate -o requirements-cloud.txt` desde esta carpeta.
+- `.dockerignore`: lista de archivos permitidos; excluye `.env*`, entornos
+  virtuales, grabaciones, registros y configuración local.
+
+El ordenador del usuario ya tiene LiveKit CLI autenticado. Antes del alta,
+consultar `lk project list` (sin `--json`, que expone secretos) y la ayuda local
+`lk agent create --help`. Elegir el proyecto cuya URL coincide exactamente con
+la anterior. No pedir ni copiar claves al chat.
+
+Usar una carpeta nueva para estos archivos, conservando intacta la copia local
+probada. Una vez identificado el proyecto con `lk project set-default NOMBRE`,
+desde esa carpeta ejecutar `lk agent create --region eu-central`. LiveKit
+generará `livekit.toml`: conservarlo localmente para futuras actualizaciones.
+No importar `.env.local`: LiveKit Cloud inyecta sus tres credenciales de conexión;
+los modelos usan Inference y este agente no necesita secretos de Supabase.
+
+El destino por defecto del CLI se denomina `production`, pero pertenece al
+proyecto LiveKit de pruebas; no promueve la web ni la base de producción.
+No contratar un plan ni cambiar facturación automáticamente. Si el proyecto
+rechaza el alta por cuota o plan, conservar el paquete y revisar ese mensaje.
+
+Con el alta completada: consultar `lk agent status`; detener el worker local
+con Ctrl+C para que la prueba se atienda en la nube; realizar una conversación
+breve desde el mismo chat Preview. Solo después de confirmar este recorrido se
+considerará eliminada la dependencia del ordenador. La voz entrecortada sigue
+siendo una incidencia pendiente hasta volver a observarla.
+
+Actualizaciones posteriores: `lk agent deploy` desde la carpeta que contiene
+`livekit.toml`; diagnóstico: `lk agent status` y `lk agent logs` (pueden contener
+datos operativos; compartir solo lo necesario). No borrar el agente como primer
+recurso ante fallos; corregir o volver a una versión anterior.
+
+Referencias verificadas el 24/10/2026:
+- https://docs.livekit.io/deploy/agents/quickstart/
+- https://docs.livekit.io/deploy/agents/builds/
+- https://docs.livekit.io/deploy/admin/regions/agent-deployment/
+- https://docs.livekit.io/reference/developer-tools/livekit-cli/projects/
