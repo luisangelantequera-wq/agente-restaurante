@@ -2,7 +2,7 @@
 
 ## Estado de la Preview a 24 de octubre de 2026
 
-En `migracion-supabase-fase-1` funcionan acceso y configuración del panel, reservas y ocupación transaccional, horarios, zonas y mesas, chat de pruebas, enlace privado de gestión, correo y consulta de entrega. Los datos públicos y las respuestas informativas se describen en `datos-publicos-supabase.md`. WhatsApp está adaptado y desactivado para envíos reales hasta autorizar un teléfono de prueba. La voz y el cambio de proveedor de producción siguen pendientes.
+En `migracion-supabase-fase-1` funcionan acceso y configuración del panel, reservas y ocupación transaccional, horarios, zonas y mesas, chat de pruebas, enlace privado de gestión, correo y consulta de entrega. Los datos públicos y las respuestas informativas se describen en `datos-publicos-supabase.md`. WhatsApp está adaptado y desactivado para envíos reales hasta autorizar un teléfono de prueba. La conexión de voz LiveKit está preparada (ver `voz-supabase.md`) y requiere configurar las credenciales de esta Preview y una llamada real. El cambio de proveedor de producción sigue pendiente.
 
 El resto del documento conserva el alcance histórico de la primera entrega. Para las ampliaciones, consultar `acceso-supabase.md`, `reservas-web-supabase.md`, `chat-supabase.md`, `gestion-cliente-supabase.md` y `seguimiento-avisos-supabase.md`.
 

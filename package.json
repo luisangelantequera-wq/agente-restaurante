@@ -4,6 +4,7 @@
   "description": "Asistente virtual Contactia para reservas y gestión de restaurantes con Airtable y Resend.",
   "main": "index.js",
   "scripts": {
+    "postinstall": "node scripts/preparar-sdk-livekit.js",
     "start": "vercel dev",
     "test": "node --test",
     "test:conversacion": "node scripts/ejecutar-bateria-conversacional.js && node scripts/ejecutar-escenarios-conversacion.js",
@@ -18,10 +19,12 @@
   "dependencies": {
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.118.0",
+    "livekit-client": "2.17.2",
     "pdf-lib": "^1.17.1",
     "twilio": "^6.1.2"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.11"
+    "@electric-sql/pglite": "0.5.11",
+    "jsdom": "26.1.0"
   }
 }
