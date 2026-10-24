@@ -1,6 +1,6 @@
 # Chat de reservas de prueba con Supabase
 
-Ruta: `/chat-prueba.html?restaurante=prueba-sol`, en la Preview de `migracion-supabase-fase-1`. Admite también `prueba-luna`. Al confirmar muestra el enlace privado descrito en [gestión del cliente](gestion-cliente-supabase.md). El chat original, voz, correos y WhatsApp siguen pendientes de migración.
+Ruta: `/chat-prueba.html?restaurante=prueba-sol`, en la Preview de `migracion-supabase-fase-1`. Admite también `prueba-luna`. Al confirmar muestra el enlace privado descrito en [gestión del cliente](gestion-cliente-supabase.md). El correo y su seguimiento están integrados. WhatsApp está adaptado y desactivado para envíos reales. El chat original y la voz siguen pendientes de migración. Las consultas informativas durante la reserva se describen en `datos-publicos-supabase.md`.
 
 El navegador usa `/api/restaurante` con cookies del mismo origen para atravesar la protección de Vercel. El servidor aplica la misma restricción de rama, activación, origen, IP y cuotas del formulario. La clave privada de Supabase y el secreto de Turnstile permanecen en el servidor.
 
@@ -10,7 +10,7 @@ La prioridad del calendario se comparte en `contactia_privado.horario_para_fecha
 
 La conversación reutiliza los intérpretes de fechas, personas y horas. Usa la fecha civil del restaurante y pide aclaración de horas ambiguas. Con una zona activa se asigna automáticamente. Antes de pedir datos personales consulta disponibilidad; al confirmar el resumen final vuelve a comprobarla. El motor de escritura sigue siendo quien decide la asignación definitiva con la exclusión PostgreSQL que evita solapamientos.
 
-Turnstile se carga al final, con `action=reservar` y el UUID de petición como `cData`. La escritura reutiliza `supabase_web_reservar`, con su verificación en servidor y límite de cinco intentos/minuto/IP. La reserva no envía avisos. Tras un resultado incierto se bloquean las correcciones y «Nueva reserva» y se reintenta la misma petición y datos; el UUID se mantiene en memoria de esta pestaña. **No recargar ni cerrar la pestaña durante un resultado incierto**: se perdería esa identidad; comprobar primero el panel antes de iniciar otra reserva. No se guarda la conversación ni los datos personales en almacenamiento del navegador.
+Turnstile se carga al final, con `action=reservar` y el UUID de petición como `cData`. La escritura reutiliza `supabase_web_reservar`, con su verificación en servidor y límite de cinco intentos/minuto/IP. Tras un resultado incierto se bloquean las correcciones y «Nueva reserva» y se reintenta la misma petición y datos; el UUID se mantiene en memoria de esta pestaña. **No recargar ni cerrar la pestaña durante un resultado incierto**: se perdería esa identidad; comprobar primero el panel antes de iniciar otra reserva. No se guarda la conversación ni los datos personales en almacenamiento del navegador.
 
 Pruebas: `npm test` cubre conversación, correcciones, cierre, una o varias zonas, falta de disponibilidad, bloqueo de reintentos inciertos, protección y proyección de API; `npm run test:supabase` aplica migraciones y comprueba aislamiento, permisos y disponibilidad con PGlite. La suite SQL `08_chat_disponibilidad.sql` usa datos ficticios y finaliza en ROLLBACK; puede ejecutarse también en desarrollo remoto. Queda la comprobación manual del navegador y desafío real de Turnstile.
 

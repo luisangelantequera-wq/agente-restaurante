@@ -66,7 +66,12 @@ async function cargar() {
       })));
     const nota = document.createElement('p'); nota.className = 'nota';
     nota.textContent = datos.reservas.length ? 'Horas del restaurante. Pulsa Actualizar para consultar nuevas reservas.' : 'Todavía no hay reservas para este restaurante.';
-    $('configuracion').append(reservas, nota, resumen,
+    $('configuracion').append(window.ContactiaDatosPanel.crear(datos.restaurante,datos.puede_editar_datos,async solicitud=>{
+      const resultado=await pedir('supabase_guardar_datos',solicitud);
+      datos.restaurante.nombre=solicitud.datos.nombre.trim();$('titulo-panel').textContent=datos.restaurante.nombre;
+      const opcion=[...$('restaurante').options].find(o=>Number(o.value)===datos.restaurante.id);if(opcion)opcion.textContent=datos.restaurante.nombre;
+      return resultado;
+    }),reservas, nota, resumen,
       window.ContactiaAvisosPanel.crear(datos.restaurante,pedir),
       tabla('Zonas', ['Nombre', 'Estado', 'Acciones'], datos.zonas.map(z => [z.nombre, z.estado === 'activo' ? 'Abierta' : 'Cerrada',
         botonDisponibilidad('zona',z,datos.restaurante.id,datos.puede_editar_disponibilidad)])),

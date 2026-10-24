@@ -1,5 +1,13 @@
 # Migración a Supabase — fase 1
 
+## Estado de la Preview a 24 de octubre de 2026
+
+En `migracion-supabase-fase-1` funcionan acceso y configuración del panel, reservas y ocupación transaccional, horarios, zonas y mesas, chat de pruebas, enlace privado de gestión, correo y consulta de entrega. Los datos públicos y las respuestas informativas se describen en `datos-publicos-supabase.md`. WhatsApp está adaptado y desactivado para envíos reales hasta autorizar un teléfono de prueba. La voz y el cambio de proveedor de producción siguen pendientes.
+
+El resto del documento conserva el alcance histórico de la primera entrega. Para las ampliaciones, consultar `acceso-supabase.md`, `reservas-web-supabase.md`, `chat-supabase.md`, `gestion-cliente-supabase.md` y `seguimiento-avisos-supabase.md`.
+
+## Alcance histórico de la primera entrega
+
 Base de trabajo: `corregir-bateria-pruebas`, commit `2cb0bfb`.
 La rama conserva las optimizaciones de Airtable y la decisión de no habilitar
 creación de zonas desde el panel. El proveedor activo sigue siendo Airtable.
