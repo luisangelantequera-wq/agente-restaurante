@@ -16,9 +16,22 @@ test('reutiliza dirección, teléfono, respuestas habituales y gastronomía sin 
  assert.match(responder(campos,'¿Cuál es el teléfono?'),/910000000/);
  assert.match(responder(campos,'¿Admitís perros?'),/terraza/);
  assert.match(responder(campos,'¿Tenéis tronas?'),/tronas/);
- assert.equal(responder(campos,'¿Qué tenéis los jueves?'),'Jueves paella mínimo 2 personas.');
+ assert.equal(responder(campos,'¿Qué tenéis los jueves?'),'Los jueves tenemos paella, para un mínimo de 2 personas.');
  assert.match(responder({...campos,direccion:''},'¿Dónde estáis?'),/Todavía no dispongo/);
  for(const q of ['¿Tiene gluten la paella?','¿Lleva leche el cocido?','¿Tenéis menú vegano?'])assert.match(responder(campos,q),/consulte directamente/);
+});
+test('los apuntes gastronómicos se convierten en respuestas naturales',()=>{
+ const d={...campos,informacion_publica:{gastronomia:'miercoles cocido'}};
+ assert.equal(responder(d,'teneis cocido'),'Sí, los miércoles tenemos cocido.');
+ assert.equal(responder(d,'¿Qué tenéis los miércoles?'),'Los miércoles tenemos cocido.');
+ assert.equal(responder({...d,informacion_publica:{gastronomia:'sábado: paella'}},'¿Tenéis paella?'),'Sí, los sábados tenemos paella.');
+});
+test('la redacción conserva frases completas, condiciones y negaciones',()=>{
+ for(const texto of ['Los miércoles servimos cocido con reserva previa.','Miércoles no tenemos cocido.','Miércoles cocido solo por encargo.']){
+  const r=responder({...campos,informacion_publica:{gastronomia:texto}},'¿Tenéis cocido?');
+  if(texto.includes('solo por encargo'))assert.match(r,/solo por encargo/);else assert.equal(r,texto);
+ }
+ assert.equal(responder({...campos,informacion_publica:{gastronomia:'miercoles cocido'}},'¿Tenéis cocido hoy?'),'Los miércoles tenemos cocido.');
 });
 test('consulta horario efectivo y cierres de la fecha elegida',()=>{
  assert.match(responder(campos,'¿Abrís el 27 de octubre de 2026?',new Date('2026-10-24T12:00:00Z')),/cerrado/);
