@@ -372,3 +372,30 @@ conflicto al escribir, continuidad escrita con UUID conservado, manipulación y
 caducidad del token y separación del canal escrito. No se crean reservas ni se
 envían correos desde estas pruebas. La escucha real de la locución final queda
 pendiente de la siguiente llamada del usuario.
+
+## Validación real y voces candidatas (25/10/2026)
+
+El usuario completó la llamada tras publicar el cierre por voz y confirmó que
+«todo perfecto». Queda validado el recorrido por llamada web, incluida la
+confirmación final sin botón ni verificación adicional. La telefonía/SIP sigue
+pendiente de conexión; no confundir ambas validaciones.
+
+El usuario ha escuchado y elegido estas voces como candidatas para conservar
+y valorar una futura elección de voz por restaurante:
+
+| Voz | Proveedor |
+| --- | --- |
+| Iker | Gradium |
+| Alba | Gradium |
+| Iria | Cartesia |
+| Rafael | Cartesia |
+| Celia | Cartesia |
+| Thiago | Cartesia |
+| Marcos | Cartesia |
+
+Esta lista recoge la preferencia del usuario, no una comprobación individual de
+compatibilidad. Antes de habilitar cada voz hay que verificar su identificador,
+disponibilidad mediante LiveKit Inference en EU y coste. No se han atribuido
+acentos ni características no confirmadas a estas voces. Mantener Marta activa
+hasta elegir y probar una sustituta. La selección desde el panel del restaurante
+es una mejora futura, todavía no implementada.
