@@ -10,8 +10,8 @@
   if(!r.headers.get('content-type')?.includes('application/json'))throw new Error('No se pudo acceder al servicio. Recargue y compruebe su acceso a Vercel.');
   const d=await r.json();if(!r.ok||!d.ok){const e=new Error(d.error||'No se pudo completar la solicitud.');e.status=r.status;e.codigo=d.codigo;throw e;}return d;
  }
- function decir(texto,usuario=false){const p=document.createElement('p'),autor=document.createElement('span');p.className='mensaje'+(usuario?' usuario':'');
-  autor.className='autor';autor.textContent=usuario?'Usted':'Contactia';p.append(autor,document.createTextNode(texto));$('mensajes').append(p);$('mensajes').scrollTop=$('mensajes').scrollHeight;if(!usuario&&respuestasTurno)respuestasTurno.push(texto);}
+ function decir(texto,usuario=false,locucion=texto){const p=document.createElement('p'),autor=document.createElement('span');p.className='mensaje'+(usuario?' usuario':'');
+  autor.className='autor';autor.textContent=usuario?'Usted':'Contactia';p.append(autor,document.createTextNode(texto));$('mensajes').append(p);$('mensajes').scrollTop=$('mensajes').scrollHeight;if(!usuario&&respuestasTurno)respuestasTurno.push(locucion);}
  async function procesarVoz(texto){
   if(!chat||cargando)return{respuesta:'Un momento, por favor.',paso:chat?.estado().paso||'inicio'};
   if(['pendiente','terminado'].includes(chat.estado().paso))return{respuesta:'Revise el resultado en pantalla.',paso:chat.estado().paso};
@@ -51,7 +51,7 @@
    voz.configurar(config);
    consentimientoPendiente=null;$('opcion-whatsapp').hidden=config.whatsappDisponible!==true;$('whatsapp-autorizado').checked=false;$('whatsapp-autorizado').disabled=false;
    if(!config.zonas.length){$('estado').textContent='No hay zonas abiertas para reservar.';$('nueva').disabled=false;return;}
-   quitarWidget();$('mensajes').replaceChildren();chat=ContactiaChatSupabase.crear({config,pedir,decir});chat.iniciar();
+   quitarWidget();$('mensajes').replaceChildren();chat=ContactiaChatSupabase.crear({config,pedir,decir:(texto,opciones)=>decir(texto,false,opciones?.voz??texto)});chat.iniciar();
   }catch(e){$('estado').textContent=e.message;$('nueva').disabled=false;return;}finally{cargando=false;}
   actualizar();$('texto').focus();
  }

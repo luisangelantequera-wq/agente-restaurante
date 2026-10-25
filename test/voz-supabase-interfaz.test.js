@@ -42,7 +42,13 @@ test('voz comparte el chat, deduplica RPC y exige el botón final antes de crear
  await rpc('intruso','mañana','otro');assert.equal(llamadas.filter(l=>l.accion==='supabase_web_fecha').length,0);
  await Promise.all([rpc('fecha','mañana'),rpc('fecha','mañana')]);assert.equal(llamadas.filter(l=>l.accion==='supabase_web_fecha').length,1);
  await rpc('personas','Dos.');const info=JSON.parse(await rpc('info','teneis cocido'));assert.match(info.respuesta,/miércoles tenemos cocido/);assert.equal(info.paso,'hora');
- for(const [i,m] of ['Catorce horas.','si','A nombre de Juan','juan arroba example punto invalid','si','600000000','ninguna','si'].entries())await rpc('turno-'+i,m);
+ for(const [i,m] of ['A las dos.','si','A nombre de Juan','juan arroba example punto invalid','si','600000000','ninguna','si'].entries()){
+  const resultado=JSON.parse(await rpc('turno-'+i,m));
+  if(m==='juan arroba example punto invalid'){
+   assert.ok(d.querySelector('#mensajes').textContent.includes('juan@example.invalid'));
+   assert.match(resultado.respuesta,/juan, arroba, example punto invalid/);assert.doesNotMatch(resultado.respuesta,/j, u, a, n/);
+  }
+ }
  assert.equal(microfono.at(-1),false);assert.equal(llamadas.filter(l=>l.accion==='supabase_web_reservar').length,0);
  await esperar(()=>!d.querySelector('#confirmar').disabled);assert.equal(verificaciones.at(-1).action,'reservar');
  assert.notEqual(verificaciones[0].cData,verificaciones.at(-1).cData);

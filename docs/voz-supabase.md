@@ -268,3 +268,32 @@ José y sustitución de Oen vídeo por Pepito, sin crear una reserva automática
 La simulación de navegador/RPC también usa Dos y Catorce horas. La verificación
 manual sigue siendo necesaria para evaluar transcripción y voz reales; los tests
 no se presentan como garantía de reconocimiento acústico.
+
+
+## Hora coloquial y presentación del correo (25/10/2026)
+
+El usuario establece explícitamente que «a las dos» en una reserva de restaurante
+significa 14:00. Se retira el filtro de hora explícita que se había mantenido en
+Supabase y se recupera la interpretación histórica de `extraerHora`: horas de 1
+a 11 sin periodo se entienden como 13:00–23:00 en este contexto. «02:00» y «dos de
+la mañana» conservan 02:00. Alternativas como «dos o tres» siguen pidiendo una
+sola hora. Para capturar horas complementarias fuera del campo hora se exige
+marcador horario, para que «dos o tres personas» nunca genere una hora.
+El servidor mantiene horario, antelación y disponibilidad como validación final.
+Esta regla actual sustituye la exigencia de mañana/tarde de revisiones previas.
+
+La última transcripción aportada ya reconocía Antonio García arroba Gmail punto
+com como antoniogarcia@gmail.com y quedaba esperando Sí/No. Se mejora la
+presentación: la dirección normalizada completa se muestra en pantalla y la voz
+la lee por palabras y símbolos, sin separar todas las letras de entrada. La
+confirmación continúa siendo obligatoria antes de guardar. En ese paso se puede
+pedir «deletrealo», «puede deletrearlo», «deletreelo» o «letra a letra» para oír
+las letras sin modificar la dirección ni avanzar.
+
+El callback conversacional puede aportar una locución distinta del texto visible.
+La interfaz sigue renderizando texto mediante createTextNode y devuelve al worker
+la locución correspondiente; no se cambia el agente Cloud ni la base de datos.
+Pruebas: recorrido literal de martes / para dos / a las dos / Antonio / correo,
+lectura natural, dirección visible, deletreo solicitado, confirmación y payload;
+la simulación JSDOM/RPC comprueba también las dos presentaciones y la escritura
+solo con el botón final. La síntesis real depende del modelo de voz ya desplegado.

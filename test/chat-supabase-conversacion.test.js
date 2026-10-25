@@ -2,12 +2,26 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {crear}=require('../lib/chat-supabase-conversacion');
 const {correoDictado,nombreCliente}=require('../lib/chat-supabase-conversacion');
 function escenario(opciones={}){
- const mensajes=[],llamadas=[];const chat=crear({config:{nombre:'Sol',zonaHoraria:'Europe/Madrid',zonas:[{id:'zona1',nombre:'INTERIOR'}],...opciones.config},
-  ahora:()=>new Date('2026-10-23T22:30:00Z'),uuid:()=> '11111111-2222-4333-8444-555555555555',decir:t=>mensajes.push(t),
+ const mensajes=[],locuciones=[],llamadas=[];const chat=crear({config:{nombre:'Sol',zonaHoraria:'Europe/Madrid',zonas:[{id:'zona1',nombre:'INTERIOR'}],...opciones.config},
+  ahora:()=>new Date('2026-10-23T22:30:00Z'),uuid:()=> '11111111-2222-4333-8444-555555555555',decir:(t,o)=>{mensajes.push(t);locuciones.push(o?.voz??t);},
   pedir:async(a,d)=>{llamadas.push({a,d});return opciones.pedir?opciones.pedir(a,d):{fecha_admitida:true,horario:['13:00-16:00'],disponible:true};}});
- chat.iniciar();return {chat,mensajes,llamadas};
+ chat.iniciar();return {chat,mensajes,locuciones,llamadas};
 }
 async function completar(chat){for(const t of ['mañana','2','dos de la tarde','si','Pepe','pepe@example.invalid','600000000','ninguna','si'])await chat.enviar(t);}
+test('recorrido real: a las dos significa 14:00 y el correo se muestra completo y se lee naturalmente',async()=>{
+ const {chat,mensajes,locuciones}=escenario();
+ for(const t of ['Para el martes que viene.','Para dos.','A las dos.'])await chat.enviar(t,{canal:'voz'});
+ assert.equal(chat.estado().paso,'resumen');assert.match(mensajes.at(-1),/a las 14:00/);
+ for(const t of ['Sí.','Antonio.','Antonio García arroba Gmail punto com.'])await chat.enviar(t,{canal:'voz'});
+ assert.equal(chat.estado().paso,'confirmar_email');assert.equal(chat.estado().pendiente,null);
+ assert.match(mensajes.at(-1),/He entendido: antoniogarcia@gmail\.com/);
+ assert.match(locuciones.at(-1),/antoniogarcia, arroba, gmail punto com/);assert.doesNotMatch(locuciones.at(-1),/a, n, t, o/);
+ await chat.enviar('deletrealo',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
+ assert.match(mensajes.at(-1),/antoniogarcia@gmail\.com/);assert.match(locuciones.at(-1),/a, n, t, o, n, i, o, g, a, r, c, i, a/);
+ await chat.enviar('Sí.',{canal:'voz'});assert.equal(chat.estado().paso,'telefono');
+ for(const t of ['600000000','ninguna','si'])await chat.enviar(t,{canal:'voz'});
+ assert.equal(chat.estado().pendiente.hora,'14:00');assert.equal(chat.estado().pendiente.nombre,'Antonio');assert.equal(chat.estado().pendiente.email,'antoniogarcia@gmail.com');
+});
 test('respuestas breves de personas reutilizan el intérprete anterior con puntuación de voz',async()=>{
  for(const [texto,n] of [['Dos.',2],['Tres',3],['Once.',11],['2.',2],['1000',1000]]){
   const {chat,mensajes}=escenario();await chat.enviar('El martes.');await chat.enviar(texto,{canal:'voz'});
@@ -15,14 +29,14 @@ test('respuestas breves de personas reutilizan el intérprete anterior con puntu
   assert.match(mensajes.at(-1),new RegExp(', '+n+' personas,'));
  }
 });
-test('Catorce y Catorce horas se aceptan sin perder la aclaración para horas ambiguas',async()=>{
- for(const [texto,hora] of [['Catorce.','14:00'],['Catorce horas.','14:00'],['Quince horas.','15:00'],['14.','14:00'],['A las dieciséis horas.','16:00']]){
+test('horas naturales usan el contexto de restaurante y respetan horas explícitas',async()=>{
+ for(const [texto,hora] of [['Dos.','14:00'],['A las dos.','14:00'],['A las tres.','15:00'],['A las once.','23:00'],['02:00','02:00'],['Dos de la mañana.','02:00'],['Catorce.','14:00'],['Catorce horas.','14:00'],['Quince horas.','15:00'],['14.','14:00'],['A las dieciséis horas.','16:00']]){
   const {chat,mensajes}=escenario();await chat.enviar('Para el martes, y dos personas.');assert.equal(chat.estado().paso,'hora');
   await chat.enviar(texto,{canal:'voz'});assert.equal(chat.estado().paso,'resumen',texto);assert.ok(mensajes.at(-1).includes('a las '+hora));
   assert.ok(!mensajes.some(m=>m==='¿Para cuántas personas?'));
  }
  const {chat}=escenario();await chat.enviar('martes, dos personas');
- for(const texto of ['Dos.','A las dos.','catorce o quince']){await chat.enviar(texto);assert.equal(chat.estado().paso,'hora');}
+ for(const texto of ['dos o tres','a las dos o a las tres','catorce o quince']){await chat.enviar(texto);assert.equal(chat.estado().paso,'hora');}
  await chat.enviar('Dos de la tarde.');assert.equal(chat.estado().paso,'resumen');
 });
 test('varios datos explícitos en un turno llegan al resumen sin preguntas repetidas ni escrituras',async()=>{
@@ -80,10 +94,10 @@ test('caso real: no guarda Sí como nombre y permite corregir Oen vídeo mediant
  await chat.enviar('Sí.',{canal:'voz'});assert.equal(chat.estado().paso,'nombre');assert.match(mensajes.at(-1),/Necesito el nombre/);assert.ok(!mensajes.includes('A nombre de Sí.'));
  await chat.enviar('A nombre de Juan.',{canal:'voz'});assert.equal(chat.estado().paso,'email');
  await chat.enviar('Oen vídeo arroba Gmail punto com.',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
- assert.match(mensajes.at(-1),/o, e, n, v, i, d, e, o, arroba, gmail punto com/);
+ assert.match(mensajes.at(-1),/oenvideo@gmail\.com/);
  await chat.enviar('No.',{canal:'voz'});assert.equal(chat.estado().paso,'email');
  await chat.enviar('O, e, eme, uve, i, de, e, o, arroba Gmail punto com.',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
- assert.match(mensajes.at(-1),/o, e, m, v, i, d, e, o, arroba, gmail punto com/);
+ assert.match(mensajes.at(-1),/oemvideo@gmail\.com/);
  await chat.enviar('Sí.',{canal:'voz'});assert.equal(chat.estado().paso,'telefono');
  for(const t of ['600000000','ninguna','si'])await chat.enviar(t,{canal:'voz'});
  assert.equal(chat.estado().pendiente.nombre,'Juan');assert.equal(chat.estado().pendiente.email,'oemvideo@gmail.com');
@@ -98,7 +112,7 @@ test('correo por voz exige confirmación, admite repetirlo y solo guarda el conf
  assert.ok(mensajes.includes('A nombre de Juan.'));assert.equal(chat.estado().paso,'email');
  await chat.enviar('primer correo incompleto',{canal:'voz'});assert.equal(chat.estado().paso,'email');
  await chat.enviar('juan arroba gmail punto com',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');assert.equal(chat.estado().pendiente,null);
- assert.match(mensajes.at(-1),/j, u, a, n, arroba, gmail punto com/);
+ assert.match(mensajes.at(-1),/juan@gmail\.com/);
  await chat.enviar('no',{canal:'voz'});assert.equal(chat.estado().paso,'email');
  await chat.enviar('juan guion bajo dos arroba example punto invalid',{canal:'voz'});
  await chat.enviar('teneis cocido',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
@@ -129,7 +143,7 @@ test('flujo completo usa fecha local del restaurante, zona única y no escribe h
 test('día cerrado, entradas ambiguas y rechazo explícito no avanzan ni escriben',async()=>{
  const {chat}=escenario({pedir:async()=>({fecha_admitida:false,horario:[]})});await chat.enviar('mañana');assert.equal(chat.estado().paso,'fecha');
  const s=escenario();await s.chat.enviar('mañana');await s.chat.enviar('dos o tres personas');assert.equal(s.chat.estado().paso,'personas');
- await s.chat.enviar('2');await s.chat.enviar('a las dos');assert.equal(s.chat.estado().paso,'hora');
+ await s.chat.enviar('2');await s.chat.enviar('a las dos o a las tres');assert.equal(s.chat.estado().paso,'hora');
  await s.chat.enviar('14:00');await s.chat.enviar('si pero cambia la hora');assert.equal(s.chat.estado().paso,'corregir');
  await s.chat.enviar('hora');await s.chat.enviar('15:00');assert.equal(s.chat.estado().paso,'resumen');
 });
