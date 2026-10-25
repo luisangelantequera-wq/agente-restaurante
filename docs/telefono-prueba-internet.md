@@ -36,8 +36,14 @@ incluidos en esta suma. Tampoco incluye el alquiler mensual del número.
 El SDK `@twilio/voice-sdk@2.18.5` está fijado en el lockfile. Postinstall copia
 el bundle y su licencia a `vendor/`, sin cargar código de CDN. Su log está en
 modo silent. La CSP de Twilio se aplica solo a `telefono-prueba.html`.
-La conexión del navegador usa el edge Dublin; eso no cambia la nacionalidad del
-número marcado ni garantiza otra tarifa de destino.
+El token del navegador fija `region=ie1` y el cliente REST también fija
+`region=ie1`, ambos con acceso Dublin. Las llamadas se procesan en Irlanda.
+Elegir solo el edge Dublin no cambia la región de procesamiento. La aplicación
+TwiML, la API key y el Auth Token deben ser de Irlanda. El número estadounidense
+sigue siendo el destino de pruebas y no determina la región elegida. Su recepción
+también requiere configurar la región de procesamiento entrante IE1 antes de
+presentar el recorrido completo como europeo; el uso de un número de EE. UU.
+no permite asegurar que todo el tránsito de operadores permanezca en la UE.
 
 ## Estado de activación
 
@@ -64,7 +70,7 @@ Antes de activar:
 3. Si la Preview requiere Vercel Authentication, usar un bypass de automatización
    para ese callback y conservar la URL exacta únicamente en Twilio y en la
    variable sensible de Vercel. No desactivar la protección del proyecto.
-4. Crear una API key Twilio para Voice SDK, de la misma cuenta y región US1.
+4. Crear una API key Twilio para Voice SDK, de la misma cuenta y región Irlanda (IE1).
    Guardar el secreto directamente en Vercel, nunca en Git ni en el chat.
 5. Configurar exclusivamente para esta rama de Preview:
    - `TWILIO_BROWSER_API_KEY_SID` y `TWILIO_BROWSER_API_KEY_SECRET`.
@@ -72,9 +78,11 @@ Antes de activar:
    - `CONTACTIA_TWILIO_TEST_NUMBER`: el número +1 comprado ya existente.
    - `CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL`: la Voice URL exacta de la app.
    - `CONTACTIA_TWILIO_BROWSER_ENABLED=1`, únicamente al finalizar los pasos.
-   Reutilizar `TWILIO_ACCOUNT_SID` y `TWILIO_AUTH_TOKEN` de la misma cuenta.
-   Hay variables globales de Preview con esos nombres y otras específicas de
-   la rama antigua; se ha consultado solo su existencia, no sus valores.
+   - `TWILIO_BROWSER_AUTH_TOKEN`: Auth Token de Irlanda (IE1), para verificar
+     los webhooks regionales. No reutilizar el Auth Token US1 de otras funciones.
+   Reutilizar únicamente `TWILIO_ACCOUNT_SID` de la misma cuenta. Hay variables
+   globales de Preview y otras de la rama antigua; solo se ha consultado su
+   existencia, no sus valores.
 6. Comprobar una llamada iniciada manualmente con el botón y su importe real.
    El saldo y un registro anterior a cero no garantizan llamadas gratuitas.
 
@@ -102,3 +110,13 @@ costes propios. Pruebas de la página real en JSDOM: preparar, conectar, colgar,
 colgar durante conexión, límite de duración, recibo manual, configuración
 incompleta y CSP. Los proveedores y medios se simulan; no se hacen llamadas
 ni se usan credenciales reales. La prueba con Twilio real está pendiente.
+
+## Corrección de región tras la configuración guiada
+
+Se indicó por error al usuario crear la app y clave en US1 por ser la región
+predeterminada del código inicial. El 25/10 el usuario recordó el objetivo de
+trabajar en Europa. Se corrige el navegador (claim twr=ie1), el cliente REST y la
+validación de firmas con Auth Token regional. La app y la clave de esta prueba
+deben estar en **Irlanda (IE1)**. No borrar recursos existentes de US1 ni cambiar
+otras integraciones. Cambiar el selector de la consola solo muestra recursos:
+no los traslada entre regiones. Sigue pendiente la activación documentada arriba.

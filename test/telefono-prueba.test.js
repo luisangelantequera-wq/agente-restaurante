@@ -1,9 +1,9 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto'),twilio=require('twilio');
-const {crearHandler,crearWebhook,configurada,pase,abrir,hash,coste}=require('../lib/telefono-prueba');
+const {crearHandler,crearWebhook,configurada,pase,abrir,hash,coste,proveedor}=require('../lib/telefono-prueba');
 const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1',CONTACTIA_WEB_SUPABASE_ENABLED:'1',CONTACTIA_TWILIO_BROWSER_ENABLED:'1',
  VERCEL_URL:'preview.example',CONTACTIA_SUPABASE_SERVER_KEY:'sb_secret_clave-servidor-ficticia',TURNSTILE_SECRET_KEY:'secreto',TURNSTILE_SITE_KEY:'site-publica',
- TWILIO_ACCOUNT_SID:'AC'+'a'.repeat(32),TWILIO_AUTH_TOKEN:'auth-token-ficticio-no-real',TWILIO_BROWSER_API_KEY_SID:'SK'+'b'.repeat(32),TWILIO_BROWSER_API_KEY_SECRET:'api-secret-ficticio-no-real',
+ TWILIO_ACCOUNT_SID:'AC'+'a'.repeat(32),TWILIO_BROWSER_AUTH_TOKEN:'auth-token-ficticio-no-real',TWILIO_BROWSER_API_KEY_SID:'SK'+'b'.repeat(32),TWILIO_BROWSER_API_KEY_SECRET:'api-secret-ficticio-no-real',
  TWILIO_BROWSER_APP_SID:'AP'+'c'.repeat(32),CONTACTIA_TWILIO_TEST_NUMBER:'+12025550123',CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL:'https://preview.example/api/restaurante?canal=telefono_prueba'};
 const id='11111111-2222-4333-8444-555555555555',sid='CA'+'d'.repeat(32),otro='CA'+'e'.repeat(32);
 const req={method:'POST',headers:{host:'preview.example',origin:'https://preview.example','content-type':'application/json','x-forwarded-for':'192.0.2.1'}};
@@ -26,7 +26,7 @@ function escenario(cambios={}){
  async function api(body,solicitud=req){const r=respuesta();await handler(solicitud,r,{slug:'prueba-sol',...body});return r;}
  async function sesion(){const r=await api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'});assert.equal(r.statusCode,200,JSON.stringify(r.body));return r.body;}
  async function callback(token,extra={},firma=true){const d=abrir(env,token),p={AccountSid:env.TWILIO_ACCOUNT_SID,ApplicationSid:env.TWILIO_BROWSER_APP_SID,CallSid:sid,From:'client:'+d.identidad,To:env.CONTACTIA_TWILIO_TEST_NUMBER,Autorizacion:token,...extra};
-  const headers={host:'preview.example','content-type':'application/x-www-form-urlencoded','x-twilio-signature':firma?twilio.getExpectedTwilioSignature(env.TWILIO_AUTH_TOKEN,env.CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL,p):'incorrecta'};
+  const headers={host:'preview.example','content-type':'application/x-www-form-urlencoded','x-twilio-signature':firma?twilio.getExpectedTwilioSignature(env.TWILIO_BROWSER_AUTH_TOKEN,env.CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL,p):'incorrecta'};
   const r=respuesta();await webhook({method:'POST',headers,body:p},r);return r;}
  return{api,sesion,callback,proveedor,acciones,verificaciones,consultas,registros};
 }
@@ -44,10 +44,10 @@ test('configuración incompleta y callbacks arbitrarios mantienen el botón desa
 });
 test('la verificación inicial autoriza un token breve sin llamadas entrantes y con destino fijo',async()=>{
  const s=escenario(),r=await s.sesion(),p=JSON.parse(Buffer.from(r.token.split('.')[1],'base64url'));
- assert.equal(p.exp-p.iat,120);assert.equal(p.grants.voice.outgoing.application_sid,env.TWILIO_BROWSER_APP_SID);assert.ok(!p.grants.voice.incoming?.allow);
+ assert.equal(p.exp-p.iat,120);assert.equal(JSON.parse(Buffer.from(r.token.split('.')[0],'base64url')).twr,'ie1');assert.equal(p.grants.voice.outgoing.application_sid,env.TWILIO_BROWSER_APP_SID);assert.ok(!p.grants.voice.incoming?.allow);
  assert.equal(p.grants.voice.outgoing.params.Autorizacion,r.pase);assert.equal(r.numero,env.CONTACTIA_TWILIO_TEST_NUMBER);assert.equal(r.maxSegundos,180);
  assert.equal(s.verificaciones[0].action,'llamada_usa');assert.equal(s.verificaciones[0].peticion,id);
- assert.deepEqual(s.consultas,['numero','app']);assert.ok(!JSON.stringify(r).includes(env.TWILIO_AUTH_TOKEN));assert.ok(!JSON.stringify(r).includes(env.TWILIO_BROWSER_API_KEY_SECRET));
+ assert.deepEqual(s.consultas,['numero','app']);assert.ok(!JSON.stringify(r).includes(env.TWILIO_BROWSER_AUTH_TOKEN));assert.ok(!JSON.stringify(r).includes(env.TWILIO_BROWSER_API_KEY_SECRET));
  assert.equal((await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'})).statusCode,409);
 });
 test('origen ajeno, datos extra, cuota o captcha fallido impiden emitir permisos',async()=>{
@@ -91,4 +91,12 @@ test('una Preview protegida o un número que apunta a la misma app no emiten el 
  let s=escenario({webhookAccesible:false});let r=await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'});assert.equal(r.statusCode,503);assert.equal(s.registros.size,0);
  s=escenario();s.proveedor.incomingPhoneNumbers.list=async()=>[{phoneNumber:env.CONTACTIA_TWILIO_TEST_NUMBER,capabilities:{voice:true},voiceApplicationSid:env.TWILIO_BROWSER_APP_SID}];
  r=await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'});assert.equal(r.statusCode,503);assert.equal(s.registros.size,0);
+});
+
+test('la API de voz usa Irlanda y la firma exige el Auth Token regional',async()=>{
+ const p=proveedor(env);assert.equal(p.region,'ie1');assert.equal(p.edge,'dublin');
+ assert.equal(configurada({...env,TWILIO_BROWSER_AUTH_TOKEN:'',TWILIO_AUTH_TOKEN:'auth-token-antiguo-de-us1'}),false);
+ const s=escenario(),r=await s.sesion(),d=abrir(env,r.pase);
+ const b={AccountSid:env.TWILIO_ACCOUNT_SID,ApplicationSid:env.TWILIO_BROWSER_APP_SID,CallSid:sid,From:'client:'+d.identidad,To:env.CONTACTIA_TWILIO_TEST_NUMBER,Autorizacion:r.pase};
+ const res=respuesta();await crearWebhook({env,clientFactory:()=>{throw Error('No debe acceder a SQL');}})({method:'POST',headers:{host:'preview.example','content-type':'application/x-www-form-urlencoded','x-twilio-signature':twilio.getExpectedTwilioSignature('auth-token-us1-equivocado',env.CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL,b)},body:b},res);assert.equal(res.statusCode,403);
 });

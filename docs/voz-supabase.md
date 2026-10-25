@@ -410,3 +410,12 @@ app y la API key del SDK, aplicar la migración remota (conector devuelve
 `Invalid or expired requestState`) y conectar el receptor al agente. El estado
 y los pasos de activación están en `docs/telefono-prueba-internet.md`.
 Las reservas de voz web que ya funcionaban conservan su flujo.
+
+### Región de Twilio para el botón de pruebas
+
+Se corrige la indicación anterior de US1: la app TwiML y la API key del navegador
+se crearán en Irlanda (IE1). El código fuerza IE1 en el token y en REST, y exige
+un Auth Token regional independiente. El número de destino estadounidense no
+obliga a procesar las llamadas en US1. La recepción del número también deberá
+configurarse para IE1. No se promete residencia íntegra de todos los servicios
+o del tránsito telefónico solo por configurar este componente.
