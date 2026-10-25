@@ -230,3 +230,41 @@ Solo cambia el chat de Preview; no hace falta redesplegar el worker Cloud para
 esta corrección. Tras publicarse, requiere recargar la página para cargar el
 JavaScript nuevo. La siguiente prueba manual es únicamente la recuperación del
 Sí repetido y del dictado del correo; no requiere registrar otra reserva.
+
+
+## Respuestas naturales recuperadas en el chat Supabase (25/10/2026)
+
+Una segunda transcripción real mostró que «Dos.» se rechazaba repetidamente,
+«Catorce.» y «Catorce horas.» no se aceptaban y «Para el martes, y dos personas»
+provocaba volver a preguntar personas. En ese mismo recorrido se guardó José
+correctamente y se sustituyó el primer correo por Pepito antes de confirmar.
+
+La regresión estaba en la adaptación conversacional, no en la base de datos:
+Supabase llamaba a `analizarPersonas`, que busca marcadores explícitos, pero no
+reutilizaba `extraerPersonas` para respuestas breves. En hora no utilizaba la
+opción `permitirRespuestaBreve` de `extraerHora`. Esas funciones ya existían y se
+habían validado en el flujo anterior; los tests iniciales de Supabase usaban
+principalmente cifras y frases completas y no cubrían estas entradas reales.
+
+Se añaden adaptadores limitados al campo preguntado que reutilizan los
+intérpretes existentes, y se conservan ambigüedades y validaciones de rango.
+Se capturan personas con marcador explícito, hora inequívoca y zona explícita en
+los turnos de recogida de reserva. Se pregunta el primer campo aún ausente;
+no se pregunta de nuevo uno ya capturado. Personas y hora claras se conservan
+si el servidor rechaza un día cerrado. Los números de una fecha no se toman por
+comensales y no se aplica esta captura al nombre, correo, resumen de confirmación
+o solicitud incierta. Las correcciones explícitas conservan su flujo propio.
+
+La extracción complementaria no valida fechas nuevas fuera del paso fecha ni
+sustituye al servidor: horario, antelación, disponibilidad y escritura conservan
+sus comprobaciones. Se sigue pidiendo aclaración para «las dos» sin periodo.
+El texto de la pregunta inicial de hora se simplifica, con ejemplos solo cuando
+hace falta aclarar una respuesta.
+
+Pruebas de regresión: respuestas breves con puntuación, varios datos explícitos
+en un turno, dato dicho antes del día, cierre que conserva personas/hora,
+alternativas ambiguas y correcciones. El recorrido completo reproduce el nombre
+José y sustitución de Oen vídeo por Pepito, sin crear una reserva automáticamente.
+La simulación de navegador/RPC también usa Dos y Catorce horas. La verificación
+manual sigue siendo necesaria para evaluar transcripción y voz reales; los tests
+no se presentan como garantía de reconocimiento acústico.

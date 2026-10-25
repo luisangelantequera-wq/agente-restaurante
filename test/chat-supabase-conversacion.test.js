@@ -8,6 +8,49 @@ function escenario(opciones={}){
  chat.iniciar();return {chat,mensajes,llamadas};
 }
 async function completar(chat){for(const t of ['mañana','2','dos de la tarde','si','Pepe','pepe@example.invalid','600000000','ninguna','si'])await chat.enviar(t);}
+test('respuestas breves de personas reutilizan el intérprete anterior con puntuación de voz',async()=>{
+ for(const [texto,n] of [['Dos.',2],['Tres',3],['Once.',11],['2.',2],['1000',1000]]){
+  const {chat,mensajes}=escenario();await chat.enviar('El martes.');await chat.enviar(texto,{canal:'voz'});
+  assert.equal(chat.estado().paso,'hora',texto);await chat.enviar('Catorce.');assert.equal(chat.estado().paso,'resumen');
+  assert.match(mensajes.at(-1),new RegExp(', '+n+' personas,'));
+ }
+});
+test('Catorce y Catorce horas se aceptan sin perder la aclaración para horas ambiguas',async()=>{
+ for(const [texto,hora] of [['Catorce.','14:00'],['Catorce horas.','14:00'],['Quince horas.','15:00'],['14.','14:00'],['A las dieciséis horas.','16:00']]){
+  const {chat,mensajes}=escenario();await chat.enviar('Para el martes, y dos personas.');assert.equal(chat.estado().paso,'hora');
+  await chat.enviar(texto,{canal:'voz'});assert.equal(chat.estado().paso,'resumen',texto);assert.ok(mensajes.at(-1).includes('a las '+hora));
+  assert.ok(!mensajes.some(m=>m==='¿Para cuántas personas?'));
+ }
+ const {chat}=escenario();await chat.enviar('martes, dos personas');
+ for(const texto of ['Dos.','A las dos.','catorce o quince']){await chat.enviar(texto);assert.equal(chat.estado().paso,'hora');}
+ await chat.enviar('Dos de la tarde.');assert.equal(chat.estado().paso,'resumen');
+});
+test('varios datos explícitos en un turno llegan al resumen sin preguntas repetidas ni escrituras',async()=>{
+ const {chat,mensajes,llamadas}=escenario({config:{zonas:[{id:'zona1',nombre:'INTERIOR'},{id:'zona2',nombre:'TERRAZA'}]}});
+ await chat.enviar('Para el martes, dos personas a las catorce horas en TERRAZA.',{canal:'voz'});
+ assert.equal(chat.estado().paso,'resumen');assert.match(mensajes.at(-1),/2 personas, a las 14:00, en TERRAZA/);
+ assert.deepEqual(llamadas.map(l=>l.a),['supabase_web_fecha']);
+ assert.ok(!mensajes.includes('¿Para cuántas personas?'));assert.ok(!mensajes.includes('¿A qué hora desea reservar?'));
+ await chat.enviar('Sí.');assert.equal(chat.estado().paso,'nombre');
+ for(const t of ['José.','Oen vídeo arroba Gmail punto com.','Pepito arroba Gmail punto com.','Sí.','600000000','ninguna','si'])await chat.enviar(t,{canal:'voz'});
+ assert.equal(chat.estado().pendiente.nombre,'José');assert.equal(chat.estado().pendiente.email,'pepito@gmail.com');
+ assert.equal(chat.estado().pendiente.personas,2);assert.equal(chat.estado().pendiente.hora,'14:00');assert.equal(chat.estado().pendiente.zona_id,'zona2');
+ assert.ok(!llamadas.some(l=>l.a==='supabase_web_reservar'));
+});
+test('fecha cerrada conserva personas y hora claras; un día numérico no se convierte en comensales',async()=>{
+ const s=escenario({pedir:async(a,d)=>a==='supabase_web_fecha'?{fecha_admitida:d.fecha!=='2026-10-25',horario:['13:00-16:00']}:{disponible:true}});
+ await s.chat.enviar('Mañana, para cuatro personas a las catorce horas.');assert.equal(s.chat.estado().paso,'fecha');
+ await s.chat.enviar('El martes.');assert.equal(s.chat.estado().paso,'resumen');assert.match(s.mensajes.at(-1),/4 personas, a las 14:00/);
+ const n=escenario();await n.chat.enviar('Para el 2/11/2026.');assert.equal(n.chat.estado().paso,'personas');
+ const a=escenario();await a.chat.enviar('El martes para dos o tres personas.');assert.equal(a.chat.estado().paso,'personas');
+ await a.chat.enviar('Dos.');assert.equal(a.chat.estado().paso,'hora');
+});
+test('un dato dicho antes del día se conserva y una corrección breve vuelve al resumen',async()=>{
+ const {chat,mensajes}=escenario();await chat.enviar('Para dos personas.');assert.equal(chat.estado().paso,'fecha');
+ await chat.enviar('El martes.');assert.equal(chat.estado().paso,'hora');await chat.enviar('Catorce horas.');
+ await chat.enviar('no');await chat.enviar('personas');await chat.enviar('Tres.');assert.equal(chat.estado().paso,'resumen');
+ assert.match(mensajes.at(-1),/3 personas, a las 14:00/);
+});
 test('contactos dictados convierten símbolos y deletreo sin adivinar dominios',()=>{
  assert.equal(correoDictado('Mi correo es oemvideo arroba gmail punto com.'),'oemvideo@gmail.com');
  assert.equal(correoDictado('o e eme uve i de e o arroba gmail punto com'),'oemvideo@gmail.com');
