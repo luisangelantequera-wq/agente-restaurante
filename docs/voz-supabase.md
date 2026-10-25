@@ -297,3 +297,22 @@ Pruebas: recorrido literal de martes / para dos / a las dos / Antonio / correo,
 lectura natural, dirección visible, deletreo solicitado, confirmación y payload;
 la simulación JSDOM/RPC comprueba también las dos presentaciones y la escritura
 solo con el botón final. La síntesis real depende del modelo de voz ya desplegado.
+
+## Prueba completa confirmada y cierre telefónico pendiente (25/10/2026)
+
+El usuario completó una reserva real de prueba: «A las dos» se interpretó como
+14:00, «A nombre de Antonio» guardó Antonio y el correo dictado se confirmó
+correctamente. También se entendió el teléfono con un «Sí» inicial. La reserva
+quedó registrada; no se envió correo porque la dirección no estaba habilitada.
+
+Los dos resúmenes conservan 14:00 en pantalla y en los datos, y la locución
+dice «a las catorce horas». Para horas con minutos se leen también los minutos.
+
+La verificación y el botón final siguen siendo requisitos de esta prueba web.
+No existe aún un cierre telefónico: el worker depende de la RPC del navegador
+y la ruta de reserva exige Turnstile. La telefonía requiere trasladar la
+conversación al servidor y una confirmación autenticada desde el agente,
+vinculada a la llamada, con validación de disponibilidad e idempotencia, tras
+un sí explícito del cliente. No se debe eliminar Turnstile de la ruta pública
+ni prometer que el canal telefónico actual ya funciona sin pantalla. No se
+habilita telefonía ni se cambia producción en esta corrección.

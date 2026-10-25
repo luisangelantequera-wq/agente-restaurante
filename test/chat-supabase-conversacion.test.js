@@ -11,7 +11,7 @@ async function completar(chat){for(const t of ['mañana','2','dos de la tarde','
 test('recorrido real: a las dos significa 14:00 y el correo se muestra completo y se lee naturalmente',async()=>{
  const {chat,mensajes,locuciones}=escenario();
  for(const t of ['Para el martes que viene.','Para dos.','A las dos.'])await chat.enviar(t,{canal:'voz'});
- assert.equal(chat.estado().paso,'resumen');assert.match(mensajes.at(-1),/a las 14:00/);
+ assert.equal(chat.estado().paso,'resumen');assert.match(mensajes.at(-1),/a las 14:00/);assert.match(locuciones.at(-1),/a las catorce horas/);
  for(const t of ['Sí.','Antonio.','Antonio García arroba Gmail punto com.'])await chat.enviar(t,{canal:'voz'});
  assert.equal(chat.estado().paso,'confirmar_email');assert.equal(chat.estado().pendiente,null);
  assert.match(mensajes.at(-1),/He entendido: antoniogarcia@gmail\.com/);
@@ -19,7 +19,9 @@ test('recorrido real: a las dos significa 14:00 y el correo se muestra completo 
  await chat.enviar('deletrealo',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
  assert.match(mensajes.at(-1),/antoniogarcia@gmail\.com/);assert.match(locuciones.at(-1),/a, n, t, o, n, i, o, g, a, r, c, i, a/);
  await chat.enviar('Sí.',{canal:'voz'});assert.equal(chat.estado().paso,'telefono');
- for(const t of ['600000000','ninguna','si'])await chat.enviar(t,{canal:'voz'});
+ for(const t of ['600000000','ninguna'])await chat.enviar(t,{canal:'voz'});
+ assert.match(locuciones.at(-1),/a las catorce horas/);
+ await chat.enviar('si',{canal:'voz'});
  assert.equal(chat.estado().pendiente.hora,'14:00');assert.equal(chat.estado().pendiente.nombre,'Antonio');assert.equal(chat.estado().pendiente.email,'antoniogarcia@gmail.com');
 });
 test('respuestas breves de personas reutilizan el intérprete anterior con puntuación de voz',async()=>{
