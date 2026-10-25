@@ -3,3 +3,7 @@ node_modules/
 .env.*
 .vercel/
 
+
+# Generados desde la versión fijada del SDK durante postinstall.
+vendor/twilio-voice.min.js
+vendor/twilio-voice-LICENSE

@@ -399,3 +399,14 @@ disponibilidad mediante LiveKit Inference en EU y coste. No se han atribuido
 acentos ni características no confirmadas a estas voces. Mantener Marta activa
 hasta elegir y probar una sustituta. La selección desde el panel del restaurante
 es una mejora futura, todavía no implementada.
+
+## Botón telefónico por Internet: preparado, sin activar (25/10/2026)
+
+El usuario ha elegido probar el número estadounidense de Twilio desde un botón
+web para evitar llamadas internacionales desde su tarifa móvil. Se prepara
+`telefono-prueba.html` con destino fijo, límite de tres minutos y recibo manual
+de costes. No se ha llamado ni configurado la recepción del número. Faltan la
+app y la API key del SDK, aplicar la migración remota (conector devuelve
+`Invalid or expired requestState`) y conectar el receptor al agente. El estado
+y los pasos de activación están en `docs/telefono-prueba-internet.md`.
+Las reservas de voz web que ya funcionaban conservan su flujo.
