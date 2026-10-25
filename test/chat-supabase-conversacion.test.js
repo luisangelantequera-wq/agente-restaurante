@@ -27,6 +27,28 @@ test('nombre conserva apellidos y limpia las expresiones de la reserva',()=>{
  assert.equal(nombreCliente('Mi nombre es María José García.'),'María José García');
  assert.equal(nombreCliente('Juan de la Cruz'),'Juan de la Cruz');
  assert.equal(nombreCliente('A nombre de.'),'');
+ for(const t of ['Sí.','No.','Correcto','Vale','No lo sé','600000000','juan@example.invalid','Oen vídeo arroba Gmail punto com.'])assert.equal(nombreCliente(t),'');
+ assert.equal(nombreCliente("María del Mar O'Neill"),"María del Mar O'Neill");
+});
+test('caso real: no guarda Sí como nombre y permite corregir Oen vídeo mediante deletreo confirmado',async()=>{
+ const {chat,mensajes}=escenario();
+ for(const t of ['El martes.','Para dos.','A las catorce horas.','Sí.'])await chat.enviar(t,{canal:'voz'});
+ assert.equal(chat.estado().paso,'nombre');
+ await chat.enviar('Sí.',{canal:'voz'});assert.equal(chat.estado().paso,'nombre');assert.match(mensajes.at(-1),/Necesito el nombre/);assert.ok(!mensajes.includes('A nombre de Sí.'));
+ await chat.enviar('A nombre de Juan.',{canal:'voz'});assert.equal(chat.estado().paso,'email');
+ await chat.enviar('Oen vídeo arroba Gmail punto com.',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
+ assert.match(mensajes.at(-1),/o, e, n, v, i, d, e, o, arroba, gmail punto com/);
+ await chat.enviar('No.',{canal:'voz'});assert.equal(chat.estado().paso,'email');
+ await chat.enviar('O, e, eme, uve, i, de, e, o, arroba Gmail punto com.',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
+ assert.match(mensajes.at(-1),/o, e, m, v, i, d, e, o, arroba, gmail punto com/);
+ await chat.enviar('Sí.',{canal:'voz'});assert.equal(chat.estado().paso,'telefono');
+ for(const t of ['600000000','ninguna','si'])await chat.enviar(t,{canal:'voz'});
+ assert.equal(chat.estado().pendiente.nombre,'Juan');assert.equal(chat.estado().pendiente.email,'oemvideo@gmail.com');
+});
+test('correo dictado admite tildes y pausas de transcripción sin adivinar letras',()=>{
+ assert.equal(correoDictado('Oen vídeo arroba Gmail punto com.'),'oenvideo@gmail.com');
+ assert.equal(correoDictado('O, e, eme, vídeo, arroba Gmail punto com.'),'oemvideo@gmail.com');
+ assert.equal(correoDictado('José punto pérez arroba example punto inválid'),'jose.perez@example.invalid');
 });
 test('correo por voz exige confirmación, admite repetirlo y solo guarda el confirmado',async()=>{
  const {chat,mensajes,llamadas}=escenario();for(const t of ['mañana','2','14:00','si','A nombre de Juan'])await chat.enviar(t,{canal:'voz'});

@@ -203,3 +203,30 @@ worker Python comprobada. No se ha sintetizado audio de Marta desde el entorno
 de preparación: requiere desplegar `agent.py` en el mismo agente Cloud y una
 comprobación breve con el usuario. La web Preview se actualiza desde Git;
 Cloud requiere su propio `lk agent deploy`.
+
+
+## Regresión con la transcripción real (25/10/2026)
+
+El usuario aportó un recorrido con dos «Sí» seguidos: el primero confirmó el
+resumen de fecha/hora/personas; el segundo llegó en el paso nombre y se guardó
+como nombre. Después se recibió literalmente «Oen vídeo arroba Gmail punto
+com.», que fue rechazado por la tilde introducida por el transcriptor.
+
+Se rechazan confirmaciones genéricas como nombre, además de teléfonos y correos,
+y se mantiene el paso nombre con una petición explícita. No se descartan todos
+los turnos repetidos ni se añaden ventanas de tiempo: un Sí posterior en una
+confirmación válida debe seguir funcionando.
+
+La normalización del correo por voz quita tildes ortográficas de vocales y admite
+comas/pausas entre letras. Sigue sin adivinar la diferencia Oen/OEM: ofrece
+`oenvideo@gmail.com` como candidato, lo lee y espera confirmación; si se rechaza,
+permite dictar `O, e, eme, uve, i, de, e, o, arroba Gmail punto com.` y aceptar
+`oemvideo@gmail.com`. Una prueba recorre exactamente estos turnos y verifica que
+el payload final contiene Juan y solo el correo confirmado. La transcripción
+seguirá dependiendo del reconocedor; no se presenta la normalización como una
+garantía de que reconozca cualquier cuenta.
+
+Solo cambia el chat de Preview; no hace falta redesplegar el worker Cloud para
+esta corrección. Tras publicarse, requiere recargar la página para cargar el
+JavaScript nuevo. La siguiente prueba manual es únicamente la recuperación del
+Sí repetido y del dictado del correo; no requiere registrar otra reserva.
