@@ -81,10 +81,10 @@ async def contactia(ctx: JobContext):
         stt=inference.STT(model="deepgram/nova-3", language="es"),
         llm=inference.LLM(model="openai/gpt-4.1-mini"),
         # Rime Coda no admite el servicio EU: REGION_RESTRICTED en Cloud.
-        # Voz predeterminada Daniela del catálogo oficial de LiveKit/Cartesia.
+        # Marta: voz conversacional de España del catálogo oficial de Cartesia.
         tts=inference.TTS(
             model="cartesia/sonic-3",
-            voice="5c5ad5e7-1020-476b-8b91-fdcbe9cc313c",
+            voice="de38f545-c574-44e8-9b54-a7d6fec1c6b1",
             language="es",
         ),
     )

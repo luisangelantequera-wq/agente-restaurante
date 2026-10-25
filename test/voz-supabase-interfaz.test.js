@@ -42,12 +42,12 @@ test('voz comparte el chat, deduplica RPC y exige el botón final antes de crear
  await rpc('intruso','mañana','otro');assert.equal(llamadas.filter(l=>l.accion==='supabase_web_fecha').length,0);
  await Promise.all([rpc('fecha','mañana'),rpc('fecha','mañana')]);assert.equal(llamadas.filter(l=>l.accion==='supabase_web_fecha').length,1);
  await rpc('personas','2');const info=JSON.parse(await rpc('info','teneis cocido'));assert.match(info.respuesta,/miércoles tenemos cocido/);assert.equal(info.paso,'hora');
- for(const [i,m] of ['14:00','si','Pepe','pepe@example.invalid','600000000','ninguna','si'].entries())await rpc('turno-'+i,m);
+ for(const [i,m] of ['14:00','si','A nombre de Juan','juan arroba example punto invalid','si','600000000','ninguna','si'].entries())await rpc('turno-'+i,m);
  assert.equal(microfono.at(-1),false);assert.equal(llamadas.filter(l=>l.accion==='supabase_web_reservar').length,0);
  await esperar(()=>!d.querySelector('#confirmar').disabled);assert.equal(verificaciones.at(-1).action,'reservar');
  assert.notEqual(verificaciones[0].cData,verificaciones.at(-1).cData);
  d.querySelector('#confirmar').click();await esperar(()=>d.querySelector('#mensajes').textContent.includes('Reserva de prueba confirmada.'));
- assert.equal(llamadas.filter(l=>l.accion==='supabase_web_reservar').length,1);assert.equal(detenciones,1);assert.equal(d.querySelector('#gestion').hidden,false);
+ assert.equal(llamadas.filter(l=>l.accion==='supabase_web_reservar').length,1);assert.equal(llamadas.find(l=>l.accion==='supabase_web_reservar').nombre,'Juan');assert.equal(llamadas.find(l=>l.accion==='supabase_web_reservar').email,'juan@example.invalid');assert.equal(detenciones,1);assert.equal(d.querySelector('#gestion').hidden,false);
  assert.deepEqual(errores,[]);
 });
 test('el SDK se sirve localmente desde una versión fijada y el worker recuperado mantiene record=False',()=>{

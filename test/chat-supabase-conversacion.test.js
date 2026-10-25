@@ -1,5 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {crear}=require('../lib/chat-supabase-conversacion');
+const {correoDictado,nombreCliente}=require('../lib/chat-supabase-conversacion');
 function escenario(opciones={}){
  const mensajes=[],llamadas=[];const chat=crear({config:{nombre:'Sol',zonaHoraria:'Europe/Madrid',zonas:[{id:'zona1',nombre:'INTERIOR'}],...opciones.config},
   ahora:()=>new Date('2026-10-23T22:30:00Z'),uuid:()=> '11111111-2222-4333-8444-555555555555',decir:t=>mensajes.push(t),
@@ -7,6 +8,53 @@ function escenario(opciones={}){
  chat.iniciar();return {chat,mensajes,llamadas};
 }
 async function completar(chat){for(const t of ['mañana','2','dos de la tarde','si','Pepe','pepe@example.invalid','600000000','ninguna','si'])await chat.enviar(t);}
+test('contactos dictados convierten símbolos y deletreo sin adivinar dominios',()=>{
+ assert.equal(correoDictado('Mi correo es oemvideo arroba gmail punto com.'),'oemvideo@gmail.com');
+ assert.equal(correoDictado('o e eme uve i de e o arroba gmail punto com'),'oemvideo@gmail.com');
+ assert.equal(correoDictado('juan punto garcia guion bajo dos arroba example punto invalid'),'juan.garcia_2@example.invalid');
+ assert.equal(correoDictado('correo@example.invalid'),'correo@example.invalid');
+ assert.equal(correoDictado('email@example.invalid'),'email@example.invalid');
+ assert.equal(correoDictado('uno@example.invalid'),'uno@example.invalid');
+ assert.equal(correoDictado('juan arroba gemail punto com'),'juan@gemail.com');
+ assert.equal(correoDictado('uno arroba example punto invalid o dos arroba example punto invalid'),null);
+ assert.equal(correoDictado('juan gmail punto com'),null);
+ assert.equal(correoDictado('juan\narroba gmail punto com'),null);
+ assert.equal(correoDictado('<juan> arroba gmail punto com'),null);
+ assert.equal(correoDictado('a'.repeat(255)+'@example.invalid'),null);
+});
+test('nombre conserva apellidos y limpia las expresiones de la reserva',()=>{
+ for(const t of ['A nombre de Juan','«A nombre de Juan.»','Pues a nombre de Juan, por favor','La reserva sería a nombre de Juan','Me llamo Juan'])assert.equal(nombreCliente(t),'Juan');
+ assert.equal(nombreCliente('Mi nombre es María José García.'),'María José García');
+ assert.equal(nombreCliente('Juan de la Cruz'),'Juan de la Cruz');
+ assert.equal(nombreCliente('A nombre de.'),'');
+});
+test('correo por voz exige confirmación, admite repetirlo y solo guarda el confirmado',async()=>{
+ const {chat,mensajes,llamadas}=escenario();for(const t of ['mañana','2','14:00','si','A nombre de Juan'])await chat.enviar(t,{canal:'voz'});
+ assert.ok(mensajes.includes('A nombre de Juan.'));assert.equal(chat.estado().paso,'email');
+ await chat.enviar('primer correo incompleto',{canal:'voz'});assert.equal(chat.estado().paso,'email');
+ await chat.enviar('juan arroba gmail punto com',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');assert.equal(chat.estado().pendiente,null);
+ assert.match(mensajes.at(-1),/j, u, a, n, arroba, gmail punto com/);
+ await chat.enviar('no',{canal:'voz'});assert.equal(chat.estado().paso,'email');
+ await chat.enviar('juan guion bajo dos arroba example punto invalid',{canal:'voz'});
+ await chat.enviar('teneis cocido',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
+ await chat.enviar('600000000',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
+ await chat.enviar('si',{canal:'voz'});assert.equal(chat.estado().paso,'telefono');
+ for(const t of ['600000000','ninguna','si'])await chat.enviar(t,{canal:'voz'});
+ assert.equal(chat.estado().pendiente.nombre,'Juan');assert.equal(chat.estado().pendiente.email,'juan_2@example.invalid');
+ assert.equal(llamadas.filter(l=>l.a==='supabase_web_reservar').length,0);
+});
+test('corregir el correo por voz vuelve al resumen final y conserva el resto de datos',async()=>{
+ const {chat}=escenario();for(const t of ['mañana','2','14:00','si','Juan','uno@example.invalid','600000000','ninguna','no','correo'])await chat.enviar(t);
+ await chat.enviar('dos arroba example punto invalid',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
+ await chat.enviar('tres arroba example punto invalid',{canal:'voz'});assert.equal(chat.estado().paso,'confirmar_email');
+ await chat.enviar('si',{canal:'voz'});assert.equal(chat.estado().paso,'final');await chat.enviar('si');
+ assert.equal(chat.estado().pendiente.email,'3@example.invalid');assert.equal(chat.estado().pendiente.telefono,'+34600000000');assert.equal(chat.estado().pendiente.nombre,'Juan');
+});
+test('el texto mantiene el correo escrito y no interpreta dictado sin canal de voz',async()=>{
+ const {chat}=escenario();for(const t of ['mañana','2','14:00','si','Juan'])await chat.enviar(t);
+ await chat.enviar('juan arroba example punto invalid');assert.equal(chat.estado().paso,'email');
+ await chat.enviar('juan@example.invalid');assert.equal(chat.estado().paso,'telefono');
+});
 test('flujo completo usa fecha local del restaurante, zona única y no escribe hasta confirmación humana',async()=>{
  const {chat,llamadas}=escenario();await completar(chat);assert.equal(chat.estado().paso,'pendiente');
  assert.equal(llamadas[0].d.fecha,'2026-10-25');assert.equal(llamadas.filter(l=>l.a==='supabase_web_disponibilidad').length,2);

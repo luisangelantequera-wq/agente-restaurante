@@ -18,7 +18,7 @@
   decir(texto,true);cargando=true;respuestasTurno=[];actualizar();
   try{
    if(chat.estado().paso==='fecha'&&/^(si|hola|buenas|reservar|quiero reservar|quiero hacer una reserva|hacer una reserva)$/.test(window.ContactiaEntrada.normalizarEntrada(texto)))decir('¿Qué día desea reservar?');
-   else await chat.enviar(texto);
+   else await chat.enviar(texto,{canal:'voz'});
    return{respuesta:respuestasTurno.join(' '),paso:chat.estado().paso};
   }finally{respuestasTurno=null;cargando=false;actualizar();}
  }

@@ -164,3 +164,42 @@ No se afirma que el audio esté restaurado hasta esa comprobación real.
 Fuentes verificadas:
 - https://docs.livekit.io/agents/models/tts/cartesia/ (Sonic 3 EU y catálogo oficial de voces)
 - https://docs.livekit.io/agents/models/tts/rime/ (Coda sin endpoint EU)
+
+
+## Prueba real y ajustes de contacto (25/10/2026)
+
+El usuario confirmó que el cambio de Rime a Cartesia recuperó el sonido desde
+Cloud. La reproducción fue fluida, sin cortes, pero Daniela tenía acento
+latinoamericano. Quedaron pendientes el acento de España, los correos dictados y
+las fórmulas del nombre.
+
+La siguiente revisión selecciona Marta (`de38f545-c574-44e8-9b54-a7d6fec1c6b1`),
+voz femenina conversacional catalogada por Cartesia como Castilian Spanish,
+región Spain. Se mantiene `cartesia/sonic-3` con endpoint EU y la restricción
+regional activada. La elección está verificada en el catálogo, pendiente de la
+valoración auditiva del usuario:
+https://www.cartesia.ai/voices/library/marta-friendly-guide-de38f545-c574-44e8-9b54-a7d6fec1c6b1
+
+El chat distingue `canal: voz` en `enviar`. Solo en el paso de correo de ese
+canal convierte símbolos hablados, deletreo español y dígitos a su representación
+escrita. Las direcciones ya escritas no se reinterpretan; no se completan dominios
+ni se adivinan correcciones. Una entrada con dos arrobas se rechaza. La respuesta
+lee la parte local por caracteres, expone la dirección interpretada en pantalla
+y pide Sí/No antes de aceptar el correo. No avanza al teléfono hasta el Sí.
+El cliente puede rechazarlo o sustituirlo, consultar información sin perder el
+correo pendiente y continuar por escrito al detener la voz. El resumen final
+mantiene los datos y la creación sigue requiriendo el botón explícito.
+
+El nombre ya tenía una limpieza básica; se refuerzan fórmulas como «Pues a nombre
+de Juan, por favor», «La reserva sería a nombre de Juan», «Me llamo Juan» y comillas
+del transcriptor. Se conservan nombres compuestos y apellidos con «de». Se muestra
+«A nombre de Juan» después de interpretarlo; la transcripción original del turno
+sigue visible en el chat y no es por sí sola el dato guardado.
+
+Validación: 760 pruebas Node superadas, con casos de dictado, rechazo, sustitución,
+corrección de un correo tras el resumen final y recorrido de voz simulado hasta
+la escritura explícita de reserva con nombre y correo normalizados. Sintaxis del
+worker Python comprobada. No se ha sintetizado audio de Marta desde el entorno
+de preparación: requiere desplegar `agent.py` en el mismo agente Cloud y una
+comprobación breve con el usuario. La web Preview se actualiza desde Git;
+Cloud requiere su propio `lk agent deploy`.
