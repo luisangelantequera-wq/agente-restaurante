@@ -41,7 +41,8 @@ window.ContactiaVozSupabase={crear({pedir,procesarTurno,alEstado,puedeIniciar}){
   try{
    const d=await pedir('supabase_voz_sesion',{peticion_id:peticion,turnstile_token:usado});if(vuelta!==generacion)return;
    const LK=await cargarSdk();if(vuelta!==generacion)return;
-   const active=new LK.Room();room=active;const solicitudes=new Map();let cola=Promise.resolve();
+   if(typeof d.conversacion_token!=='string')throw Error('Recargue la página para actualizar la llamada.');
+   const active=new LK.Room();room=active;const solicitudes=new Map();let cola=Promise.resolve(),conversacionToken=d.conversacion_token,finalizada=false,locucionFinal=false;
    active.localParticipant.registerRpcMethod('contactia.procesar_turno',data=>{
     if(room!==active||!active.remoteParticipants.get(data.callerIdentity)?.isAgent)return JSON.stringify({respuesta:'No se pudo validar el turno.'});
     if(typeof data.requestId!=='string'||!data.requestId)return JSON.stringify({respuesta:'No se pudo identificar el turno.'});
@@ -50,14 +51,14 @@ window.ContactiaVozSupabase={crear({pedir,procesarTurno,alEstado,puedeIniciar}){
      if(room!==active)return JSON.stringify({respuesta:'La llamada ha terminado.'});
      let p;try{p=JSON.parse(data.payload);}catch{return JSON.stringify({respuesta:'No he entendido su petición.'});}
      if(typeof p.mensaje!=='string'||!p.mensaje.trim()||p.mensaje.length>1000||Object.keys(p).some(k=>k!=='mensaje'))return JSON.stringify({respuesta:'Repita su petición de forma más breve.'});
-     actividad();const resultado=await procesarTurno(p.mensaje);
-     if(resultado.paso==='pendiente'){
-      await active.localParticipant.setMicrophoneEnabled(false);estado('Micrófono apagado. Revise el resumen y confirme en pantalla.');
-      clearTimeout(cierreFinal);cierreFinal=setTimeout(()=>detener('Revise el resumen y confirme la reserva en pantalla.'),8000);
-      return JSON.stringify({respuesta:'Revise el resumen en pantalla, complete la verificación y pulse Verificar y confirmar para registrar la reserva.',paso:'pendiente'});
+     actividad();const resultado=await procesarTurno(p.mensaje,{conversacionToken});
+     if(typeof resultado.conversacion_token==='string')conversacionToken=resultado.conversacion_token;
+     if(resultado.paso==='terminado'){
+      finalizada=true;await active.localParticipant.setMicrophoneEnabled(false);estado('Reserva confirmada. Escuche la confirmación del recepcionista.');
+      clearTimeout(cierreFinal);cierreFinal=setTimeout(()=>detener('Reserva confirmada. Micrófono apagado.'),45000);
      }
-     return JSON.stringify(resultado);
-    }).catch(()=>JSON.stringify({respuesta:'No he podido completar ese turno. Revise la conversación en pantalla.'}));
+     return JSON.stringify({respuesta:resultado.respuesta,paso:resultado.paso});
+    }).catch(()=>JSON.stringify({respuesta:'No he podido comprobar ese turno. Repita su respuesta para reintentarlo.'}));
     cola=promesa.then(()=>{});solicitudes.set(data.requestId,promesa);if(solicitudes.size>100){detener('Se ha alcanzado el límite de turnos de esta llamada.');}
     return promesa;
    });
@@ -65,6 +66,14 @@ window.ContactiaVozSupabase={crear({pedir,procesarTurno,alEstado,puedeIniciar}){
    active.on(LK.RoomEvent.TrackUnsubscribed,track=>track.detach().forEach(a=>{audios.delete(a);a.remove();}));
    active.on(LK.RoomEvent.AudioPlaybackStatusChanged,()=>{$('voz-sonido').hidden=active.canPlaybackAudio;});
    active.on(LK.RoomEvent.ParticipantConnected,p=>{if(p.isAgent)clearTimeout(esperaAgente);});
+   active.on(LK.RoomEvent.ParticipantAttributesChanged,(cambios,p)=>{
+    if(room!==active||!finalizada||!p.isAgent)return;
+    if(cambios['lk.agent.state']==='speaking'){locucionFinal=true;clearTimeout(cierreFinal);}
+    if(locucionFinal&&cambios['lk.agent.state']==='listening'){
+     // Dejar salir el audio ya recibido antes de desconectar la sala.
+     clearTimeout(cierreFinal);cierreFinal=setTimeout(()=>detener('Reserva confirmada. Micrófono apagado.'),1500);
+    }
+   });
    active.on(LK.RoomEvent.Disconnected,()=>{if(room===active)detener('La llamada se ha desconectado. Puede continuar por escrito.');});
    await active.connect(d.url,d.token);if(room!==active){active.disconnect().catch(()=>{});return;}
    await active.localParticipant.setMicrophoneEnabled(true);if(room!==active){active.localParticipant.setMicrophoneEnabled(false).catch(()=>{});return;}

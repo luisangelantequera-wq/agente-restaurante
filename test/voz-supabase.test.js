@@ -9,7 +9,7 @@ const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1
 const peticion='11111111-2222-4333-8444-555555555555';
 const body={accion:'supabase_voz_sesion',slug:'prueba-sol',peticion_id:peticion,turnstile_token:'token'};
 const req={method:'POST',headers:{host:'preview.example',origin:'https://preview.example','content-type':'application/json','x-forwarded-for':'192.0.2.1'}};
-function cliente(permiso=true){const llamadas=[];return{llamadas,rpc:async(n,a)=>{llamadas.push({n,a});return{data:permiso};},from(){llamadas.push({n:'restaurante'});return{select(){return this;},eq(){return this;},maybeSingle:async()=>({data:{id:1}})};}};}
+function cliente(permiso=true){const llamadas=[];return{llamadas,rpc:async(n,a)=>{llamadas.push({n,a});return{data:permiso};},from(){llamadas.push({n:'restaurante'});return{select(){return this;},eq(){return this;},maybeSingle:async()=>({data:{id:1,nombre:'Sol',zona_horaria:'Europe/Madrid'}}),order:async()=>({data:[{id:'66666666-7777-4888-8999-aaaaaaaaaaaa',nombre:'INTERIOR'}]})};}};}
 async function ejecutar(cambios={}){const c=cambios.c||cliente(),r={setHeader(){},end(s){this.body=JSON.parse(s);}};let verificacion;
  await crearHandler({env:cambios.env||env,clientFactory:()=>c,turnstile:async p=>{verificacion=p;return cambios.humano!==false;}})(cambios.req||req,r,cambios.body||body);
  return{r,c,verificacion};}
@@ -38,7 +38,7 @@ test('origen ajeno y cuotas impiden emitir tokens de voz',async()=>{
 });
 test('la emisión verifica la acción iniciar_voz y solo consulta el restaurante habilitado',async()=>{
  const {r,c,verificacion}=await ejecutar();assert.equal(r.statusCode,200);assert.equal(verificacion.action,'iniciar_voz');assert.equal(verificacion.peticion,peticion);
- assert.deepEqual(c.llamadas.map(l=>l.n),['consumir_limite_web','restaurante']);assert.deepEqual(Object.keys(r.body).sort(),['ok','room','token','url']);
+ assert.deepEqual(c.llamadas.map(l=>l.n),['consumir_limite_web','restaurante','restaurante']);assert.deepEqual(Object.keys(r.body).sort(),['conversacion_token','ok','room','token','url']);
  const invalido=await ejecutar({humano:false});assert.equal(invalido.r.statusCode,403);assert.equal(invalido.c.llamadas.length,1);
 });
 test('un token Turnstile para voz no sirve para confirmar una reserva',async()=>{

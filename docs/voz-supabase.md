@@ -1,5 +1,23 @@
 # Voz LiveKit y Supabase
 
+## Estado actual: cierre por voz sin botón final (25/10/2026)
+
+La llamada de prueba de Preview ya procesa cada turno en el servidor y registra
+la reserva tras el sí al resumen final. Comunica el resultado por voz, apaga el
+micrófono al confirmar y espera a que termine la locución antes de desconectar.
+El correo y su lista de destinatarios permitidos conservan sus reglas. WhatsApp
+sigue desactivado para este recorrido. El canal escrito mantiene Turnstile y
+«Verificar y confirmar».
+
+La página web de pruebas conserva el control inicial para conectar el micrófono;
+no pide otra verificación al cerrar la reserva por voz. El worker Cloud existente
+sirve sin actualizarlo: su RPC es ahora un transporte hacia el motor en servidor.
+El enlace a un número telefónico/SIP todavía no está habilitado. Al incorporarlo,
+se deberá sustituir ese transporte por una conexión autenticada del worker; el
+motor y el cierre ya no necesitan decisiones de un navegador.
+
+Las secciones siguientes documentan también etapas anteriores de la integración.
+
 `chat-prueba.html?restaurante=prueba-sol` incorpora una llamada web mediante LiveKit y el mismo motor de conversación que el texto. La conexión está preparada en `migracion-supabase-fase-1`; la prueba real necesita credenciales en esa rama y arrancar el worker existente. No se habilitan SIP o telefonía ni se cambia producción.
 
 ## Reutilización
@@ -316,3 +334,41 @@ vinculada a la llamada, con validación de disponibilidad e idempotencia, tras
 un sí explícito del cliente. No se debe eliminar Turnstile de la ruta pública
 ni prometer que el canal telefónico actual ya funciona sin pantalla. No se
 habilita telefonía ni se cambia producción en esta corrección.
+
+## Implementación del cierre de voz en servidor
+
+- `supabase_voz_sesion` verifica el acceso inicial y emite la sesión LiveKit más
+  un estado de conversación cifrado y autenticado con AES-256-GCM. Deriva la
+  clave del secreto Supabase de servidor, con un propósito independiente. El
+  estado se vincula al host, restaurante, sala y huella HMAC de IP; caduca a los
+  seis minutos sin renovar ese plazo por cada turno. Solo admite cien turnos.
+- `supabase_voz_turno` admite únicamente el token y la transcripción, nunca un
+  estado de conversación o datos de reserva elegidos por el cliente. Restaura el
+  motor compartido, consulta calendario/disponibilidad y devuelve los mensajes
+  de pantalla y la locución. No añade tablas ni almacena una transcripción; el
+  token en memoria conserva los campos actuales necesarios para continuar.
+- El sí final llama a la misma transacción de disponibilidad, asignación y
+  registro que el canal escrito. Esta operación conserva un UUID estable,
+  derivado del acceso de voz, y los límites de escritura existentes. El estado
+  temporal de voz no concede capacidad para omitir controles del canal escrito.
+- No se hace otra consulta de disponibilidad antes de repetir el cierre de voz:
+  podría ver la mesa que ya ocupó la propia solicitud. La transacción identifica
+  primero una operación repetida y devuelve la misma reserva. Un fallo incierto
+  conserva los datos y requiere un «reintentar» o «sí» explícito. Un conflicto
+  conocido permite corregir. Nunca se anuncia éxito antes del resultado SQL.
+- Si se pierde la respuesta final y el usuario pasa a escrito, la interfaz
+  conserva también el UUID y los datos pendientes; el cierre escrito verifica
+  esa misma solicitud, sin generar otra. El botón para detener la llamada sigue
+  disponible durante un resultado pendiente.
+- La referencia completa y el enlace privado siguen visibles. La confirmación
+  por voz no dicta el UUID largo ni pide conservar un enlace en pantalla.
+  El cierre observa el atributo LiveKit `lk.agent.state` (speaking → listening),
+  con margen para el audio recibido y un límite de respaldo si falta el evento.
+
+Validación: recorrido desde el HTML real con RPC LiveKit simulada y handler de
+servidor real contra una base simulada; confirma al sí final sin botón ni segunda
+verificación. Se comprueban respuesta perdida, reintento con resultado incierto,
+conflicto al escribir, continuidad escrita con UUID conservado, manipulación y
+caducidad del token y separación del canal escrito. No se crean reservas ni se
+envían correos desde estas pruebas. La escucha real de la locución final queda
+pendiente de la siguiente llamada del usuario.

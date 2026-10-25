@@ -1,7 +1,7 @@
 'use strict';
 (function(){
  const $=id=>document.getElementById(id),slug=new URLSearchParams(location.search).get('restaurante')||'prueba-sol';
- let chat,config,widget=null,token='',cargando=false,scriptCargado=false,consentimientoPendiente=null,vozActiva=false,respuestasTurno=null;
+ let chat,config,widget=null,token='',cargando=false,scriptCargado=false,consentimientoPendiente=null,vozActiva=false,operacionVoz='';
  const voz=window.ContactiaVozSupabase.crear({pedir,procesarTurno:procesarVoz,alEstado:v=>{vozActiva=v;actualizar();},
   puedeIniciar:()=>Boolean(chat&&!cargando&&!['pendiente','terminado'].includes(chat.estado().paso))});
  async function pedir(accion,datos={}){
@@ -10,21 +10,33 @@
   if(!r.headers.get('content-type')?.includes('application/json'))throw new Error('No se pudo acceder al servicio. Recargue y compruebe su acceso a Vercel.');
   const d=await r.json();if(!r.ok||!d.ok){const e=new Error(d.error||'No se pudo completar la solicitud.');e.status=r.status;e.codigo=d.codigo;throw e;}return d;
  }
- function decir(texto,usuario=false,locucion=texto){const p=document.createElement('p'),autor=document.createElement('span');p.className='mensaje'+(usuario?' usuario':'');
-  autor.className='autor';autor.textContent=usuario?'Usted':'Contactia';p.append(autor,document.createTextNode(texto));$('mensajes').append(p);$('mensajes').scrollTop=$('mensajes').scrollHeight;if(!usuario&&respuestasTurno)respuestasTurno.push(locucion);}
- async function procesarVoz(texto){
-  if(!chat||cargando)return{respuesta:'Un momento, por favor.',paso:chat?.estado().paso||'inicio'};
-  if(['pendiente','terminado'].includes(chat.estado().paso))return{respuesta:'Revise el resultado en pantalla.',paso:chat.estado().paso};
-  decir(texto,true);cargando=true;respuestasTurno=[];actualizar();
-  try{
-   if(chat.estado().paso==='fecha'&&/^(si|hola|buenas|reservar|quiero reservar|quiero hacer una reserva|hacer una reserva)$/.test(window.ContactiaEntrada.normalizarEntrada(texto)))decir('¿Qué día desea reservar?');
-   else await chat.enviar(texto,{canal:'voz'});
-   return{respuesta:respuestasTurno.join(' '),paso:chat.estado().paso};
-  }finally{respuestasTurno=null;cargando=false;actualizar();}
+ function decir(texto,usuario=false){const p=document.createElement('p'),autor=document.createElement('span');p.className='mensaje'+(usuario?' usuario':'');
+  autor.className='autor';autor.textContent=usuario?'Usted':'Contactia';p.append(autor,document.createTextNode(texto));$('mensajes').append(p);$('mensajes').scrollTop=$('mensajes').scrollHeight;}
+ function mostrarGestion(r){
+  if(typeof r.gestion_url==='string'&&/^\/gestion-prueba\.html#restaurante=prueba-(?:sol|luna)&token=[a-f0-9]{64}$/.test(r.gestion_url)){
+   $('enlace-gestion').href=r.gestion_url;$('gestion').hidden=false;
+  }
  }
+ function crearChat(estadoInicial=null){return ContactiaChatSupabase.crear({config,pedir,estadoInicial,...(operacionVoz?{uuid:()=>operacionVoz}:{}),decir:texto=>decir(texto)});}
+ async function procesarVoz(texto,{conversacionToken}){
+  if(!chat||cargando)return{respuesta:'Un momento, por favor.',paso:chat?.estado().paso||'inicio'};
+  decir(texto,true);cargando=true;
+  // Si se pierde la respuesta al sí final, también la continuación escrita
+  // debe conservar la operación que el servidor puede haber registrado.
+  if(operacionVoz&&chat.estado().paso==='final'&&window.ContactiaEntrada.interpretarValidacionDatos(texto)==='si'){
+   const e=chat.exportar();e.paso='pendiente';e.pendiente={...e.datos,peticion_id:operacionVoz};e.incierto=true;chat=crearChat(e);
+  }
+  actualizar();
+  try{
+   const r=await pedir('supabase_voz_turno',{conversacion_token:conversacionToken,mensaje:texto});
+   for(const m of r.mensajes||[])decir(m.texto);
+   operacionVoz=r.operacion_id;chat=crearChat(r.estado);mostrarGestion(r);return r;
+  }finally{cargando=false;actualizar();}
+ }
+
  function quitarWidget(){token='';if(window.turnstile&&widget!==null)window.turnstile.remove(widget);widget=null;}
  function renderizar(){
-  if(!chat||chat.estado().paso!=='pendiente'||!window.turnstile||widget!==null)return;
+  if(!chat||vozActiva||chat.estado().paso!=='pendiente'||!window.turnstile||widget!==null)return;
   $('aviso-verificacion').textContent='Complete la verificación de seguridad.';$('confirmar').textContent='Verificar y confirmar';
   widget=window.turnstile.render('#verificacion',{sitekey:config.siteKey,theme:'dark',action:'reservar',cData:chat.estado().pendiente.peticion_id,
    callback:v=>{token=v;$('aviso-verificacion').textContent='Verificación completada. Ya puede confirmar.';actualizar();},
@@ -41,17 +53,17 @@
  }
  function actualizar(){if(!chat)return;const e=chat.estado(),pendiente=e.paso==='pendiente',fin=e.paso==='terminado';
   $('texto').disabled=cargando||vozActiva||pendiente||fin;$('enviar').disabled=cargando||vozActiva||pendiente||fin;$('nueva').disabled=cargando||vozActiva||pendiente;
-  $('voz-iniciar').disabled=cargando||pendiente||fin;
-  $('seguridad').hidden=!pendiente;$('confirmar').disabled=cargando||!token;
+  $('voz-iniciar').disabled=!vozActiva&&(cargando||pendiente||fin);
+  $('seguridad').hidden=!pendiente||vozActiva;$('confirmar').disabled=cargando||!token;
   $('estado').textContent=cargando?'Un momento…':fin?'Reserva confirmada. Puede iniciar otra prueba.':pendiente?'Pendiente de confirmar. No cierre ni recargue esta pestaña durante los reintentos.':'';
-  if(pendiente)cargarWidget();else quitarWidget();
+  if(pendiente&&!vozActiva)cargarWidget();else quitarWidget();
  }
  async function iniciar(){cargando=true;$('nueva').disabled=true;$('texto').disabled=true;$('enviar').disabled=true;$('seguridad').hidden=true;$('gestion').hidden=true;$('enlace-gestion').removeAttribute('href');quitarWidget();chat=null;
   try{config=await pedir('supabase_web_chat_config');$('restaurante').textContent=config.nombre;
    voz.configurar(config);
-   consentimientoPendiente=null;$('opcion-whatsapp').hidden=config.whatsappDisponible!==true;$('whatsapp-autorizado').checked=false;$('whatsapp-autorizado').disabled=false;
+   consentimientoPendiente=null;operacionVoz='';$('opcion-whatsapp').hidden=config.whatsappDisponible!==true;$('whatsapp-autorizado').checked=false;$('whatsapp-autorizado').disabled=false;
    if(!config.zonas.length){$('estado').textContent='No hay zonas abiertas para reservar.';$('nueva').disabled=false;return;}
-   quitarWidget();$('mensajes').replaceChildren();chat=ContactiaChatSupabase.crear({config,pedir,decir:(texto,opciones)=>decir(texto,false,opciones?.voz??texto)});chat.iniciar();
+   quitarWidget();$('mensajes').replaceChildren();chat=crearChat();chat.iniciar();
   }catch(e){$('estado').textContent=e.message;$('nueva').disabled=false;return;}finally{cargando=false;}
   actualizar();$('texto').focus();
  }
@@ -65,9 +77,7 @@
   $('whatsapp-autorizado').disabled=true;
   await chat.confirmar(async datos=>{
    const r=await pedir('supabase_web_reservar',{...datos,turnstile_token:usarToken,whatsapp_autorizado:consentimientoPendiente});
-   if(typeof r.gestion_url==='string'&&/^\/gestion-prueba\.html#restaurante=prueba-(?:sol|luna)&token=[a-f0-9]{64}$/.test(r.gestion_url)){
-    $('enlace-gestion').href=r.gestion_url;$('gestion').hidden=false;
-   }return r;
+   mostrarGestion(r);return r;
   });
   if(chat.estado().paso==='terminado')voz.detener('Reserva confirmada. Micrófono apagado.');
   cargando=false;quitarWidget();actualizar();
