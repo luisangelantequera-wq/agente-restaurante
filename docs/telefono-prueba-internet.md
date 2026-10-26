@@ -47,8 +47,10 @@ no permite asegurar que todo el tránsito de operadores permanezca en la UE.
 
 ## Estado de activación
 
-**Todavía no está operativo.** No se ha emitido un token real ni marcado ningún
-número desde estas herramientas. Los interruptores permanecen apagados. El
+**Activado en Preview para la primera prueba real; todavía no validado de
+principio a fin.** No se han emitido tokens reales ni marcado números desde
+estas herramientas. Los dos interruptores se activaron después de completar
+los pasos de configuración descritos a continuación. El
 26/10 el usuario guardó las cuatro credenciales regionales de la aplicación en
 Vercel, sensibles y solo para la rama de Preview. Se verificó su existencia y
 ámbito, nunca sus valores. También están configurados el número de pruebas y
@@ -73,7 +75,9 @@ Antes de activar:
 
 1. La primera migración ya está aplicada manualmente en desarrollo
    `hjjhfgwzbqrrqrwurvvs`. Aplicar y verificar ahora la ampliación
-   `20261026211254_recepcion_telefono_prueba.sql`, todavía pendiente en remoto.
+   `20261026211254_recepcion_telefono_prueba.sql`, aplicada manualmente el 26/10
+   y verificada: columna y funciones presentes, sin acceso público y con ejecución
+   permitida a service_role.
 2. Crear una **TwiML App de salida** en Twilio con Voice URL POST:
    `https://agente-restaurante-git-migrac-db4675-reservas-projects-46f41d07.vercel.app/api/restaurante?canal=telefono_prueba`.
    No asignar esta app como recepción al propio número: produciría un bucle.
@@ -146,7 +150,30 @@ El coste consultado incluye navegador, salida e ingreso cuando este último est�
 vinculado. Call.price cubre conectividad; Media Streams, LiveKit, inferencia y
 alquiler se contabilizan aparte y la página lo indica. No se estima que sea gratis.
 
-### Activación pendiente, en este orden
+### Configuración completada y primera prueba
+
+El usuario aplicó y se verificó la ampliación SQL. Añadió el secreto del motor
+en la pantalla Secrets del agente LiveKit, y ejecutó el despliegue de agent.py
+del commit c878c9c929a380b6e27b273452b17370f50e6d7e; la CLI confirmó éxito. El usuario
+guardó la recepción IE1 en Twilio con HTTP POST después de un error genérico de
+su consola. Se activaron los dos interruptores solo para la rama de Preview y
+el despliegue dpl_AJugZRyUMdRX6DoVQgbf6LoyhJ4H quedó READY. La primera pulsación
+en Preparar no llegó a marcar: mostró «No se pudo cargar la llamada».
+
+La carga de SDK se probaba antes con un Device simulado y no cubría su archivo
+real. Se añade una prueba que carga el bundle real y alcanza la verificación,
+sin crear dispositivos ni llamadas reales. Se versionan bundle y licencia en
+vendor/, igual que LiveKit, para incluirlos como archivos de origen estáticos;
+no depender de que postinstall los agregue al inventario estático del despliegue.
+La versión sigue fijada y el test compara el bundle con la dependencia instalada.
+Los errores distinguen ahora descarga fallida de librería no disponible.
+Queda pendiente comprobar en el navegador del usuario la corrección y después
+el recorrido telefónico completo. Las peticiones automáticas de comprobación
+a Vercel reciben Security Checkpoint 429 incluso con el conector autenticado;
+no se ha desactivado esa protección ni se ha confirmado el contenido HTTP del
+archivo desde estas herramientas.
+
+Orden seguido para la activación:
 
 1. Aplicar la nueva migración de recepción en desarrollo y verificar permisos.
 2. Guardar en los secretos del agente LiveKit `CONTACTIA_TELEFONO_MOTOR_URL`:

@@ -4,6 +4,5 @@ node_modules/
 .vercel/
 
 
-# Generados desde la versión fijada del SDK durante postinstall.
-vendor/twilio-voice.min.js
-vendor/twilio-voice-LICENSE
+# Los SDK del navegador se versionan en vendor/ para que el despliegue
+# estático los incluya, igual que el bundle de LiveKit.

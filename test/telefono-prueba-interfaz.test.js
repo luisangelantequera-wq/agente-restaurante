@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {JSDOM,ResourceLoader,VirtualConsole}=require('jsdom');
 const raiz=path.join(__dirname,'..');
 async function esperar(pred){for(let i=0;i<100;i++){if(pred())return;await new Promise(r=>setTimeout(r,10));}throw Error('La interfaz no alcanzó el estado esperado');}
-async function pagina(t,{disponible=true,pendiente=false}={}){
+async function pagina(t,{disponible=true,pendiente=false,cargarReal=false}={}){
  const peticiones=[],errores=[],verificaciones=[];let dispositivo,colgadas=0,destrucciones=0,finConnect,limite;
  class Recursos extends ResourceLoader{fetch(url){const u=new URL(url);assert.equal(u.origin,'https://contactia.test');return Promise.resolve(fs.readFileSync(path.join(raiz,u.pathname)));}}
  const consola=new VirtualConsole();consola.on('jsdomError',e=>errores.push(e.message));
@@ -18,7 +18,7 @@ async function pagina(t,{disponible=true,pendiente=false}={}){
    async connect(options){this.destino=options.params.To;const c={eventos:{},on(n,fn){this.eventos[n]=fn;},disconnect(){colgadas++;this.eventos.disconnect?.();}};
     if(pendiente)return new Promise(resolve=>{finConnect=()=>resolve(c);});timeout(()=>c.eventos.accept?.(),0);return c;}
   }
-  w.Twilio={Device};
+  if(!cargarReal)w.Twilio={Device};
   w.fetch=async(_u,init)=>{const b=JSON.parse(init.body);peticiones.push(b);let d={ok:true};
    if(b.accion==='supabase_telefono_config')Object.assign(d,{disponible,siteKey:'site-publica',maxSegundos:180,destino:'Estados Unidos · termina en 0123'});
    else if(b.accion==='supabase_telefono_sesion')Object.assign(d,{token:'credencial-temporal-ficticia',pase:'pase-ficticio',numero:'+12025550123'});
@@ -27,7 +27,7 @@ async function pagina(t,{disponible=true,pendiente=false}={}){
   };
  }});
  t.after(()=>dom.window.close());const d=dom.window.document;await esperar(()=>!d.querySelector('#telefono-estado').textContent.includes('Comprobando'));
- return{d,peticiones,verificaciones,errores,dispositivo:()=>dispositivo,colgadas:()=>colgadas,destrucciones:()=>destrucciones,finConnect:()=>finConnect?.(),limite:()=>limite?.()};
+ return{d,peticiones,verificaciones,errores,sdk:()=>dom.window.Twilio,dispositivo:()=>dispositivo,colgadas:()=>colgadas,destrucciones:()=>destrucciones,finConnect:()=>finConnect?.(),limite:()=>limite?.()};
 }
 test('página de prueba: verificación, llamada al destino fijo y coste manual sin consultas periódicas',async t=>{
  const s=await pagina(t),d=s.d;assert.equal(s.peticiones.length,1);assert.equal(d.querySelector('#consultar-coste').disabled,true);
@@ -58,4 +58,15 @@ test('SDK local fijado y permisos de conexión Twilio limitados a la página de 
  const v=require('../vercel.json'),general=v.headers[0].headers.find(h=>h.key==='Content-Security-Policy').value,telefono=v.headers.find(h=>h.source==='/telefono-prueba.html');
  assert.ok(!general.includes('twilio.com'));assert.ok(telefono.headers.find(h=>h.key==='Content-Security-Policy').value.includes('wss://*.twilio.com'));
  assert.equal(v.headers[0].source,'/((?!telefono-prueba\\.html$).*)');
+});
+
+
+test('Preparar carga el SDK real de Twilio desde el archivo estático versionado',async t=>{
+ const s=await pagina(t,{cargarReal:true});assert.equal(s.sdk(),undefined);
+ s.d.querySelector('#preparar').click();await esperar(()=>!s.d.querySelector('#llamar').disabled);
+ assert.equal(typeof s.sdk()?.Device,'function');assert.equal(s.verificaciones.length,1);assert.deepEqual(s.errores,[]);
+ const raizSdk=path.join(path.dirname(require.resolve('@twilio/voice-sdk')),'..');
+ assert.deepEqual(fs.readFileSync(path.join(raiz,'vendor/twilio-voice.min.js')),fs.readFileSync(path.join(raizSdk,'dist/twilio.min.js')));
+ const patron=new RegExp('^'+require('../vercel.json').headers[0].source+'$');
+ assert.equal(patron.test('/telefono-prueba.html'),false);assert.equal(patron.test('/chat-prueba.html'),true);
 });

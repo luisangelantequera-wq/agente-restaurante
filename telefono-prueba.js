@@ -15,8 +15,8 @@
  }
  async function cargarSdk(){
   if(window.Twilio?.Device)return;
-  await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/vendor/twilio-voice.min.js';s.onload=resolve;s.onerror=()=>{s.remove();reject(Error('No se pudo cargar la llamada.'));};document.head.append(s);});
-  if(!window.Twilio?.Device)throw Error('No se pudo cargar la llamada.');
+  await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='/vendor/twilio-voice.min.js';s.onload=resolve;s.onerror=()=>{s.remove();reject(Error('No se pudo descargar el componente de llamada. Recargue la página.'));};document.head.append(s);});
+  if(!window.Twilio?.Device)throw Error('El componente de llamada no está disponible. Recargue la página.');
  }
  async function preparar(){
   const vuelta=++generacion;$('preparar').disabled=true;estado('Prepare el micrófono y complete la verificación.');
