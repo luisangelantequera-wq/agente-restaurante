@@ -52,7 +52,7 @@
  async function consultar(){
   if(!pase||device)return;$('consultar-coste').disabled=true;$('coste-estado').textContent='Consultando el importe registrado…';
   try{const r=await pedir('supabase_telefono_coste',{pase}),c=r.coste;
-   $('coste-estado').textContent=c.estado==='disponible'?`Coste registrado por Twilio: ${new Intl.NumberFormat('es-ES',{maximumFractionDigits:6}).format(c.importe)} ${c.moneda}. Incluye ${c.tramos} tramo(s) de la llamada.`:
+   $('coste-estado').textContent=c.estado==='disponible'?`Conexión registrada por Twilio: ${new Intl.NumberFormat('es-ES',{maximumFractionDigits:6}).format(c.importe)} ${c.moneda}. Incluye ${c.tramos} tramo(s). Los demás servicios se contabilizan aparte.`:
     c.estado==='sin_llamada'?'Twilio todavía no ha comunicado una llamada para esta prueba.':c.estado==='en_curso'?'La llamada aún figura en curso. Consulte de nuevo cuando termine.':'Twilio todavía no informa del importe. Puede consultarlo más tarde; un importe pendiente no equivale a cero.';
   }catch(e){$('coste-estado').textContent=e.message;}finally{$('consultar-coste').disabled=false;}
  }

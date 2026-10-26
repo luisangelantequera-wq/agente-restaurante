@@ -87,6 +87,14 @@ test('el coste rechaza tramos con otro destino y nunca revela el error de creden
  const e=await s.api({accion:'supabase_telefono_sesion',peticion_id:crypto.randomUUID(),turnstile_token:'prueba'});assert.equal(e.statusCode,503);assert.ok(!e.raw.includes('secreto-del-proveedor'));
 });
 
+test('el coste incluye la recepción vinculada y verifica que pertenece al número de pruebas',async()=>{
+ const s=escenario(),entrada='CA'+'9'.repeat(32),original=s.proveedor.calls;
+ s.proveedor.calls=Object.assign(n=>n===entrada?{fetch:async()=>({sid:n,accountSid:env.TWILIO_ACCOUNT_SID,direction:'inbound',
+  to:env.CONTACTIA_TWILIO_TEST_NUMBER,from:env.CONTACTIA_TWILIO_TEST_NUMBER,status:'completed',price:'-0.0085',priceUnit:'USD',duration:'27'})}:original(n),{list:original.list});
+ const r=await coste(s.proveedor,env,sid,entrada);assert.equal(r.tramos,3);assert.equal(r.importe,0.0265);
+ await assert.rejects(()=>coste(s.proveedor,env,sid,sid),/Recepción/);
+});
+
 test('una Preview protegida o un número que apunta a la misma app no emiten el acceso de llamada',async()=>{
  let s=escenario({webhookAccesible:false});let r=await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'});assert.equal(r.statusCode,503);assert.equal(s.registros.size,0);
  s=escenario();s.proveedor.incomingPhoneNumbers.list=async()=>[{phoneNumber:env.CONTACTIA_TWILIO_TEST_NUMBER,capabilities:{voice:true},voiceApplicationSid:env.TWILIO_BROWSER_APP_SID}];

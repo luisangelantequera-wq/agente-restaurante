@@ -16,6 +16,7 @@
       "maxDuration": 60
     },
     "api/restaurante.js": {
+      "regions": ["cdg1"],
       "maxDuration": 180
     }
   },

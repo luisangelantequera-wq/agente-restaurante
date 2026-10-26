@@ -48,22 +48,32 @@ no permite asegurar que todo el tránsito de operadores permanezca en la UE.
 ## Estado de activación
 
 **Todavía no está operativo.** No se ha emitido un token real ni marcado ningún
-número. El interruptor permanece apagado y las credenciales específicas de la
-app del navegador todavía no están configuradas.
+número desde estas herramientas. Los interruptores permanecen apagados. El
+26/10 el usuario guardó las cuatro credenciales regionales de la aplicación en
+Vercel, sensibles y solo para la rama de Preview. Se verificó su existencia y
+ámbito, nunca sus valores. También están configurados el número de pruebas y
+la URL de salida. El usuario añadió a esa URL el bypass de automatización, en
+Vercel y en la app TwiML. No se ha comprobado todavía una petición con ese bypass.
 
 La migración local `20261025195639_telefono_prueba_internet.sql` y las trece
-baterías SQL pasaron en PostgreSQL embebido. Su aplicación remota devolvió
+baterías SQL pasaron en PostgreSQL embebido. Su aplicación automática remota devolvió
 `McpServerError: Invalid or expired requestState` con `apply_migration` y con
 `execute_sql`. Una consulta posterior confirmó que la tabla y el registro de
-migración **no existen en remoto**. No seguir reintentando sin resolver el
-conector. La revisión remota de seguridad solo mostró los avisos anteriores:
+migración no existían en remoto. El 26/10, después de otro fallo del conector,
+el usuario ejecutó el archivo desde el editor SQL del proyecto de desarrollo.
+Se verificaron la tabla, RLS y los permisos: anon/authenticated no pueden leer
+ni ejecutar la función de consumo, y service_role sí puede escribir y ejecutarla.
+La ejecución manual no ha registrado la migración en schema_migrations; conservar
+este dato antes de una sincronización futura por CLI. No repetir el DDL de la
+tabla ya creada. La revisión remota de seguridad solo mostró los avisos anteriores:
 RLS sin políticas en tablas privadas y protección de contraseñas filtradas sin
 activar. No se han cambiado esos ajustes.
 
 Antes de activar:
 
-1. Aplicar y verificar la migración en el proyecto de desarrollo
-   `hjjhfgwzbqrrqrwurvvs`; no en producción. Verificar permisos y consumo único.
+1. La primera migración ya está aplicada manualmente en desarrollo
+   `hjjhfgwzbqrrqrwurvvs`. Aplicar y verificar ahora la ampliación
+   `20261026211254_recepcion_telefono_prueba.sql`, todavía pendiente en remoto.
 2. Crear una **TwiML App de salida** en Twilio con Voice URL POST:
    `https://agente-restaurante-git-migrac-db4675-reservas-projects-46f41d07.vercel.app/api/restaurante?canal=telefono_prueba`.
    No asignar esta app como recepción al propio número: produciría un bucle.
@@ -86,15 +96,72 @@ Antes de activar:
 6. Comprobar una llamada iniciada manualmente con el botón y su importe real.
    El saldo y un registro anterior a cero no garantizan llamadas gratuitas.
 
-## Conexión posterior con Contactia telefónica
+## Recepción telefónica preparada el 26/10
 
-Este botón marca el número real; **no conecta por sí solo al agente de LiveKit**.
-El número ejecutará la ruta de recepción que tenga configurada en Twilio.
-Antes de esperar una reserva completa hay que preparar esa recepción y el
-transporte del worker al motor de reservas sin RPC del navegador. El agente
-actual escucha al navegador LiveKit y no atiende todavía un participante
-telefónico. No presentar esta preparación como una llamada telefónica completa
-ya validada ni sustituir la recepción real del número sin conservar sus ajustes.
+El botón marca el número real. El usuario verificó dos números en su inventario;
+el de esta prueba es el primero, +19452125663. No se ha modificado ni liberado el
+otro número, ni se sabe si tiene una tarifa gratuita. La recepción del número
+de pruebas estaba sin URL en US1. El usuario cambió su región de voz a Irlanda
+IE1; Messaging sigue en US1, según el aviso de Twilio para los números +1.
+La ventana de recepción IE1 está comprobada: Webhook / Use Webhooks. Se indicó
+cancelar sin guardar porque el código de recepción no estaba preparado.
+
+Ahora `lib/telefono-entrada.js` prepara una recepción mediante el conector
+Twilio de LiveKit, con `<Connect><Stream>` y Hangup al finalizar. Se exige firma
+regional, cuenta y número exactos, dirección entrante y estado activo. Además
+se comprueba la llamada en la API de Twilio y un único tramo de salida activo
+hacia el número propio. Una función SQL vincula atómicamente su llamada padre
+con una sesión del navegador autorizada y no caducada. No se acepta el caller ID
+como autorización suficiente. Es una correlación para pruebas de una sola
+llamada simultánea; si hay dos candidatos se rechaza. La visibilidad inmediata
+de esos tramos en Twilio todavía debe validarse con una llamada real.
+
+El registro transitorio de entrada impide crear varios conectores al reenviar
+el mismo webhook. Si se pierde la respuesta de creación del conector, se rechaza
+la repetición y se necesita iniciar otra prueba; no hay marcado automático.
+No se reutiliza una sesión para otra llamada entrante. La nueva columna solo
+guarda un Call SID, sin teléfonos ni conversación.
+
+El worker mantiene un solo rtc_session, con el nombre de dispatch existente
+`contactia-cartesia-prueba`. Las salas `contactia-telefono-*` usan el transporte
+HTTP autenticado; las salas web mantienen su RPC con el navegador. En telefonía
+se espera exclusivamente al participante CONNECTOR con identidad prevista.
+Se reutiliza el motor de conversación y la reserva SQL con UUID fijo y cierre
+por voz. No hay captcha al finalizar. El acceso al motor caduca a los tres
+minutos y solo permite el estado opaco de su llamada, nunca datos elegidos por
+el llamante. La dirección del motor con bypass se configura como secreto del
+worker: no se incluye el bypass en metadata del job ni en la respuesta TwiML.
+Si una respuesta HTTP se pierde, el worker conserva el turno y el token anterior
+y pide «reintentar», evitando convertir un turno posterior en otra operación.
+
+La llamada se termina al completar la locución final o al alcanzar tres minutos.
+El worker borra la sala para finalizar el conector. Como límite adicional de
+Twilio, el Dial de salida conserva su timeLimit de 180 segundos. `record=False`
+sigue desactivando Agent Insights para la sesión. No se cambian modelos ni voz.
+La función de Vercel api/restaurante queda en cdg1 (París) en esta rama Preview.
+El cliente de servidor LiveKit desactiva failover. Esto no demuestra por sí solo
+que todos los tránsitos de operadores o el conector permanezcan en la UE.
+
+El coste consultado incluye navegador, salida e ingreso cuando este último está
+vinculado. Call.price cubre conectividad; Media Streams, LiveKit, inferencia y
+alquiler se contabilizan aparte y la página lo indica. No se estima que sea gratis.
+
+### Activación pendiente, en este orden
+
+1. Aplicar la nueva migración de recepción en desarrollo y verificar permisos.
+2. Guardar en los secretos del agente LiveKit `CONTACTIA_TELEFONO_MOTOR_URL`:
+   la URL completa ya guardada en Vercel, cambiando solo `canal=telefono_prueba`
+   por `canal=telefono_motor` y conservando el bypass. Nunca pegarla en el chat.
+3. Actualizar agent.py en el directorio Windows de despliegue y redesplegar el
+   agente CA_vkyHrJpZtdWT. Dockerfile y requisitos Python no cambian. Comprobar
+   el registro del worker antes de activar.
+4. En la recepción IE1 del número propio, guardar la misma URL completa base
+   cambiando únicamente el canal por `telefono_entrada`, mediante HTTP POST.
+   Es diferente de la URL de la app de salida; no poner la app de salida como recepción.
+5. Crear `CONTACTIA_TWILIO_BROWSER_ENABLED=1` y
+   `CONTACTIA_TWILIO_INBOUND_ENABLED=1`, solo en la rama Preview, y redesplegar.
+6. Una única prueba manual de principio a fin. Verificar audio, confirmación,
+   cierre y coste real. La recepción todavía no está validada contra proveedores.
 
 El enlace siguiente documenta el flujo oficial del SDK:
 https://www.twilio.com/docs/voice/sdks/javascript
@@ -106,7 +173,12 @@ https://docs.livekit.io/telephony/accepting-calls/inbound-twilio/
 
 Pruebas del handler: destino fijo, firma, cuenta, SID, sesión reutilizada,
 permisos del JWT, caducidad, cuotas, captcha, callback inaccesible, bucle y
-costes propios. Pruebas de la página real en JSDOM: preparar, conectar, colgar,
+costes propios, incluido el tramo entrante. La recepción y el motor tienen
+pruebas de firma, cuota, llamadas activas, correlación ambigua, reenvíos,
+autorización, reserva completa y respuesta perdida tras guardar. El worker se
+prueba sin proveedores: un único rtc_session, transporte web/telefónico,
+serialización, validación de URL y recuperación del mismo turno. Pruebas de la
+página real en JSDOM: preparar, conectar, colgar,
 colgar durante conexión, límite de duración, recibo manual, configuración
 incompleta y CSP. Los proveedores y medios se simulan; no se hacen llamadas
 ni se usan credenciales reales. La prueba con Twilio real está pendiente.
