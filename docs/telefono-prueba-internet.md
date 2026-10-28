@@ -219,3 +219,26 @@ validación de firmas con Auth Token regional. La app y la clave de esta prueba
 deben estar en **Irlanda (IE1)**. No borrar recursos existentes de US1 ni cambiar
 otras integraciones. Cambiar el selector de la consola solo muestra recursos:
 no los traslada entre regiones. Sigue pendiente la activación documentada arriba.
+
+
+### Corrección del origen de la llamada (28 de octubre de 2026)
+
+Las capturas de Twilio del día 26 muestran la salida fallida con origen y
+destino +19452125663 y duración cero. El TwiML generado usaba el número
+de destino también como callerId. Twilio documenta que sus números no
+pueden llamarse a sí mismos (error 21211); las capturas no muestran un
+código concreto de error.
+
+Ahora se exige `CONTACTIA_TWILIO_TEST_CALLER_ID`, distinto de
+`CONTACTIA_TWILIO_TEST_NUMBER`. Para esta Preview se usa el otro número
+existente, +14433000558, como origen y +19452125663 como destino. Antes
+de emitir un permiso se consultan ambos números y se exige que pertenezcan
+a la misma cuenta y tengan Voice. No se compra ningún número ni se cambia
+la recepción del segundo. Si el origen no está disponible con las credenciales
+regionales, la preparación se detiene con un mensaje específico.
+
+Se actualizan también la validación de recepción, la búsqueda de la llamada
+de salida y la verificación de los tramos del coste. Los permisos quedan
+vinculados al origen además del destino: iniciar una prueba nueva tras el
+cambio. Las pruebas automatizadas usan números ficticios y proveedores
+simulados; la llamada real sigue pendiente de validación por el usuario.

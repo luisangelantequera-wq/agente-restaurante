@@ -7,7 +7,7 @@ const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1
  TURNSTILE_SITE_KEY:'site',TURNSTILE_SECRET_KEY:'secret',TWILIO_ACCOUNT_SID:'AC'+'a'.repeat(32),
  TWILIO_BROWSER_API_KEY_SID:'SK'+'b'.repeat(32),TWILIO_BROWSER_API_KEY_SECRET:'ficticio-api-secret-00000000',
  TWILIO_BROWSER_AUTH_TOKEN:'ficticio-auth-regional-00000000',TWILIO_BROWSER_APP_SID:'AP'+'c'.repeat(32),
- CONTACTIA_TWILIO_TEST_NUMBER:'+12025550123',CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL:'https://preview.example/api/restaurante?canal=telefono_prueba&x-vercel-protection-bypass=ficticio',
+ CONTACTIA_TWILIO_TEST_NUMBER:'+12025550123',CONTACTIA_TWILIO_TEST_CALLER_ID:'+12025550456',CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL:'https://preview.example/api/restaurante?canal=telefono_prueba&x-vercel-protection-bypass=ficticio',
  LIVEKIT_URL:'wss://prueba.livekit.cloud',LIVEKIT_API_KEY:'ficticia',LIVEKIT_API_SECRET:'ficticia-livekit-secret-000000'};
 const sid='CA'+'d'.repeat(32),padre='CA'+'e'.repeat(32),id='11111111-2222-4333-8444-555555555555',zona='66666666-7777-4888-8999-aaaaaaaaaaaa';
 function res(){return{headers:{},setHeader(k,v){this.headers[k]=v;},end(s){this.raw=s;try{this.body=JSON.parse(s);}catch{}}};}
@@ -22,12 +22,12 @@ function escenario(cambios={}){
    if(fallo){fallo=false;return{error:{code:'08006'}};}return{data:'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'};}
   assert.fail(n);
  },from:()=>({select(){return this;},eq(){return this;},maybeSingle:async()=>({data:{id:1,nombre:'Sol',zona_horaria:'Europe/Madrid'}}),order:async()=>({data:[{id:zona,nombre:'INTERIOR'}]})})};
- const calls=Object.assign(s=>({fetch:async()=>({sid:s,accountSid:env.TWILIO_ACCOUNT_SID,to:env.CONTACTIA_TWILIO_TEST_NUMBER,from:env.CONTACTIA_TWILIO_TEST_NUMBER,direction:'inbound',status:cambios.estado||'ringing'})}),
-  {list:async()=>Array.from({length:cambios.ambiguo?2:1},(_,i)=>({parentCallSid:i?'CA'+'f'.repeat(32):padre,accountSid:env.TWILIO_ACCOUNT_SID,to:env.CONTACTIA_TWILIO_TEST_NUMBER,from:env.CONTACTIA_TWILIO_TEST_NUMBER,direction:'outbound-dial',status:'ringing'}))});
+ const calls=Object.assign(s=>({fetch:async()=>({sid:s,accountSid:env.TWILIO_ACCOUNT_SID,to:env.CONTACTIA_TWILIO_TEST_NUMBER,from:env.CONTACTIA_TWILIO_TEST_CALLER_ID,direction:'inbound',status:cambios.estado||'ringing'})}),
+  {list:async()=>Array.from({length:cambios.ambiguo?2:1},(_,i)=>({parentCallSid:i?'CA'+'f'.repeat(32):padre,accountSid:env.TWILIO_ACCOUNT_SID,to:env.CONTACTIA_TWILIO_TEST_NUMBER,from:env.CONTACTIA_TWILIO_TEST_CALLER_ID,direction:'outbound-dial',status:'ringing'}))});
  const entorno={...env,...cambios.env};
  const entrada=crearEntrada({env:entorno,clientFactory:()=>c,twilioFactory:()=>({calls}),livekitFactory:()=>({connector:{connectTwilioCall:async o=>{conexiones.push(o);return{connectUrl:'wss://prueba.connector.livekit.cloud/stream/ficticia'};}}})});
  const motor=crearMotor({env:entorno,clientFactory:()=>c,correo:async()=> 'omitido'});
- async function callback(extra={},firma=true){const p={AccountSid:env.TWILIO_ACCOUNT_SID,CallSid:sid,From:env.CONTACTIA_TWILIO_TEST_NUMBER,To:env.CONTACTIA_TWILIO_TEST_NUMBER,Direction:'inbound',CallStatus:'ringing',...extra};
+ async function callback(extra={},firma=true){const p={AccountSid:env.TWILIO_ACCOUNT_SID,CallSid:sid,From:env.CONTACTIA_TWILIO_TEST_CALLER_ID,To:env.CONTACTIA_TWILIO_TEST_NUMBER,Direction:'inbound',CallStatus:'ringing',...extra};
   const r=res();await entrada({method:'POST',headers:{host:'preview.example','content-type':'application/x-www-form-urlencoded',
    'x-twilio-signature':firma?twilio.getExpectedTwilioSignature(env.TWILIO_BROWSER_AUTH_TOKEN,urlConexion(env,'telefono_entrada').href,p):'incorrecta'},body:p},r);return r;}
  async function turno(meta,mensaje,extra={},headers={}){const r=res();await motor({method:'POST',headers:{host:'preview.example','content-type':'application/json',authorization:'Bearer '+meta.acceso,...headers},
@@ -43,7 +43,7 @@ test('recepción validada crea un conector entrante con dispatch privado sin pub
  assert.equal((await s.callback()).statusCode,403);assert.equal(s.conexiones.length,1);
 });
 test('firma, cuenta, teléfono, dirección, estado, cuota y prueba no autorizada impiden crear el conector',async()=>{
- for(const p of [{AccountSid:'AC'+'f'.repeat(32)},{From:'+34600000000'},{To:'+34600000000'},{Direction:'outbound-api'},{CallStatus:'completed'},{CallSid:'otro'}]){
+ for(const p of [{AccountSid:'AC'+'f'.repeat(32)},{From:'+34600000000'},{From:env.CONTACTIA_TWILIO_TEST_NUMBER},{To:'+34600000000'},{Direction:'outbound-api'},{CallStatus:'completed'},{CallSid:'otro'}]){
   const s=escenario();assert.equal((await s.callback(p)).statusCode,403);assert.equal(s.conexiones.length,0);assert.equal(s.acciones.length,0);
  }
  for(const cambio of [{estado:'completed'},{cuota:false},{autorizada:false},{ambiguo:true},

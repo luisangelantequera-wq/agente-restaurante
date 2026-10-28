@@ -4,7 +4,7 @@ const {crearHandler,crearWebhook,configurada,pase,abrir,hash,coste,proveedor}=re
 const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1',CONTACTIA_WEB_SUPABASE_ENABLED:'1',CONTACTIA_TWILIO_BROWSER_ENABLED:'1',
  VERCEL_URL:'preview.example',CONTACTIA_SUPABASE_SERVER_KEY:'sb_secret_clave-servidor-ficticia',TURNSTILE_SECRET_KEY:'secreto',TURNSTILE_SITE_KEY:'site-publica',
  TWILIO_ACCOUNT_SID:'AC'+'a'.repeat(32),TWILIO_BROWSER_AUTH_TOKEN:'auth-token-ficticio-no-real',TWILIO_BROWSER_API_KEY_SID:'SK'+'b'.repeat(32),TWILIO_BROWSER_API_KEY_SECRET:'api-secret-ficticio-no-real',
- TWILIO_BROWSER_APP_SID:'AP'+'c'.repeat(32),CONTACTIA_TWILIO_TEST_NUMBER:'+12025550123',CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL:'https://preview.example/api/restaurante?canal=telefono_prueba'};
+ TWILIO_BROWSER_APP_SID:'AP'+'c'.repeat(32),CONTACTIA_TWILIO_TEST_NUMBER:'+12025550123',CONTACTIA_TWILIO_TEST_CALLER_ID:'+12025550456',CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL:'https://preview.example/api/restaurante?canal=telefono_prueba'};
 const id='11111111-2222-4333-8444-555555555555',sid='CA'+'d'.repeat(32),otro='CA'+'e'.repeat(32);
 const req={method:'POST',headers:{host:'preview.example',origin:'https://preview.example','content-type':'application/json','x-forwarded-for':'192.0.2.1'}};
 function respuesta(){return{headers:{},setHeader(k,v){this.headers[k]=v;},end(raw){this.raw=raw;try{this.body=JSON.parse(raw);}catch{}}};}
@@ -17,8 +17,8 @@ function escenario(cambios={}){
   if(n==='consultar_llamada_prueba'){const r=registros.get(a.p_id);return{data:r?.hash===a.p_hash?r.sid:null};}assert.fail(n);
  }};
  const calls=Object.assign(s=>({fetch:async()=>{consultas.push('llamada');return{sid:s,accountSid:env.TWILIO_ACCOUNT_SID,from:'client:prueba-usa-ficticia',price:'-0.004',priceUnit:'USD',status:'completed',duration:'27'};}}),
-  {list:async()=>[{sid:otro,parentCallSid:sid,accountSid:env.TWILIO_ACCOUNT_SID,to:env.CONTACTIA_TWILIO_TEST_NUMBER,price:'-0.014',priceUnit:'USD',status:'completed',duration:'27'}]});
- const proveedor={incomingPhoneNumbers:{list:async()=>{consultas.push('numero');return[{phoneNumber:env.CONTACTIA_TWILIO_TEST_NUMBER,capabilities:{voice:true},voiceUrl:'https://demo.twilio.com/welcome/voice/'}];}},
+  {list:async()=>[{sid:otro,parentCallSid:sid,accountSid:env.TWILIO_ACCOUNT_SID,to:env.CONTACTIA_TWILIO_TEST_NUMBER,from:env.CONTACTIA_TWILIO_TEST_CALLER_ID,price:'-0.014',priceUnit:'USD',status:'completed',duration:'27'}]});
+ const proveedor={incomingPhoneNumbers:{list:async({phoneNumber})=>{consultas.push('numero');return[{phoneNumber,accountSid:env.TWILIO_ACCOUNT_SID,capabilities:{voice:true},voiceUrl:'https://demo.twilio.com/welcome/voice/'}];}},
   applications:()=>({fetch:async()=>{consultas.push('app');return{voiceUrl:env.CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL,voiceMethod:'POST'};}}),calls};
  const entorno={...env,...cambios.env};
  const handler=crearHandler({env:entorno,clientFactory:()=>cliente,twilioFactory:()=>proveedor,probarWebhook:async()=>cambios.webhookAccesible!==false,turnstile:async p=>{verificaciones.push(p);return cambios.humano!==false;}});
@@ -47,7 +47,7 @@ test('la verificación inicial autoriza un token breve sin llamadas entrantes y 
  assert.equal(p.exp-p.iat,120);assert.equal(JSON.parse(Buffer.from(r.token.split('.')[0],'base64url')).twr,'ie1');assert.equal(p.grants.voice.outgoing.application_sid,env.TWILIO_BROWSER_APP_SID);assert.ok(!p.grants.voice.incoming?.allow);
  assert.equal(p.grants.voice.outgoing.params.Autorizacion,r.pase);assert.equal(r.numero,env.CONTACTIA_TWILIO_TEST_NUMBER);assert.equal(r.maxSegundos,180);
  assert.equal(s.verificaciones[0].action,'llamada_usa');assert.equal(s.verificaciones[0].peticion,id);
- assert.deepEqual(s.consultas,['numero','app']);assert.ok(!JSON.stringify(r).includes(env.TWILIO_BROWSER_AUTH_TOKEN));assert.ok(!JSON.stringify(r).includes(env.TWILIO_BROWSER_API_KEY_SECRET));
+ assert.deepEqual(s.consultas,['numero','numero','app']);assert.ok(!JSON.stringify(r).includes(env.TWILIO_BROWSER_AUTH_TOKEN));assert.ok(!JSON.stringify(r).includes(env.TWILIO_BROWSER_API_KEY_SECRET));
  assert.equal((await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'})).statusCode,409);
 });
 test('origen ajeno, datos extra, cuota o captcha fallido impiden emitir permisos',async()=>{
@@ -57,7 +57,7 @@ test('origen ajeno, datos extra, cuota o captcha fallido impiden emitir permisos
  s=escenario({humano:false});assert.equal((await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'})).statusCode,403);assert.equal(s.consultas.length,0);
 });
 test('el webhook firmado marca solo el número propio y limita la duración; otro SID no reutiliza el pase',async()=>{
- const s=escenario(),r=await s.sesion();const llamada=await s.callback(r.pase);assert.equal(llamada.statusCode,200);assert.match(llamada.raw,/<Number>\+12025550123<\/Number>/);assert.match(llamada.raw,/timeLimit="180"/);assert.match(llamada.raw,/<Hangup/);
+ const s=escenario(),r=await s.sesion();const llamada=await s.callback(r.pase);assert.equal(llamada.statusCode,200);assert.match(llamada.raw,/<Number>\+12025550123<\/Number>/);assert.match(llamada.raw,/callerId="\+12025550456"/);assert.match(llamada.raw,/timeLimit="180"/);assert.match(llamada.raw,/<Hangup/);
  assert.equal((await s.callback(r.pase)).statusCode,200);assert.equal((await s.callback(r.pase,{CallSid:otro})).statusCode,403);
  assert.equal(s.registros.size,1);
 });
@@ -90,14 +90,14 @@ test('el coste rechaza tramos con otro destino y nunca revela el error de creden
 test('el coste incluye la recepción vinculada y verifica que pertenece al número de pruebas',async()=>{
  const s=escenario(),entrada='CA'+'9'.repeat(32),original=s.proveedor.calls;
  s.proveedor.calls=Object.assign(n=>n===entrada?{fetch:async()=>({sid:n,accountSid:env.TWILIO_ACCOUNT_SID,direction:'inbound',
-  to:env.CONTACTIA_TWILIO_TEST_NUMBER,from:env.CONTACTIA_TWILIO_TEST_NUMBER,status:'completed',price:'-0.0085',priceUnit:'USD',duration:'27'})}:original(n),{list:original.list});
+  to:env.CONTACTIA_TWILIO_TEST_NUMBER,from:env.CONTACTIA_TWILIO_TEST_CALLER_ID,status:'completed',price:'-0.0085',priceUnit:'USD',duration:'27'})}:original(n),{list:original.list});
  const r=await coste(s.proveedor,env,sid,entrada);assert.equal(r.tramos,3);assert.equal(r.importe,0.0265);
  await assert.rejects(()=>coste(s.proveedor,env,sid,sid),/Recepción/);
 });
 
 test('una Preview protegida o un número que apunta a la misma app no emiten el acceso de llamada',async()=>{
  let s=escenario({webhookAccesible:false});let r=await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'});assert.equal(r.statusCode,503);assert.equal(s.registros.size,0);
- s=escenario();s.proveedor.incomingPhoneNumbers.list=async()=>[{phoneNumber:env.CONTACTIA_TWILIO_TEST_NUMBER,capabilities:{voice:true},voiceApplicationSid:env.TWILIO_BROWSER_APP_SID}];
+ s=escenario();s.proveedor.incomingPhoneNumbers.list=async()=>[{phoneNumber:env.CONTACTIA_TWILIO_TEST_NUMBER,accountSid:env.TWILIO_ACCOUNT_SID,capabilities:{voice:true},voiceApplicationSid:env.TWILIO_BROWSER_APP_SID}];
  r=await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'});assert.equal(r.statusCode,503);assert.equal(s.registros.size,0);
 });
 
@@ -107,4 +107,26 @@ test('la API de voz usa Irlanda y la firma exige el Auth Token regional',async()
  const s=escenario(),r=await s.sesion(),d=abrir(env,r.pase);
  const b={AccountSid:env.TWILIO_ACCOUNT_SID,ApplicationSid:env.TWILIO_BROWSER_APP_SID,CallSid:sid,From:'client:'+d.identidad,To:env.CONTACTIA_TWILIO_TEST_NUMBER,Autorizacion:r.pase};
  const res=respuesta();await crearWebhook({env,clientFactory:()=>{throw Error('No debe acceder a SQL');}})({method:'POST',headers:{host:'preview.example','content-type':'application/x-www-form-urlencoded','x-twilio-signature':twilio.getExpectedTwilioSignature('auth-token-us1-equivocado',env.CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL,b)},body:b},res);assert.equal(res.statusCode,403);
+});
+
+test('impide llamar al mismo número y exige que el origen pertenezca a esta cuenta',async()=>{
+ for(const origen of ['',env.CONTACTIA_TWILIO_TEST_NUMBER,'+34600000000']){
+  const s=escenario({env:{CONTACTIA_TWILIO_TEST_CALLER_ID:origen}});
+  assert.equal(configurada({...env,CONTACTIA_TWILIO_TEST_CALLER_ID:origen}),false);
+  assert.equal((await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'})).statusCode,503);
+  assert.equal(s.registros.size,0);assert.equal(s.consultas.length,0);
+ }
+ for(const origen of [[],[{phoneNumber:env.CONTACTIA_TWILIO_TEST_CALLER_ID,accountSid:'AC'+'f'.repeat(32),capabilities:{voice:true}}]]){
+  const s=escenario(),original=s.proveedor.incomingPhoneNumbers.list;
+  s.proveedor.incomingPhoneNumbers.list=o=>o.phoneNumber===env.CONTACTIA_TWILIO_TEST_CALLER_ID?Promise.resolve(origen):original(o);
+  const r=await s.api({accion:'supabase_telefono_sesion',peticion_id:id,turnstile_token:'prueba'});
+  assert.equal(r.statusCode,503);assert.equal(s.registros.size,0);assert.match(r.body.error,/origen/);
+ }
+ const token=pase(env,{id,host:'preview.example',huella:'ficticia'});
+ assert.throws(()=>abrir({...env,CONTACTIA_TWILIO_TEST_CALLER_ID:'+12025550789'},token),/válido/);
+});
+
+test('el coste rechaza un tramo de salida con origen distinto al autorizado',async()=>{
+ const s=escenario();s.proveedor.calls.list=async()=>[{parentCallSid:sid,accountSid:env.TWILIO_ACCOUNT_SID,to:env.CONTACTIA_TWILIO_TEST_NUMBER,from:env.CONTACTIA_TWILIO_TEST_NUMBER}];
+ await assert.rejects(()=>coste(s.proveedor,env,sid),/Tramos inesperados/);
 });
