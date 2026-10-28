@@ -164,6 +164,9 @@ function estadoBloqueaMesa(estado) {
 
 
 module.exports = async (req, res) => {
+  if(req.query?.canal==="telefono_prueba")return require("../lib/telefono-prueba").crearWebhook()(req,res);
+  if(req.query?.canal==="telefono_entrada")return require("../lib/telefono-entrada").crearEntrada()(req,res);
+  if(req.query?.canal==="telefono_motor")return require("../lib/telefono-entrada").crearMotor()(req,res);
   if (req.method !== "POST") {
     return responder(res, 405, {
       ok: false,
@@ -227,6 +230,18 @@ module.exports = async (req, res) => {
     }
     if (longitudCalculada > MAX_REQUEST_BODY_BYTES || longitudDeclarada > MAX_REQUEST_BODY_BYTES) {
       return responder(res, 413, { ok: false, error: "La solicitud es demasiado grande." });
+    }
+
+    if (["supabase_movil_config", "supabase_movil_sesion", "supabase_movil_llamar", "supabase_movil_coste"].includes(accion))return require("../lib/movil-prueba").crearHandler()(req,res,body);
+
+    if (["supabase_telefono_config", "supabase_telefono_sesion", "supabase_telefono_coste"].includes(accion))return require("../lib/telefono-prueba").crearHandler()(req,res,body);
+
+    if (["supabase_web_config", "supabase_web_reservar", "supabase_web_chat_config", "supabase_web_fecha", "supabase_web_disponibilidad", "supabase_web_informacion", "supabase_voz_sesion", "supabase_voz_turno", "supabase_gestion_consultar", "supabase_gestion_cancelar", "supabase_gestion_reprogramar"].includes(accion)) {
+      return require("../lib/reservas-web-supabase")(req, res, body);
+    }
+
+    if (accion.startsWith("supabase_")) {
+      return require("../lib/acceso-supabase")(req, res, body);
     }
 
     if (accion === "encargo_visto") return require("../lib/encargos-panel")(req,res);

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Acceso del restaurante · Contactia</title>
+  <link rel="stylesheet" href="acceso-restaurante.css">
+  <link rel="stylesheet" href="panel-restaurante.css">
+  <script src="lib/ajustes-restaurante.js" defer></script>
+  <script src="panel-horarios-supabase.js" defer></script>
+  <script src="panel-datos-supabase.js" defer></script>
+  <script src="panel-avisos-supabase.js" defer></script>
+  <script src="acceso-restaurante.js" defer></script>
+</head>
+<body>
+<main>
+  <header><p class="marca">CONTACTIA</p><h1>Tu restaurante, a mano.</h1>
+    <p class="nota">Espacio de pruebas · Todavía no gestiona reservas reales.</p></header>
+  <section id="acceso" class="tarjeta" aria-labelledby="titulo-acceso">
+    <h2 id="titulo-acceso">Entra en tu cuenta</h2>
+    <p>Usa el correo autorizado para gestionar tu restaurante.</p>
+    <form id="formulario">
+      <label for="email">Correo electrónico</label>
+      <input id="email" type="email" autocomplete="username" maxlength="254" required>
+      <label for="password">Contraseña</label>
+      <input id="password" type="password" autocomplete="current-password" maxlength="1024" required>
+      <button id="entrar" type="submit">Entrar</button>
+    </form>
+    <p class="nota">Si necesitas acceso o recuperar tu cuenta, contacta con la administración de Contactia.</p>
+  </section>
+  <p id="mensaje" role="status" aria-live="polite"></p>
+  <section id="panel" class="tarjeta" hidden aria-labelledby="titulo-panel">
+    <div class="cabecera"><div><h2 id="titulo-panel">Mi restaurante</h2><p id="usuario"></p></div>
+      <button id="salir" class="secundario" type="button">Cerrar sesión</button></div>
+    <label for="restaurante">Restaurante</label>
+    <select id="restaurante"></select>
+    <button id="actualizar" class="secundario" type="button">Actualizar</button>
+    <div id="configuracion" aria-live="polite"></div>
+  </section>
+</main>
+<dialog id="cambio-reserva" aria-labelledby="titulo-cambio">
+  <h2 id="titulo-cambio">Cambiar fecha y hora</h2>
+  <p id="resumen-cambio"></p>
+  <form id="formulario-cambio">
+    <label for="nueva-fecha">Nueva fecha</label>
+    <input id="nueva-fecha" type="date" required>
+    <label for="nueva-hora">Nueva hora</label>
+    <input id="nueva-hora" type="time" required>
+    <p class="nota">Se conservarán la zona y las mesas. Si no hay disponibilidad, la reserva original se mantiene. Esta prueba no envía avisos.</p>
+    <p id="mensaje-cambio" role="status" aria-live="polite"></p>
+    <button id="guardar-cambio" type="submit">Guardar nueva fecha y hora</button>
+    <button id="cerrar-cambio" class="secundario" type="button">Volver sin guardar</button>
+  </form>
+</dialog>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Contactia · Chat de reservas de prueba</title><link rel="stylesheet" href="/chat-prueba.css"></head>
+<body><main>
+ <header><div><p class="marca">CONTACTIA · PRUEBAS</p><h1 id="restaurante">Chat de reservas</h1></div><button id="nueva" type="button" disabled>Nueva reserva</button></header>
+ <p class="nota">Reserva de prueba · Correo solo a direcciones habilitadas para pruebas. Sin WhatsApp.</p>
+ <section id="voz-panel" class="voz-panel" hidden aria-label="Llamada de prueba"><p>También puede hablar con el recepcionista. Use datos ficticios; confirme la reserva con su voz.</p><button id="voz-iniciar" type="button" aria-pressed="false">Iniciar llamada de prueba</button><button id="voz-sonido" type="button" hidden>Activar sonido</button><div id="voz-verificacion" hidden></div><p id="voz-estado" role="status" aria-live="polite"></p></section>
+ <p class="nota"><a href="/telefono-prueba.html">Prueba del número telefónico por Internet</a></p>
+ <section class="chat" aria-label="Conversación de reserva">
+  <div id="mensajes" role="log" aria-live="polite" aria-relevant="additions"></div>
+  <p id="estado" role="status">Conectando con el restaurante…</p><p id="gestion" hidden><a id="enlace-gestion">Consultar, cambiar o cancelar mi reserva</a></p>
+  <form id="respuesta"><label for="texto">Su respuesta</label><div class="entrada"><input id="texto" name="respuesta" maxlength="4000" autocomplete="off" placeholder="Escriba aquí…" disabled required><button id="enviar" disabled>Enviar</button></div></form>
+  <section id="seguridad" hidden aria-label="Confirmación de reserva"><label id="opcion-whatsapp" class="consentimiento-whatsapp" hidden><input id="whatsapp-autorizado" type="checkbox">Autorizo que me envíen por WhatsApp la confirmación si falla el correo.</label><div id="verificacion"></div><p id="aviso-verificacion" role="status">Cargando la verificación…</p><button id="confirmar" type="button" disabled>Verificar y confirmar</button></section>
+ </section>
+ <p class="nota">La disponibilidad puede cambiar hasta que se confirme la reserva. Utilice datos ficticios para las pruebas.</p>
+</main><script src="/lib/fecha-conversacional.js"></script><script src="/lib/entrada-conversacional.js"></script><script src="/lib/ajustes-restaurante.js"></script><script src="/lib/conocimiento-restaurante.js"></script><script src="/lib/informacion-publica-respuestas.js"></script><script src="/lib/chat-supabase-conversacion.js"></script><script src="/voz-supabase.js"></script><script src="/chat-prueba.js"></script></body></html>
