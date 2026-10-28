@@ -232,6 +232,8 @@ module.exports = async (req, res) => {
       return responder(res, 413, { ok: false, error: "La solicitud es demasiado grande." });
     }
 
+    if (["supabase_movil_config", "supabase_movil_sesion", "supabase_movil_llamar", "supabase_movil_coste"].includes(accion))return require("../lib/movil-prueba").crearHandler()(req,res,body);
+
     if (["supabase_telefono_config", "supabase_telefono_sesion", "supabase_telefono_coste"].includes(accion))return require("../lib/telefono-prueba").crearHandler()(req,res,body);
 
     if (["supabase_web_config", "supabase_web_reservar", "supabase_web_chat_config", "supabase_web_fecha", "supabase_web_disponibilidad", "supabase_web_informacion", "supabase_voz_sesion", "supabase_voz_turno", "supabase_gestion_consultar", "supabase_gestion_cancelar", "supabase_gestion_reprogramar"].includes(accion)) {

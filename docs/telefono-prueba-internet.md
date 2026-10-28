@@ -242,3 +242,48 @@ de salida y la verificación de los tramos del coste. Los permisos quedan
 vinculados al origen además del destino: iniciar una prueba nueva tras el
 cambio. Las pruebas automatizadas usan números ficticios y proveedores
 simulados; la llamada real sigue pendiente de validación por el usuario.
+
+### Prueba saliente al móvil español (28 de octubre de 2026)
+
+La llamada entre los dos números americanos sigue sin completarse. El registro
+real de Twilio muestra 13225 (Phone number is blacklisted), con respuesta 200
+y TwiML correcto del webhook. La documentación vincula ese error, entre otras
+causas, con restricciones hacia +1 para determinados perfiles individuales.
+No se ha demostrado que el destino solo admita mensajes: tiene Voice.
+El usuario es particular, sin sociedad ni alta de actividad para Contactia.
+Se canceló la conversión empresarial eliminando su borrador; volvió a aparecer
+el perfil original Individual · Approved. La búsqueda de números españoles,
+incluso solo con Voice, no devuelve resultados; causa no confirmada.
+
+Se añade `/movil-prueba.html`, independiente de Airtable y LiveKit. Reutiliza
+la API de Irlanda y el número americano de destino anterior como origen.
+El único destino es el móvil español configurado en el servidor; la interfaz
+muestra solo sus cuatro últimas cifras. Variables exclusivas de esta Preview:
+
+- `CONTACTIA_TWILIO_MOBILE_TEST_ENABLED=1`.
+- `CONTACTIA_TWILIO_MOBILE_TEST_TO`: teléfono personal permitido, tipo sensible.
+
+`lib/movil-prueba.js` atiende config, sesión, llamar y coste desde la función
+existente `/api/restaurante`. La preparación exige mismo origen, IP válida,
+Turnstile real con action `llamada_movil`, límites y número de origen propio.
+Devuelve un pase breve vinculado a IP/host y a HMAC del destino, sin incluir
+el teléfono personal. Preparar no llama: solo el botón explícito inicia Calls
+API con TwiML inline de aviso, sin audio entrante ni grabación. Ring timeout
+20 s; límite tras contestar 30 s; termina con Hangup. No se usan reservas,
+correos, WhatsApp, Media Streams ni el agente LiveKit.
+
+Se reutilizan las RPC ya aplicadas de llamadas_prueba. Antes de crear una
+llamada se reclaman bloqueos con UUID HMAC distintos por permiso y por cuarto
+de hora UTC, global para el destino. Las reclamaciones permanecen si se pierde
+la respuesta: nunca se reintenta una creación de llamada automáticamente.
+El usuario puede consultar el resultado y coste manualmente con recibo de 24 h;
+la API comprueba cuenta, dirección outbound-api, origen y destino exactos.
+El recibo se conserva en sessionStorage para consultar al recargar la pestaña,
+sin volver a marcar. Si la llamada se crea pero no se guarda su SID, se indica
+revisar Call Logs de Twilio: no se atribuye la ausencia de recibo a coste cero.
+
+El importe procede de Call.price y corresponde a conectividad; la locución y
+el alquiler van aparte. Precio pendiente distinto de cero real. Los errores de
+creación muestran solo el código público de Twilio, sin su mensaje con PII.
+Las pruebas usan proveedores simulados; no se llama al usuario desde herramientas.
+La prueba real se inicia exclusivamente mediante su botón y queda pendiente.
