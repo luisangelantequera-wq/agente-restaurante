@@ -209,15 +209,15 @@ class ErrorInicioSIP(ValueError):
 
 
 async def iniciar_sip(room, identity, http):
-    # Solo el secreto de LiveKit del worker firma el inicio; nunca va en metadata.
+    # Una clave propia compartida con Vercel firma el inicio; nunca va en metadata.
     try:
         url = url_motor().replace("canal=telefono_motor", "canal=telefono_sip_inicio")
     except ValueError:
         raise ErrorInicioSIP("configuracion_url") from None
     timestamp = int(time.time() * 1000)
-    secreto = os.getenv("LIVEKIT_API_SECRET", "")
-    if len(secreto) < 20:
-        raise ErrorInicioSIP("configuracion_livekit")
+    secreto = os.getenv("CONTACTIA_SIP_WORKER_SECRET", "")
+    if len(secreto) < 32:
+        raise ErrorInicioSIP("configuracion_clave_compartida")
     datos = {"room": room, "identity": identity, "timestamp": timestamp}
     canon = json.dumps([room, identity, timestamp], separators=(",", ":"), ensure_ascii=False)
     firma = hmac.new(secreto.encode(), ("contactia:sip:inicio:v1:" + canon).encode(), hashlib.sha256).hexdigest()

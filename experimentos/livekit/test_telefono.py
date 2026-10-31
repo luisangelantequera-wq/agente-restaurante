@@ -147,8 +147,8 @@ class Pruebas(unittest.IsolatedAsyncioTestCase):
     async def test_sip_firma_inicio_sin_secretos_en_metadata(self):
         room, identity = "contactia-telefono-sol-ficticia", "sip_ficticio"
         http = HTTP([{"ok": True, "room": room, "identity": identity, **datos()}])
-        secreto = "secreto-livekit-ficticio-000000"
-        with patch.dict(m.os.environ, {"CONTACTIA_TELEFONO_MOTOR_URL": URL, "LIVEKIT_API_SECRET": secreto}):
+        secreto = "secreto-compartido-sip-ficticio-000000"
+        with patch.dict(m.os.environ, {"CONTACTIA_TELEFONO_MOTOR_URL": URL, "CONTACTIA_SIP_WORKER_SECRET": secreto, "LIVEKIT_API_SECRET": "otra-credencial-cloud"}):
             r = await m.iniciar_sip(room, identity, http)
         url, p = http.peticiones[0]
         self.assertIn("canal=telefono_sip_inicio", url)
@@ -161,7 +161,7 @@ class Pruebas(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(r["room"], room)
 
     async def test_sip_rechaza_redireccion_y_respuesta_de_otra_sala(self):
-        with patch.dict(m.os.environ, {"CONTACTIA_TELEFONO_MOTOR_URL": URL, "LIVEKIT_API_SECRET": "ficticio-livekit-secret-000000"}):
+        with patch.dict(m.os.environ, {"CONTACTIA_TELEFONO_MOTOR_URL": URL, "CONTACTIA_SIP_WORKER_SECRET": "ficticio-compartido-sip-secret-000000"}):
             for d in ({"ok": False}, {"ok": True, "room": "otra", "identity": "sip"}):
                 with self.assertRaises(ValueError):
                     await m.iniciar_sip("contactia-telefono-sol-ficticia", "sip", HTTP([d]))

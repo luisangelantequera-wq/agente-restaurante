@@ -15,6 +15,9 @@ La regla Individual debe seleccionar exclusivamente ese trunk y usar el prefijo
 de desplegar el worker adaptado y configurar la API.
 
 Variables nuevas en Vercel, exclusivamente Preview/rama migracion-supabase-fase-1:
+- CONTACTIA_SIP_WORKER_SECRET: clave aleatoria de al menos 32 caracteres, idéntica
+  en Vercel y en los secretos del agente LiveKit. No usar LIVEKIT_API_SECRET: Cloud
+  genera sus propias credenciales automáticas, diferentes de las del backend.
 - CONTACTIA_SIP_TRUNK_ID: ID exacto ST_... del inbound trunk de LiveKit.
 - CONTACTIA_SIP_ENABLED: 1 para habilitar, 0 o ausente para deshabilitar.
 
@@ -26,7 +29,7 @@ entorno, incluido el bypass de Vercel cuando corresponda. Nunca poner secretos e
 Dispatch metadata ni en el repositorio. No necesita una clave nueva de Telnyx.
 
 El worker espera un participante SIP y firma una petición a
-/api/restaurante?canal=telefono_sip_inicio con el secreto LiveKit ya configurado.
+/api/restaurante?canal=telefono_sip_inicio con CONTACTIA_SIP_WORKER_SECRET.
 El servidor exige firma y timestamp reciente, consulta participante y sala mediante
 la API de LiveKit, comprueba kind SIP, trunk, número de destino y llamada activa,
 y devuelve un acceso temporal y el estado cifrado para el motor compartido.

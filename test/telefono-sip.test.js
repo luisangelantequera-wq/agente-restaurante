@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const sip=require('../lib/telefono-sip'),entrada=require('../lib/telefono-entrada'),motor=require('../lib/conversacion-voz-servidor');
 const now=Date.now(),host='preview.example',room='contactia-telefono-sol-llamada-ficticia',identity='sip_cliente_ficticio';
-const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1',CONTACTIA_SIP_ENABLED:'1',CONTACTIA_SIP_TRUNK_ID:'ST_ficticio',
+const env={CONTACTIA_SIP_WORKER_SECRET:'clave-compartida-ficticia-distinta-livekit-0000',VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1',CONTACTIA_SIP_ENABLED:'1',CONTACTIA_SIP_TRUNK_ID:'ST_ficticio',
  CONTACTIA_WEB_SUPABASE_ENABLED:'1',CONTACTIA_SUPABASE_VOICE_ENABLED:'1',CONTACTIA_SUPABASE_SERVER_KEY:'sb_secret_servidor-ficticio-de-pruebas',
  LIVEKIT_API_KEY:'ficticia',LIVEKIT_API_SECRET:'ficticia-livekit-secret-000000',LIVEKIT_URL:'wss://prueba.livekit.cloud',
  CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL:'https://'+host+'/api/restaurante?canal=telefono_prueba'};
@@ -43,7 +43,7 @@ test('SIP: otro participante, trunk, destino, llamada terminada o sala antigua n
  }
 });
 test('SIP: apagado por defecto, en producción y fuera de la rama autorizada',async()=>{
- for(const cambio of [{CONTACTIA_SIP_ENABLED:'0'},{CONTACTIA_SIP_TRUNK_ID:''},{VERCEL_ENV:'production'},{VERCEL_GIT_COMMIT_REF:'main'}]){
+ for(const cambio of [{CONTACTIA_SIP_WORKER_SECRET:''},{CONTACTIA_SIP_ENABLED:'0'},{CONTACTIA_SIP_TRUNK_ID:''},{VERCEL_ENV:'production'},{VERCEL_GIT_COMMIT_REF:'main'}]){
   const s=escenario({env:cambio});assert.equal((await s.inicio()).statusCode,404);assert.equal(s.consultas,0);
  }
 });
@@ -56,4 +56,12 @@ test('SIP: acceso obtenido sirve al motor compartido y no acepta el estado de ot
  assert.equal((await turno(r.body.conversacion_token,{slug:'prueba-luna'})).statusCode,400);
  const a=entrada.verificar(env,r.body.acceso,now),ajeno=motor.iniciar(env,{slug:'prueba-sol',host,huella:a.huella,room:'otra-sala',peticion:'otra',config:{zonas:[]},ahora:now});
  assert.equal((await turno(ajeno)).statusCode,403);
+});
+
+test('SIP: las credenciales automáticas del worker pueden diferir; solo autoriza la clave propia compartida',async()=>{
+ const body={room,identity,timestamp:now};
+ const firmaWorker=sip.firma({...env,LIVEKIT_API_SECRET:'credencial-cloud-diferente'},body);
+ assert.equal((await escenario().inicio({}, {'x-contactia-sip-signature':firmaWorker})).statusCode,200);
+ const incorrecta=sip.firma({...env,CONTACTIA_SIP_WORKER_SECRET:'otra-clave-ficticia-compartida-000000'},body);
+ const s=escenario();assert.equal((await s.inicio({}, {'x-contactia-sip-signature':incorrecta})).statusCode,403);assert.equal(s.consultas,0);
 });
