@@ -180,3 +180,37 @@ test('hora fuera de turno recuerda todos los tramos de ese día y permite indica
  assert.equal(chat.estado().paso,'hora');await chat.enviar('14:00');await chat.enviar('si');
  assert.equal(chat.estado().paso,'nombre');assert.equal(llamadas.filter(l=>l.a==='supabase_web_fecha').length,1);
 });
+
+test('frases naturales conservan para cuatro sin confundir fecha u hora con personas',async()=>{
+ for(const frase of ['Para el martes, para cuatro a las dos.',
+  'Una mesa para el martes a las dos, para cuatro.',
+  'Para 2/11/2026, para cuatro a las dos.',
+  'Para 2 de noviembre, cuatro personas a las dos.',
+  'Para el martes, cuatro comensales a las dos.']){
+  const s=escenario();await s.chat.enviar(frase,{canal:'voz'});
+  assert.equal(s.chat.estado().paso,'resumen',frase);const d=s.chat.exportar().datos;
+  assert.equal(d.personas,4,frase);assert.equal(d.hora,'14:00');assert.ok(!s.llamadas.some(l=>l.a==='supabase_web_reservar'));
+ }
+ for(const frase of ['Para 2/11/2026 a las dos.','Para 2 de noviembre a las dos.','El martes para 14:00.','El martes para dos de la tarde.']){
+  const s=escenario();await s.chat.enviar(frase,{canal:'voz'});assert.equal(s.chat.estado().paso,'personas',frase);assert.equal(s.chat.exportar().datos.personas,undefined);
+ }
+});
+test('cifras de grupos grandes y expresiones alternativas no se reducen a un número menor',async()=>{
+ for(const [frase,numero] of [['Para el martes, para 100 personas a las dos.',100],['El martes, seremos 1000 a las dos.',1000]]){
+  const s=escenario();await s.chat.enviar(frase,{canal:'voz'});assert.equal(s.chat.estado().paso,'resumen',frase);assert.equal(s.chat.exportar().datos.personas,numero);
+ }
+ for(const frase of ['El martes, para dos o tres a las dos.','El martes, somos dos o tres a las dos.','El martes, para 1001 personas a las dos.']){
+  const s=escenario();await s.chat.enviar(frase,{canal:'voz'});assert.equal(s.chat.estado().paso,'personas',frase);assert.equal(s.chat.exportar().datos.personas,undefined);
+ }
+});
+test('una coletilla de confirmación separada por coma no se incorpora al correo dictado',async()=>{
+ for(const frase of ['juan arroba gmail punto com, sí.','juan@example.invalid, correcto.','juan punto perez arroba example punto invalid; sí.']){
+  assert.equal(correoDictado(frase),frase.startsWith('juan punto')?'juan.perez@example.invalid':frase.includes('@')?'juan@example.invalid':'juan@gmail.com');
+ }
+ assert.equal(correoDictado('juan arroba example punto si'),'juan@example.si');
+ const s=escenario();for(const t of ['martes','2','14:00','sí','Juan'])await s.chat.enviar(t,{canal:'voz'});
+ await s.chat.enviar('juan arroba gmail punto com, sí.',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'confirmar_email');assert.equal(s.chat.exportar().datos.email,undefined);
+ assert.match(s.mensajes.at(-1),/juan@gmail\.com\./);await s.chat.enviar('sí',{canal:'voz'});
+ assert.equal(s.chat.exportar().datos.email,'juan@gmail.com');
+});

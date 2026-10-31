@@ -73,3 +73,21 @@ test('caducidad fija: un turno no amplía la autorización original de seis minu
 test('el canal escrito conserva la verificación para reservar aunque exista una sesión de voz',async()=>{
  const s=escenario();await s.hastaFinal();const r=await s.api({accion:'supabase_web_reservar',slug:'prueba-sol',conversacion_token:s.token()});assert.equal(r.statusCode,400);assert.equal(s.reservas.size,0);
 });
+
+test('recorrido por voz conserva correcciones y rechaza sí repetidos como nombre o teléfono',async()=>{
+ const s=escenario();await s.comienzo();
+ let r=await s.turno('Para el martes, para cuatro a las dos.');assert.equal(r.paso,'resumen');assert.match(r.respuesta,/4 personas/);
+ for(const t of ['No','personas','Para cinco.'])r=await s.turno(t);
+ assert.equal(r.paso,'resumen');assert.match(r.respuesta,/5 personas/);assert.match(r.respuesta,/catorce horas/);
+ await s.turno('Sí');r=await s.turno('Sí, sí.');assert.equal(r.paso,'nombre');assert.equal(s.reservas.size,0);
+ await s.turno('A nombre de María José García.');r=await s.turno('maria punto garcia arroba example punto invalid, sí.');
+ assert.equal(r.paso,'confirmar_email');assert.match(r.respuesta,/example punto invalid/);assert.doesNotMatch(r.respuesta,/invalidsi/);
+ for(const t of ['No','maria guion bajo dos arroba example punto invalid','Sí'])r=await s.turno(t);
+ assert.equal(r.paso,'telefono');r=await s.turno('Sí');assert.equal(r.paso,'telefono');
+ for(const t of ['seis seis seis cuatro cuatro cuatro cinco cinco cinco','ninguna','No','hora','a las tres y cuarto'])r=await s.turno(t);
+ assert.equal(r.paso,'final');assert.equal(s.reservas.size,0);assert.match(r.respuesta,/5 personas/);assert.match(r.respuesta,/quince horas y 15 minutos/);
+ r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.reservas.size,1);
+ const datos=[...s.reservas.values()][0];assert.equal(datos.p_personas,5);assert.equal(datos.p_hora,'15:15');
+ assert.equal(datos.p_nombre,'María José García');assert.equal(datos.p_email,'maria_2@example.invalid');assert.equal(datos.p_telefono,'+34666444555');
+ assert.equal(s.verificaciones.length,1);
+});
