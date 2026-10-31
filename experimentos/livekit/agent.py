@@ -6,6 +6,8 @@ deben verificarse por separado antes de usar datos reales.
 """
 import asyncio
 import json
+import hashlib
+import hmac
 import os
 import time
 from urllib.parse import urlparse, parse_qs
@@ -187,19 +189,62 @@ class MotorTelefonico:
                 return json.dumps({"respuesta": "No he podido comprobar el resultado. Diga reintentar para comprobarlo sin duplicar la reserva."}, ensure_ascii=False)
 
 
+def url_motor():
+    url = os.getenv("CONTACTIA_TELEFONO_MOTOR_URL", "")
+    u = urlparse(url)
+    q = parse_qs(u.query)
+    if (u.scheme != "https" or u.netloc != MotorTelefonico.HOST
+            or u.path != "/api/restaurante" or u.fragment
+            or q.get("canal") != ["telefono_motor"]
+            or set(q) - {"canal", "x-vercel-protection-bypass"}):
+        raise ValueError("URL del motor no válida")
+    return url
+
+
+async def iniciar_sip(room, identity, http):
+    # Solo el secreto de LiveKit del worker firma el inicio; nunca va en metadata.
+    url = url_motor().replace("canal=telefono_motor", "canal=telefono_sip_inicio")
+    timestamp = int(time.time() * 1000)
+    secreto = os.getenv("LIVEKIT_API_SECRET", "")
+    if len(secreto) < 20:
+        raise ValueError("LiveKit no configurado")
+    datos = {"room": room, "identity": identity, "timestamp": timestamp}
+    canon = json.dumps([room, identity, timestamp], separators=(",", ":"), ensure_ascii=False)
+    firma = hmac.new(secreto.encode(), ("contactia:sip:inicio:v1:" + canon).encode(), hashlib.sha256).hexdigest()
+    async with http.post(url, headers={"X-Contactia-Sip-Signature": firma},
+                         json=datos, allow_redirects=False) as r:
+        if r.status != 200:
+            raise ValueError("Inicio SIP rechazado")
+        respuesta = await r.json()
+    if respuesta.get("ok") is not True or respuesta.get("room") != room or respuesta.get("identity") != identity:
+        raise ValueError("Inicio SIP no válido")
+    return respuesta
+
+
 async def contactia_telefono(ctx: JobContext):
     # Un solo rtc_session por AgentServer. Las salas telefónicas y su metadata
     # privada seleccionan el transporte; las salas web conservan su RPC.
     datos = json.loads(ctx.job.metadata or "{}")
     await ctx.connect()
-    if datos.get("room") != ctx.room.name:
-        ctx.shutdown(reason="Conexión no válida")
-        return
-    participante = await asyncio.wait_for(ctx.wait_for_participant(
-        identity=datos.get("identity"),
-        kind=rtc.ParticipantKind.PARTICIPANT_KIND_CONNECTOR), timeout=25)
     http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20))
     ctx.add_shutdown_callback(http.close)
+    if ctx.room.name.startswith("contactia-telefono-sol-"):
+        try:
+            participante = await asyncio.wait_for(ctx.wait_for_participant(
+                kind=rtc.ParticipantKind.PARTICIPANT_KIND_SIP), timeout=25)
+            datos = await iniciar_sip(ctx.room.name, participante.identity, http)
+        except Exception:
+            async with api.LiveKitAPI() as lk:
+                await lk.room.delete_room(api.DeleteRoomRequest(room=ctx.room.name))
+            ctx.shutdown(reason="Entrada SIP no autorizada")
+            return
+    elif datos.get("room") != ctx.room.name:
+        ctx.shutdown(reason="Conexión no válida")
+        return
+    else:
+        participante = await asyncio.wait_for(ctx.wait_for_participant(
+            identity=datos.get("identity"),
+            kind=rtc.ParticipantKind.PARTICIPANT_KIND_CONNECTOR), timeout=25)
     tareas = set()
     async def colgar():
         # Eliminar la sala termina el conector y hace que Twilio ejecute Hangup.

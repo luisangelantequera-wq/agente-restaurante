@@ -166,6 +166,7 @@ function estadoBloqueaMesa(estado) {
 module.exports = async (req, res) => {
   if(req.query?.canal==="telefono_prueba")return require("../lib/telefono-prueba").crearWebhook()(req,res);
   if(req.query?.canal==="telefono_entrada")return require("../lib/telefono-entrada").crearEntrada()(req,res);
+  if(req.query?.canal==="telefono_sip_inicio")return require("../lib/telefono-sip").crearInicio()(req,res);
   if(req.query?.canal==="telefono_motor")return require("../lib/telefono-entrada").crearMotor()(req,res);
   if (req.method !== "POST") {
     return responder(res, 405, {
