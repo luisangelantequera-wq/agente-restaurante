@@ -201,23 +201,33 @@ def url_motor():
     return url
 
 
+class ErrorInicioSIP(ValueError):
+    def __init__(self, etapa, status=None):
+        super().__init__(etapa)
+        self.etapa = etapa
+        self.status = status
+
+
 async def iniciar_sip(room, identity, http):
     # Solo el secreto de LiveKit del worker firma el inicio; nunca va en metadata.
-    url = url_motor().replace("canal=telefono_motor", "canal=telefono_sip_inicio")
+    try:
+        url = url_motor().replace("canal=telefono_motor", "canal=telefono_sip_inicio")
+    except ValueError:
+        raise ErrorInicioSIP("configuracion_url") from None
     timestamp = int(time.time() * 1000)
     secreto = os.getenv("LIVEKIT_API_SECRET", "")
     if len(secreto) < 20:
-        raise ValueError("LiveKit no configurado")
+        raise ErrorInicioSIP("configuracion_livekit")
     datos = {"room": room, "identity": identity, "timestamp": timestamp}
     canon = json.dumps([room, identity, timestamp], separators=(",", ":"), ensure_ascii=False)
     firma = hmac.new(secreto.encode(), ("contactia:sip:inicio:v1:" + canon).encode(), hashlib.sha256).hexdigest()
     async with http.post(url, headers={"X-Contactia-Sip-Signature": firma},
                          json=datos, allow_redirects=False) as r:
         if r.status != 200:
-            raise ValueError("Inicio SIP rechazado")
+            raise ErrorInicioSIP("respuesta_http", r.status)
         respuesta = await r.json()
     if respuesta.get("ok") is not True or respuesta.get("room") != room or respuesta.get("identity") != identity:
-        raise ValueError("Inicio SIP no válido")
+        raise ErrorInicioSIP("respuesta_invalida")
     return respuesta
 
 
@@ -233,7 +243,12 @@ async def contactia_telefono(ctx: JobContext):
             participante = await asyncio.wait_for(ctx.wait_for_participant(
                 kind=rtc.ParticipantKind.PARTICIPANT_KIND_SIP), timeout=25)
             datos = await iniciar_sip(ctx.room.name, participante.identity, http)
-        except Exception:
+        except Exception as error:
+            # No imprimir el mensaje de la excepción: puede contener URL o tokens.
+            print(json.dumps({"tipo": "contactia_sip_inicio_error",
+                              "etapa": getattr(error, "etapa", "conexion_o_participante"),
+                              "http_status": getattr(error, "status", None),
+                              "clase": type(error).__name__}))
             async with api.LiveKitAPI() as lk:
                 await lk.room.delete_room(api.DeleteRoomRequest(room=ctx.room.name))
             ctx.shutdown(reason="Entrada SIP no autorizada")
