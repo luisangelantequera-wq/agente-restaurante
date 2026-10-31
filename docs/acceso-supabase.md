@@ -156,3 +156,23 @@ Fuentes:
 - https://supabase.com/docs/reference/javascript/auth-signinwithpassword
 - https://supabase.com/docs/reference/javascript/auth-signout
 - https://supabase.com/docs/guides/auth/sessions
+
+
+Revisión local de aislamiento entre restaurantes (31 de octubre de 2026):
+`test/aislamiento-restaurantes-recorrido.test.js` ejecuta siete recorridos con las
+API reales del panel y de consultas públicas contra PostgreSQL local (PGlite),
+aplicando todas las migraciones y las políticas RLS y RPC reales. Los datos
+ficticios de Sol y Luna tienen usuarios, roles, zonas, mesas, reservas, horarios
+y direcciones distintos. Cada caso se revierte con rollback.
+
+Se comprueba la alternancia de usuarios, los identificadores ajenos en consultas
+y escrituras, una cuenta propietaria de un local y empleada de otro, la revocación
+de pertenencia, las consultas públicas por slug y los cambios de horarios, datos
+y disponibilidad limitados al restaurante solicitado. Cerrar una zona o cambiar
+sus horarios conserva las reservas existentes y no modifica el otro local.
+Las respuestas privadas mantienen `no-store` y `Vary: Cookie`.
+
+Estas pruebas representan Auth con identidades ficticias verificadas y adaptan
+las consultas del cliente a SQL parametrizado. No sustituyen la comprobación de
+inicio de sesión, JWT, cookies ni navegación en el despliegue remoto. No usan
+servicios externos, no envían correos y no realizan llamadas telefónicas.
