@@ -98,9 +98,9 @@ test('reserva de voz en siete respuestas: correo confirmado y resumen final cons
  r=await s.turno('Sí');assert.equal(r.paso,'telefono');
  r=await s.turno('seis seis seis cuatro cuatro cuatro cinco cinco cinco');assert.equal(r.paso,'observaciones');
  r=await s.turno('Una trona');assert.equal(r.paso,'final');
- assert.match(r.respuesta,/4 personas/);assert.match(r.respuesta,/catorce horas/);assert.match(r.respuesta,/Marta/);assert.match(r.respuesta,/Teléfono/);assert.match(r.respuesta,/Una trona/);
+ assert.match(r.respuesta,/4 personas/);assert.match(r.respuesta,/catorce horas/);assert.match(r.respuesta,/Marta/);assert.match(r.respuesta,/Teléfono: 666444555/);assert.doesNotMatch(r.respuesta,/\+34/);assert.match(r.respuesta,/Una trona/);
  assert.doesNotMatch(r.respuesta,/example|Observaciones: ninguna/);
  assert.equal(s.reservas.size,0);
  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.reservas.size,1);
- const d=[...s.reservas.values()][0];assert.equal(d.p_observaciones,'Una trona');assert.equal(d.p_email,'marta@example.invalid');
+ const d=[...s.reservas.values()][0];assert.equal(d.p_observaciones,'Una trona');assert.equal(d.p_telefono,'+34666444555');assert.equal(d.p_email,'marta@example.invalid');
 });
