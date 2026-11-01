@@ -7,7 +7,7 @@ const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1
  LIVEKIT_URL:'wss://prueba.livekit.cloud',LIVEKIT_API_KEY:'key-prueba',LIVEKIT_API_SECRET:'livekit-secret-ficticio-000000000'};
 const zona='66666666-7777-4888-8999-aaaaaaaaaaaa',peticion='11111111-2222-4333-8444-555555555555';
 const req={method:'POST',headers:{host:'prueba.example',origin:'https://prueba.example','content-type':'application/json','x-forwarded-for':'192.0.2.1'}};
-function escenario({falloTrasEscritura=false,rechazo=false}={}){
+function escenario({falloTrasEscritura=false,rechazo=false,whatsapp=false}={}){
  const llamadas=[],verificaciones=[],reservas=new Map();let fallo=falloTrasEscritura,token;
  const cliente={rpc:async(n,a)=>{
   llamadas.push({n,a});if(n==='consumir_limite_web')return{data:true};
@@ -20,7 +20,7 @@ function escenario({falloTrasEscritura=false,rechazo=false}={}){
    return{data:'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'};
   }assert.fail(n);
  },from:()=>({select(){return this;},eq(){return this;},maybeSingle:async()=>({data:{id:1,nombre:'Sol',zona_horaria:'Europe/Madrid'}}),order:async()=>({data:[{id:zona,nombre:'INTERIOR'}]})})};
- const handler=crearHandler({env,clientFactory:()=>cliente,turnstile:async p=>{verificaciones.push(p);return true;},correo:async()=> 'omitido'});
+ const handler=crearHandler({env:{...env,CONTACTIA_SUPABASE_WHATSAPP_ENABLED:whatsapp?'1':'0'},clientFactory:()=>cliente,turnstile:async p=>{verificaciones.push(p);return true;},correo:async()=> 'omitido'});
  async function api(body,solicitud=req){const r={setHeader(){},end(s){this.body=JSON.parse(s);}};await handler(solicitud,r,body);return r;}
  async function comienzo(){const r=await api({accion:'supabase_voz_sesion',slug:'prueba-sol',peticion_id:peticion,turnstile_token:'turnstile-prueba'});assert.equal(r.statusCode,200);token=r.body.conversacion_token;return r;}
  async function turno(mensaje,t=token){const r=await api({accion:'supabase_voz_turno',slug:'prueba-sol',conversacion_token:t,mensaje});assert.equal(r.statusCode,200,JSON.stringify(r.body));token=r.body.conversacion_token;return r.body;}
@@ -55,7 +55,7 @@ test('conflicto de mesa al escribir no anuncia éxito y permite corregir los dat
 test('un token de voz no autoriza datos, estado, UUID, restaurante, IP u origen elegidos por el cliente',async()=>{
  const s=escenario();await s.comienzo();const t=s.token(),base={accion:'supabase_voz_turno',slug:'prueba-sol',conversacion_token:t,mensaje:'Sí'};
  for(const extra of [{estado:{paso:'final'}},{peticion_id:peticion},{nombre:'Intruso'},{datos:{hora:'14:00'}},{slug:'prueba-luna'},
-  {conversacion_token:JSON.stringify({paso:'final'})},{conversacion_token:t.slice(0,80)+'A'+t.slice(81)}]){
+  {whatsapp_autorizado:true},{conversacion_token:JSON.stringify({paso:'final'})},{conversacion_token:t.slice(0,80)+'A'+t.slice(81)}]){
   const r=await s.api({...base,...extra});assert.ok([400,403,404].includes(r.statusCode));
  }
  const otraIP={...req,headers:{...req.headers,'x-forwarded-for':'192.0.2.2'}};assert.equal((await s.api(base,otraIP)).statusCode,403);
@@ -127,4 +127,31 @@ test('corrección de día rechaza una fecha imposible o alternativa y permite re
  }
  const r=await s.turno('El seis de noviembre');assert.equal(r.paso,'final');assert.equal(r.estado.datos.nombre,'Antonio');
  assert.equal(r.estado.datos.email,'antoniogarcia@gmail.com');assert.equal(s.reservas.size,0);
+});
+
+async function hastaPermiso(s){
+ await s.comienzo();let r;
+ for(const t of ['Para el martes para dos a las dos','Cliente ficticio','cliente arroba example punto invalid','Sí','600000000'])r=await s.turno(t);
+ assert.equal(r.paso,'whatsapp_autorizado');assert.match(r.respuesta,/Si falla el correo/);assert.equal(s.reservas.size,0);
+}
+test('voz: autorización separada del sí al correo; una respuesta ambigua no autoriza ni crea reserva',async()=>{
+ const s=escenario({whatsapp:true});await hastaPermiso(s);
+ for(const t of ['quizá','vale','sí pero a otro teléfono','sí y no']){
+  const r=await s.turno(t);assert.equal(r.paso,'whatsapp_autorizado');assert.equal(r.estado.datos.whatsapp_autorizado,undefined);assert.equal(s.reservas.size,0);
+ }
+ let r=await s.turno('No, gracias');assert.equal(r.paso,'observaciones');
+ await s.turno('ninguna');r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal([...s.reservas.values()][0].p_whatsapp,false);
+});
+test('voz: cambiar el teléfono invalida el permiso anterior y exige pedirlo para el teléfono nuevo',async()=>{
+ const s=escenario({whatsapp:true});await hastaPermiso(s);await s.turno('Sí, autorizo');await s.turno('ninguna');
+ for(const t of ['No','teléfono'])await s.turno(t);
+ let r=await s.turno('600000001');assert.equal(r.paso,'whatsapp_autorizado');assert.equal(r.estado.datos.whatsapp_autorizado,undefined);
+ r=await s.turno('No');assert.equal(r.paso,'final');assert.equal(r.estado.datos.telefono,'+34600000001');assert.equal(r.estado.datos.whatsapp_autorizado,false);
+ r=await s.turno('Sí');assert.equal(r.paso,'terminado');const d=[...s.reservas.values()][0];assert.equal(d.p_whatsapp,false);assert.equal(d.p_telefono,'+34600000001');
+});
+test('voz: puede revocar el permiso desde el resumen sin perder los datos de reserva',async()=>{
+ const s=escenario({whatsapp:true});await hastaPermiso(s);await s.turno('Sí');await s.turno('ninguna');
+ await s.turno('No');let r=await s.turno('WhatsApp');assert.equal(r.paso,'whatsapp_autorizado');
+ r=await s.turno('No autorizo');assert.equal(r.paso,'final');assert.equal(r.estado.datos.nombre,'Cliente ficticio');
+ r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal([...s.reservas.values()][0].p_whatsapp,false);
 });

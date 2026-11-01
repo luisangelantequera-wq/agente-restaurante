@@ -40,3 +40,15 @@ El panel usa `Auth.getUser()` para validar la sesión. El UUID de usuario proced
 Las tablas privadas tienen RLS. Cada operación bloquea sus filas, tiene un UUID y una concesión temporal; un resultado antiguo no sobrescribe otra operación. El listado público omite correo completo, teléfono, cuerpos, claves y hashes de gestión. La reserva se mantiene aunque fallen todos los avisos. No se hacen llamadas telefónicas desde este bloque.
 
 Validación: pruebas JavaScript, suite SQL `11_seguimiento_avisos.sql` con ROLLBACK, y comprobación de la interfaz con respuestas simuladas. La integración de correo y enlace ya se probó con `oemvideo@gmail.com`. La siguiente comprobación de usuario consiste únicamente en consultar la entrega de ese correo desde el panel, sin crear reservas nuevas. El envío real de WhatsApp aún no se ha validado sobre este circuito de Supabase.
+
+
+### Autorización desde voz y telefonía
+
+El motor de voz también recoge la respuesta cuando el circuito está habilitado.
+La pregunta se hace después del teléfono, separada de la confirmación del correo
+y de la reserva. Si se corrige el teléfono se pide otra vez; se puede revocar
+seleccionando «WhatsApp» al corregir el resumen. La respuesta viaja dentro del
+estado cifrado y se guarda en la misma transacción ya utilizada por el formulario.
+El envío sigue bajo el control del panel y de la lista de teléfonos de prueba.
+La integración SIP→reserva→rebote→WhatsApp→entrega se prueba con SQL local real y
+proveedores simulados en `test/telefono-whatsapp-recorrido.test.js`.

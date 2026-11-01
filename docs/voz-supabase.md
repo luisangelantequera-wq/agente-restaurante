@@ -6,7 +6,8 @@ La llamada de prueba de Preview ya procesa cada turno en el servidor y registra
 la reserva tras el sí al resumen final. Comunica el resultado por voz, apaga el
 micrófono al confirmar y espera a que termine la locución antes de desconectar.
 El correo y su lista de destinatarios permitidos conservan sus reglas. WhatsApp
-sigue desactivado para este recorrido. El canal escrito mantiene Turnstile y
+incorpora autorización opcional en voz cuando se habilita el circuito de pruebas;
+el respaldo se gestiona desde el panel (véase la ampliación al final). El canal escrito mantiene Turnstile y
 «Verificar y confirmar».
 
 La página web de pruebas conserva el control inicial para conectar el micrófono;
@@ -452,3 +453,32 @@ día de la semana. Las pruebas del servidor cambian la fecha después de recoger
 los contactos, conservan hora/personas/contactos y exigen confirmar el resumen
 actualizado antes de escribir. La causa de la incidencia concreta del usuario
 requiere conocer una frase literal; no se conservan transcripciones de llamadas.
+
+
+## Autorización de WhatsApp desde llamadas SIP (01/11/2026)
+
+La sesión de voz conserva en su token cifrado si estaba disponible WhatsApp al
+iniciar. Con `CONTACTIA_SUPABASE_WHATSAPP_ENABLED=1`, después del teléfono pregunta:
+«Si falla el correo, ¿autoriza que le enviemos la confirmación por WhatsApp a este
+teléfono?». Solo una respuesta explícita autoriza; una duda vuelve a preguntar.
+El no permite continuar la reserva. Si se cambia el teléfono antes de confirmar,
+se invalida la respuesta anterior y se solicita autorización para el nuevo.
+También se puede elegir «WhatsApp» entre los datos a corregir para revocarla.
+
+El sí final guarda reserva y respuesta mediante `reservar_web_con_avisos`, con
+fecha y versión de consentimiento existentes. Se elimina el falso forzado en los
+transportes telefónico y de voz web; las sesiones anteriores o con el circuito
+apagado mantienen la autorización falsa. El worker no cambia ni requiere deploy.
+
+El seguimiento reutiliza «Avisos y confirmaciones» del panel: comprobar el correo,
+preparar WhatsApp si hay un rebote/fallo confirmado y autorización, enviar a un
+teléfono permitido y comprobar entrega. No añade barridos ni envíos automáticos
+al motor telefónico; un resultado incierto no permite reenviar. No se atribuye
+al nuevo recorrido la validación real del envío antiguo de Twilio.
+
+`test/telefono-whatsapp-recorrido.test.js` recorre inicio SIP firmado, motor real,
+funciones SQL reales en PGlite, y proveedores simulados. Comprueba consentimiento,
+reserva idempotente, correo rebotado/entregado, negativa del cliente, envío de
+plantilla y consulta de entrega, e incertidumbre sin duplicados. Las pruebas no
+usan la base remota ni envían mensajes. La siguiente prueba real necesita una
+nueva llamada con autorización y un fallo de correo elegible revisado en el panel.
