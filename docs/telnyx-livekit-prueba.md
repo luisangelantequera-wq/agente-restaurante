@@ -34,7 +34,7 @@ El servidor exige firma y timestamp reciente, consulta participante y sala media
 la API de LiveKit, comprueba kind SIP, trunk, número de destino y llamada activa,
 y devuelve un acceso temporal y el estado cifrado para el motor compartido.
 No confía en el teléfono de origen para autorizar ni lo copia al teléfono de reserva.
-La vida máxima de tres minutos se calcula desde la creación de la sala y no se
+La vida máxima de cinco minutos se calcula desde la creación de la sala y no se
 renueva al reiniciar el worker. Los inicios se limitan globalmente a cinco/minuto;
 los turnos y reservas conservan sus límites existentes. Repetir el inicio para la
 misma sala mantiene el identificador de operación de reserva.
@@ -55,3 +55,9 @@ Referencias oficiales consultadas el 31-10-2026:
 - https://docs.livekit.io/reference/telephony/sip-participant/
 - https://docs.livekit.io/reference/server-sdk-js/classes/RoomServiceClient.html
 - https://sip.telnyx.com/
+
+El 01-11-2026 se amplía únicamente SIP a cinco minutos para completar la reserva.
+El acceso firmado, el arranque del worker y el temporizador usan el mismo límite;
+el estado cifrado del motor dura seis minutos y no se amplía. El conector Twilio
+conserva sus tres minutos. Se verifica un turno a los cuatro minutos y la caducidad
+tras los cinco; el inicio repetido no renueva el plazo original.

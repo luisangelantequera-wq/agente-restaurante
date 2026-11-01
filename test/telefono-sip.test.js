@@ -27,7 +27,7 @@ test('SIP: inicia con participante real del trunk y número permitidos, sin depe
 test('SIP: inicio repetido mantiene operación de reserva y vencimiento originales',async()=>{
  const s=escenario(),a=await s.inicio(),b=await s.inicio();
  function abrir(r){const t=entrada.verificar(env,r.body.acceso,now);return motor.abrir(env,r.body.conversacion_token,{slug:'prueba-sol',host,huella:t.huella,ahora:now});}
- assert.equal(abrir(a).peticion,abrir(b).peticion);assert.equal(a.body.exp,b.body.exp);assert.throws(()=>entrada.verificar(env,a.body.acceso,now+180001));
+ assert.equal(abrir(a).peticion,abrir(b).peticion);assert.equal(a.body.exp,b.body.exp);assert.throws(()=>entrada.verificar(env,a.body.acceso,now+300001));
  assert.throws(()=>entrada.verificar({...env,CONTACTIA_SIP_ENABLED:'0'},a.body.acceso,now));
  assert.throws(()=>entrada.verificar({...env,CONTACTIA_SIP_TRUNK_ID:'ST_otro'},a.body.acceso,now));
 });
@@ -38,7 +38,7 @@ test('SIP: firma, caducidad, host y campos inválidos se rechazan antes de consu
 });
 test('SIP: otro participante, trunk, destino, llamada terminada o sala antigua no obtienen acceso',async()=>{
  for(const cambio of [{participante:{kind:0}},{participante:{kind:5}},{participante:{identity:'otro'}},{attrs:{'sip.trunkID':'ST_otro'}},
- {attrs:{'sip.trunkPhoneNumber':'+34918000000'}},{attrs:{'sip.callStatus':'hangup'}},{sala:{creationTime:Math.floor(now/1000)-181}},{sala:{name:'otra'}},{cuota:false}]){
+ {attrs:{'sip.trunkPhoneNumber':'+34918000000'}},{attrs:{'sip.callStatus':'hangup'}},{sala:{creationTime:Math.floor(now/1000)-301}},{sala:{name:'otra'}},{cuota:false}]){
   const r=await escenario(cambio).inicio();assert.equal(r.statusCode,403,r.raw);assert.equal(r.body.acceso,undefined);
  }
 });
@@ -64,4 +64,14 @@ test('SIP: las credenciales automáticas del worker pueden diferir; solo autoriz
  assert.equal((await escenario().inicio({}, {'x-contactia-sip-signature':firmaWorker})).statusCode,200);
  const incorrecta=sip.firma({...env,CONTACTIA_SIP_WORKER_SECRET:'otra-clave-ficticia-compartida-000000'},body);
  const s=escenario();assert.equal((await s.inicio({}, {'x-contactia-sip-signature':incorrecta})).statusCode,403);assert.equal(s.consultas,0);
+});
+
+test('SIP: autorización y conversación siguen operativas a los cuatro minutos y caducan a los cinco',async()=>{
+ const r=await escenario().inicio(),a=entrada.verificar(env,r.body.acceso,now+240000);
+ assert.equal(r.body.canal,'sip');assert.ok(r.body.exp>now+299000&&r.body.exp<=now+300000);
+ const s=motor.abrir(env,r.body.conversacion_token,{slug:'prueba-sol',host,huella:a.huella,ahora:now+240000});assert.equal(s.room,room);
+ const h=entrada.crearMotor({env,ahora:()=>now+240000,clientFactory:()=>({rpc:async()=>({data:true})})}),out=res();
+ await h({method:'POST',headers:{host,'content-type':'application/json',authorization:'Bearer '+r.body.acceso},body:{mensaje:'Sí',conversacion_token:r.body.conversacion_token}},out);
+ assert.equal(out.statusCode,200,out.raw);assert.match(out.body.respuesta,/día/);
+ assert.throws(()=>entrada.verificar(env,r.body.acceso,now+300001));
 });

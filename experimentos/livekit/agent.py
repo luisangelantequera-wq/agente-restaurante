@@ -138,13 +138,14 @@ class MotorTelefonico:
         url = url if url is not None else os.getenv("CONTACTIA_TELEFONO_MOTOR_URL", "")
         u = urlparse(url)
         q = parse_qs(u.query)
+        ttl = 300000 if datos.get("canal") == "sip" else 180000
         if (datos.get("version") != 1 or datos.get("host") != self.HOST
                 or u.scheme != "https" or u.netloc != self.HOST
                 or u.path != "/api/restaurante" or u.fragment
                 or q.get("canal") != ["telefono_motor"]
                 or set(q) - {"canal", "x-vercel-protection-bypass"}
                 or not isinstance(datos.get("exp"), (int, float))
-                or not time.time() * 1000 < datos["exp"] <= time.time() * 1000 + 180000
+                or not time.time() * 1000 < datos["exp"] <= time.time() * 1000 + ttl
                 or not isinstance(datos.get("acceso"), str)
                 or not isinstance(datos.get("conversacion_token"), str)):
             raise ValueError("Conexión telefónica no válida")

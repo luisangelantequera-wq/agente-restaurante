@@ -107,6 +107,14 @@ class Pruebas(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 m.MotorTelefonico(datos(), None, url=url)
 
+    def test_sip_admite_cinco_minutos_y_conector_conserva_tres(self):
+        d = {**datos(), "exp": time.time()*1000+299000, "canal": "sip"}
+        m.MotorTelefonico(d, None, url=URL)
+        with self.assertRaises(ValueError):
+            m.MotorTelefonico({**d, "canal": "conector"}, None, url=URL)
+        with self.assertRaises(ValueError):
+            m.MotorTelefonico({**d, "exp": time.time()*1000+301000}, None, url=URL)
+
     async def test_turnos_serializados_y_estado_opaco(self):
         http = HTTP([resultado("estado-1"), resultado("estado-2")])
         relay = m.MotorTelefonico(datos(), http, url=URL)
