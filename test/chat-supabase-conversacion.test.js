@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {crear}=require('../lib/chat-supabase-conversacion');
 const {correoDictado,nombreCliente}=require('../lib/chat-supabase-conversacion');
 function escenario(opciones={}){
- const mensajes=[],locuciones=[],llamadas=[];const chat=crear({config:{nombre:'Sol',zonaHoraria:'Europe/Madrid',zonas:[{id:'zona1',nombre:'INTERIOR'}],...opciones.config},
+ const mensajes=[],locuciones=[],llamadas=[];const chat=crear({cierrePorVoz:opciones.cierrePorVoz||false,config:{nombre:'Sol',zonaHoraria:'Europe/Madrid',zonas:[{id:'zona1',nombre:'INTERIOR'}],...opciones.config},
   ahora:()=>new Date('2026-10-23T22:30:00Z'),uuid:()=> '11111111-2222-4333-8444-555555555555',decir:(t,o)=>{mensajes.push(t);locuciones.push(o?.voz??t);},
   pedir:async(a,d)=>{llamadas.push({a,d});return opciones.pedir?opciones.pedir(a,d):{fecha_admitida:true,horario:['13:00-16:00'],disponible:true};}});
  chat.iniciar();return {chat,mensajes,locuciones,llamadas};
@@ -213,4 +213,36 @@ test('una coletilla de confirmación separada por coma no se incorpora al correo
  assert.equal(s.chat.estado().paso,'confirmar_email');assert.equal(s.chat.exportar().datos.email,undefined);
  assert.match(s.mensajes.at(-1),/juan@gmail\.com\./);await s.chat.enviar('sí',{canal:'voz'});
  assert.equal(s.chat.exportar().datos.email,'juan@gmail.com');
+});
+
+test('voz breve: consulta disponibilidad sin recitar horarios ni pedir un sí intermedio',async()=>{
+ const s=escenario({cierrePorVoz:true});
+ await s.chat.enviar('El martes, para cuatro a las dos.',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'nombre');
+ assert.deepEqual(s.llamadas.map(l=>l.a),['supabase_web_fecha','supabase_web_disponibilidad']);
+ assert.doesNotMatch(s.locuciones.join(' '),/horario|única zona|Son correctos|Hay disponibilidad/);
+ await s.chat.enviar('A nombre de Juan.',{canal:'voz'});
+ assert.equal(s.locuciones.at(-1),'¿Cuál es su correo electrónico?');
+ assert.doesNotMatch(s.locuciones.at(-2),/A nombre de Juan/);
+});
+test('voz breve: solo explica los tramos ante una hora fuera de horario y vuelve a comprobar',async()=>{
+ const s=escenario({cierrePorVoz:true,pedir:async(a,d)=>{
+  if(a==='supabase_web_fecha')return{fecha_admitida:true,horario:['13:00-16:00','20:00-23:00']};
+  if(d.hora==='12:00')throw Object.assign(new Error('Fuera de horario'),{codigo:'FUERA_HORARIO'});
+  return{disponible:true};
+ }});
+ await s.chat.enviar('El martes para cuatro a las doce del mediodía.',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'hora');
+ assert.match(s.locuciones.at(-1),/13:00 a 16:00 y de 20:00 a 23:00/);
+ await s.chat.enviar('A las dos de la tarde.',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'nombre');
+ assert.deepEqual(s.llamadas.filter(l=>l.a==='supabase_web_disponibilidad').map(l=>l.d.hora),['12:00','14:00']);
+});
+test('voz breve: sin mesas no pide contactos; varias zonas requieren elección',async()=>{
+ const s=escenario({cierrePorVoz:true,config:{zonas:[{id:'zona1',nombre:'INTERIOR'},{id:'zona2',nombre:'TERRAZA'}]},pedir:async a=>a==='supabase_web_fecha'?{fecha_admitida:true,horario:['13:00-16:00']}:{disponible:false}});
+ await s.chat.enviar('El martes para cuatro a las dos.',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'zona_id');assert.equal(s.llamadas.length,1);
+ await s.chat.enviar('Terraza',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'corregir');assert.match(s.locuciones.at(-1),/No quedan mesas/);
+ assert.equal(s.chat.exportar().datos.nombre,undefined);
 });

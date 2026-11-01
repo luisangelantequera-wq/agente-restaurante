@@ -419,3 +419,25 @@ un Auth Token regional independiente. El número de destino estadounidense no
 obliga a procesar las llamadas en US1. La recepción del número también deberá
 configurarse para IE1. No se promete residencia íntegra de todos los servicios
 o del tránsito telefónico solo por configurar este componente.
+
+## Recorrido telefónico más breve (01/11/2026)
+
+Tras una reserva real de 223 segundos, se recortan locuciones y turnos en el
+motor de cierre por voz. El saludo pregunta directamente día, hora y personas;
+se aceptan juntos y se preguntan únicamente los datos que falten. La disponibilidad
+se comprueba antes de pedir contactos, sin un resumen ni un sí intermedios.
+
+No se recita el horario tras elegir fecha: se conserva en el estado y se explica
+si la hora solicitada queda fuera de apertura. Se eliminan el anuncio de zona
+única y el eco del nombre. Se acortan observaciones y confirmaciones. El correo
+sigue necesitando un sí separado, permite repetición y deletreo, y no se vuelve
+a dictar en el resumen final. Ese resumen conserva fecha, hora, personas, zona,
+nombre, teléfono y las observaciones que existan; solo su confirmación permite
+escribir. Los conflictos e incertidumbre mantienen el mismo cierre transaccional.
+
+Pruebas: recorrido del handler con siete respuestas cuando día, hora y personas
+se indican juntos; correcciones de personas, hora y correo; datos parciales;
+hora fuera de horario con dos tramos; falta de mesas y elección entre zonas.
+La duración real y las pausas deben medirse en una nueva llamada: siete respuestas
+no equivalen a una duración garantizada. Los cambios del motor requieren el nuevo
+Preview; el saludo requiere además desplegar `experimentos/livekit/agent.py`.

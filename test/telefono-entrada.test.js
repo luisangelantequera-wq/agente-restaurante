@@ -64,7 +64,7 @@ test('el motor exige autorización y snapshot de esa llamada; ignora cualquier i
 });
 test('reserva telefónica completa: hora natural, nombre limpio, email confirmado y sin captcha final',async()=>{
  const s=escenario();await s.callback();const m=JSON.parse(s.conexiones[0].agents[0].metadata);
- for(const texto of ['martes','Dos.','A las dos','Sí','A nombre de Antonio','Antonio García arroba Gmail punto com','Sí','seis seis seis cuatro cuatro cuatro cinco cinco cinco','Ninguna']){
+ for(const texto of ['martes','Dos.','A las dos','A nombre de Antonio','Antonio García arroba Gmail punto com','Sí','seis seis seis cuatro cuatro cuatro cinco cinco cinco','Ninguna']){
   const r=await s.turno(m,texto);assert.equal(r.statusCode,200);assert.notEqual(r.body.paso,'terminado');
  }
  assert.equal(s.reservas.size,0);const previo=m.conversacion_token;

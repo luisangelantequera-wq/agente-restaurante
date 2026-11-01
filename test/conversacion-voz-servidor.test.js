@@ -24,7 +24,7 @@ function escenario({falloTrasEscritura=false,rechazo=false}={}){
  async function api(body,solicitud=req){const r={setHeader(){},end(s){this.body=JSON.parse(s);}};await handler(solicitud,r,body);return r;}
  async function comienzo(){const r=await api({accion:'supabase_voz_sesion',slug:'prueba-sol',peticion_id:peticion,turnstile_token:'turnstile-prueba'});assert.equal(r.statusCode,200);token=r.body.conversacion_token;return r;}
  async function turno(mensaje,t=token){const r=await api({accion:'supabase_voz_turno',slug:'prueba-sol',conversacion_token:t,mensaje});assert.equal(r.statusCode,200,JSON.stringify(r.body));token=r.body.conversacion_token;return r.body;}
- async function hastaFinal(){await comienzo();let r;for(const t of ['Para el martes','Para dos','A las dos','Sí','A nombre de Antonio','Antonio García arroba Gmail punto com','Sí','Sí, seis seis seis cuatro cuatro cuatro cinco cinco cinco','Ninguna'])r=await turno(t);assert.equal(r.paso,'final');return token;}
+ async function hastaFinal(){await comienzo();let r;for(const t of ['Para el martes','Para dos','A las dos','A nombre de Antonio','Antonio García arroba Gmail punto com','Sí','Sí, seis seis seis cuatro cuatro cuatro cinco cinco cinco','Ninguna'])r=await turno(t);assert.equal(r.paso,'final');return token;}
  return{api,comienzo,turno,hastaFinal,llamadas,verificaciones,reservas,token:()=>token};
 }
 test('el servidor conserva el recorrido aprobado y solo registra después del sí final',async()=>{
@@ -76,18 +76,31 @@ test('el canal escrito conserva la verificación para reservar aunque exista una
 
 test('recorrido por voz conserva correcciones y rechaza sí repetidos como nombre o teléfono',async()=>{
  const s=escenario();await s.comienzo();
- let r=await s.turno('Para el martes, para cuatro a las dos.');assert.equal(r.paso,'resumen');assert.match(r.respuesta,/4 personas/);
- for(const t of ['No','personas','Para cinco.'])r=await s.turno(t);
- assert.equal(r.paso,'resumen');assert.match(r.respuesta,/5 personas/);assert.match(r.respuesta,/catorce horas/);
- await s.turno('Sí');r=await s.turno('Sí, sí.');assert.equal(r.paso,'nombre');assert.equal(s.reservas.size,0);
+ let r=await s.turno('Para el martes, para cuatro a las dos.');assert.equal(r.paso,'nombre');
+ r=await s.turno('Sí, sí.');assert.equal(r.paso,'nombre');assert.equal(s.reservas.size,0);
  await s.turno('A nombre de María José García.');r=await s.turno('maria punto garcia arroba example punto invalid, sí.');
  assert.equal(r.paso,'confirmar_email');assert.match(r.respuesta,/example punto invalid/);assert.doesNotMatch(r.respuesta,/invalidsi/);
  for(const t of ['No','maria guion bajo dos arroba example punto invalid','Sí'])r=await s.turno(t);
  assert.equal(r.paso,'telefono');r=await s.turno('Sí');assert.equal(r.paso,'telefono');
- for(const t of ['seis seis seis cuatro cuatro cuatro cinco cinco cinco','ninguna','No','hora','a las tres y cuarto'])r=await s.turno(t);
+ for(const t of ['seis seis seis cuatro cuatro cuatro cinco cinco cinco','ninguna','No','personas','Para cinco.','No','hora','a las tres y cuarto'])r=await s.turno(t);
  assert.equal(r.paso,'final');assert.equal(s.reservas.size,0);assert.match(r.respuesta,/5 personas/);assert.match(r.respuesta,/quince horas y 15 minutos/);
  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.reservas.size,1);
  const datos=[...s.reservas.values()][0];assert.equal(datos.p_personas,5);assert.equal(datos.p_hora,'15:15');
  assert.equal(datos.p_nombre,'María José García');assert.equal(datos.p_email,'maria_2@example.invalid');assert.equal(datos.p_telefono,'+34666444555');
  assert.equal(s.verificaciones.length,1);
+});
+
+test('reserva de voz en siete respuestas: correo confirmado y resumen final conservan control antes de escribir',async()=>{
+ const s=escenario();await s.comienzo();
+ let r=await s.turno('El martes para cuatro a las dos.');assert.equal(r.paso,'nombre');
+ r=await s.turno('A nombre de Marta.');assert.equal(r.paso,'email');
+ r=await s.turno('marta arroba example punto invalid');assert.equal(r.paso,'confirmar_email');assert.match(r.respuesta,/marta, arroba, example punto invalid/);
+ r=await s.turno('Sí');assert.equal(r.paso,'telefono');
+ r=await s.turno('seis seis seis cuatro cuatro cuatro cinco cinco cinco');assert.equal(r.paso,'observaciones');
+ r=await s.turno('Una trona');assert.equal(r.paso,'final');
+ assert.match(r.respuesta,/4 personas/);assert.match(r.respuesta,/catorce horas/);assert.match(r.respuesta,/Marta/);assert.match(r.respuesta,/Teléfono/);assert.match(r.respuesta,/Una trona/);
+ assert.doesNotMatch(r.respuesta,/example|Observaciones: ninguna/);
+ assert.equal(s.reservas.size,0);
+ r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.reservas.size,1);
+ const d=[...s.reservas.values()][0];assert.equal(d.p_observaciones,'Una trona');assert.equal(d.p_email,'marta@example.invalid');
 });

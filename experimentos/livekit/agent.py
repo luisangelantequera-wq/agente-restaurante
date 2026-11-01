@@ -124,7 +124,7 @@ async def iniciar_sesion(ctx, participante, relay=None):
     )
     await session.say(
         "Bienvenido a Restaurante Sol. Esta es una prueba con datos ficticios. "
-        "¿Desea hacer una reserva?"
+        "¿Qué día, a qué hora y para cuántas personas desea reservar?"
     )
     return session
 
