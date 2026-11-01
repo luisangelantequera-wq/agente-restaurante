@@ -100,3 +100,19 @@ test("distingue un día aislado de una referencia relativa contradictoria", () =
     }
   );
 });
+
+test('fechas habladas convierten días en letras con mes o marcador de día',()=>{
+ const ahora=new Date(2026,10,1,12);
+ for(const [frase,fecha] of [
+  ['El cinco de noviembre','2026-11-05'],['Para el día seis','2026-11-06'],
+  ['El veintidós de noviembre','2026-11-22'],['Treinta y uno de diciembre','2026-12-31'],
+  ['El treinta y uno','2026-12-31'],['Para el martes, dos personas a las dos','2026-11-03']
+ ])assert.equal(analizarFecha(frase,ahora).valor,fecha,frase);
+ for(const frase of ['Dos personas a las dos','Treinta y dos de noviembre','El día treinta y dos','Ciento cinco de noviembre'])
+  assert.notEqual(analizarFecha(frase,ahora).estado,'seguro',frase);
+});
+test('fechas habladas conservan ambigüedad, días imposibles y contradicciones',()=>{
+ const ahora=new Date(2026,10,1,12);
+ for(const frase of ['El cinco o seis','El día cinco o el seis','Cinco o seis de noviembre','Treinta y uno de noviembre','El martes cinco de noviembre'])
+  assert.notEqual(analizarFecha(frase,ahora).estado,'seguro',frase);
+});

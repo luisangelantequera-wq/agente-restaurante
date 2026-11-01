@@ -77,7 +77,7 @@ test('el canal escrito conserva la verificación para reservar aunque exista una
 test('recorrido por voz conserva correcciones y rechaza sí repetidos como nombre o teléfono',async()=>{
  const s=escenario();await s.comienzo();
  let r=await s.turno('Para el martes, para cuatro a las dos.');assert.equal(r.paso,'nombre');
- r=await s.turno('Sí, sí.');assert.equal(r.paso,'nombre');assert.equal(s.reservas.size,0);
+ r=await s.turno('Sí, sí.');assert.equal(r.paso,'nombre');assert.equal(s.reservas.size,0);assert.doesNotMatch(r.respuesta,/ejemplo|Juan/);
  await s.turno('A nombre de María José García.');r=await s.turno('maria punto garcia arroba example punto invalid, sí.');
  assert.equal(r.paso,'confirmar_email');assert.match(r.respuesta,/example punto invalid/);assert.doesNotMatch(r.respuesta,/invalidsi/);
  for(const t of ['No','maria guion bajo dos arroba example punto invalid','Sí'])r=await s.turno(t);
@@ -103,4 +103,28 @@ test('reserva de voz en siete respuestas: correo confirmado y resumen final cons
  assert.equal(s.reservas.size,0);
  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.reservas.size,1);
  const d=[...s.reservas.values()][0];assert.equal(d.p_observaciones,'Una trona');assert.equal(d.p_telefono,'+34666444555');assert.equal(d.p_email,'marta@example.invalid');
+});
+
+test('corregir el día por voz después de los contactos conserva datos y exige confirmar el nuevo resumen',async()=>{
+ for(const frase of ['El cinco de noviembre','Para el día seis','El miércoles','El 7 de noviembre']){
+  const s=escenario();await s.hastaFinal();
+  const anterior=(await s.turno('No')).estado.datos;
+  let r=await s.turno('el día');assert.equal(r.paso,'fecha');
+  r=await s.turno(frase);assert.equal(r.paso,'final',frase);
+  assert.notEqual(r.estado.datos.fecha,anterior.fecha,frase);
+  assert.deepEqual({...r.estado.datos,fecha:anterior.fecha},anterior,frase);
+  assert.equal(s.reservas.size,0);
+  const nueva=r.estado.datos.fecha;
+  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.reservas.size,1);
+  assert.equal([...s.reservas.values()][0].p_fecha,nueva);
+ }
+});
+test('corrección de día rechaza una fecha imposible o alternativa y permite recuperarse sin perder contactos',async()=>{
+ const s=escenario();await s.hastaFinal();
+ await s.turno('No');await s.turno('fecha');
+ for(const frase of ['Treinta y uno de noviembre','El cinco o seis']){
+  const r=await s.turno(frase);assert.equal(r.paso,'fecha');assert.equal(s.reservas.size,0);
+ }
+ const r=await s.turno('El seis de noviembre');assert.equal(r.paso,'final');assert.equal(r.estado.datos.nombre,'Antonio');
+ assert.equal(r.estado.datos.email,'antoniogarcia@gmail.com');assert.equal(s.reservas.size,0);
 });

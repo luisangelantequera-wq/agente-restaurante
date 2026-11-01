@@ -441,3 +441,14 @@ hora fuera de horario con dos tramos; falta de mesas y elección entre zonas.
 La duración real y las pausas deben medirse en una nueva llamada: siete respuestas
 no equivalen a una duración garantizada. Los cambios del motor requieren el nuevo
 Preview; el saludo requiere además desplegar `experimentos/livekit/agent.py`.
+
+### Fechas habladas al corregir y repregunta del nombre
+
+Se elimina el ejemplo de nombre también cuando la primera respuesta no es válida.
+Se reproduce y corrige el rechazo de «cinco de noviembre» o «día seis»: el
+intérprete convierte los días en letras únicamente junto a marcadores de fecha.
+Mantiene el rechazo de días imposibles, alternativas y contradicciones con el
+día de la semana. Las pruebas del servidor cambian la fecha después de recoger
+los contactos, conservan hora/personas/contactos y exigen confirmar el resumen
+actualizado antes de escribir. La causa de la incidencia concreta del usuario
+requiere conocer una frase literal; no se conservan transcripciones de llamadas.
