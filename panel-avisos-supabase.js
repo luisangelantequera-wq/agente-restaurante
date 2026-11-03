@@ -8,7 +8,7 @@ window.ContactiaAvisosPanel={crear(restaurante,pedir){
  const contenido=document.createElement('div');contenido.className='tabla-reservas';
  let cargado=false,ocupado=false,filas=[],wa=false;
  const textos={aceptado:'Aceptado · entrega sin comprobar',entregado:'Entregado',demorado:'Entrega demorada',rechazado:'No entregado',pendiente:'Envío pendiente',revision:'Revisión necesaria',sin_solicitar:'Sin solicitar',preparado:'Preparado',en_curso:'En curso · no reenviar',fallido:'No entregado',incierto:'Resultado incierto · no reenviar',bloqueado:'Configuración pendiente'};
- const motivos={correo_rebotado:'Correo rebotado',entrega_fallida:'Entrega fallida',correo_suprimido:'Correo suprimido',queja_destinatario:'Queja del destinatario',entrega_demorada:'Entrega demorada'};
+ const motivos={correo_no_comprendido:'Correo no comprendido · confirmación por WhatsApp',correo_rebotado:'Correo rebotado',entrega_fallida:'Entrega fallida',correo_suprimido:'Correo suprimido',queja_destinatario:'Queja del destinatario',entrega_demorada:'Entrega demorada'};
  function boton(t,fn){const b=document.createElement('button');b.type='button';b.className='cambiar';b.textContent=t;b.addEventListener('click',fn);return b;}
  function bloquear(v){ocupado=v;raiz.querySelectorAll('button').forEach(b=>{b.disabled=v;});}
  const solicitar=(operacion,id)=>pedir('supabase_avisos',{restaurante_id:restaurante.id,operacion,...(id?{reserva_id:id}:{})});

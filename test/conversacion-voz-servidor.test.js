@@ -12,7 +12,7 @@ function escenario({falloTrasEscritura=false,rechazo=false,whatsapp=false}={}){
  const cliente={rpc:async(n,a)=>{
   llamadas.push({n,a});if(n==='consumir_limite_web')return{data:true};
   if(n==='consultar_disponibilidad_web')return{data:a.p_hora?{disponible:reservas.size===0}:{fecha_admitida:true,horario:['13:00-16:00','20:00-23:00']}};
-  if(n==='reservar_web_con_avisos'){
+  if(['reservar_web_con_avisos','reservar_voz_sin_correo'].includes(n)){
    if(rechazo)return{error:{code:'23P01'}};
    if(reservas.has(a.p_peticion))assert.deepEqual(reservas.get(a.p_peticion),a);
    else reservas.set(a.p_peticion,a);
@@ -179,4 +179,36 @@ test('voz: corregir el teléfono antes de las observaciones completa los datos a
 });
 test('voz: mencionar que el teléfono es correcto no abre una corrección',async()=>{
  const s=escenario();await s.hastaFinal();const r=await s.turno('El teléfono es correcto');assert.notEqual(r.paso,'telefono');
+});
+
+async function hastaFalloCorreo(s){
+ await s.comienzo();await s.turno('El martes para dos a las dos');await s.turno('Cliente ficticio');
+ let r=await s.turno('no me acuerdo');assert.equal(r.paso,'email');
+ r=await s.turno('no consigo decirlo');assert.equal(r.paso,'ofrecer_whatsapp');return r;
+}
+test('voz: tras dos correos rechazados ofrece WhatsApp, confirma el teléfono y exige permiso y sí final',async()=>{
+ const s=escenario({whatsapp:true});await hastaFalloCorreo(s);
+ let r=await s.turno('quizá');assert.equal(r.paso,'ofrecer_whatsapp');assert.equal(s.reservas.size,0);
+ await s.turno('Sí');r=await s.turno('600000001');assert.equal(r.paso,'confirmar_telefono');assert.match(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 1/);
+ r=await s.turno('No');assert.equal(r.paso,'telefono');await s.turno('600000002');
+ r=await s.turno('Sí');assert.equal(r.paso,'whatsapp_autorizado');assert.doesNotMatch(r.respuesta,/Si falla el correo/);
+ r=await s.turno('vale');assert.equal(r.paso,'whatsapp_autorizado');assert.equal(s.reservas.size,0);
+ await s.turno('Sí, autorizo');r=await s.turno('ninguna');assert.equal(r.paso,'final');assert.match(r.respuesta,/Confirmación por WhatsApp/);
+ assert.equal(s.reservas.size,0);r=await s.turno('Sí');assert.equal(r.paso,'terminado');
+ const d=[...s.reservas.values()][0];assert.equal(d.p_email,'');assert.equal(d.p_telefono,'+34600000002');assert.equal(d.p_whatsapp,true);
+ assert.ok(s.llamadas.some(x=>x.n==='reservar_voz_sin_correo'));
+});
+test('voz: rechazar WhatsApp o su autorización vuelve al correo sin reservar ni reutilizar permiso',async()=>{
+ for(const permiso of [false,true]){
+  const s=escenario({whatsapp:true});await hastaFalloCorreo(s);
+  if(permiso){await s.turno('Sí');await s.turno('600000001');await s.turno('Sí');}
+  const r=await s.turno('No');assert.equal(r.paso,'email');assert.equal(r.estado.datos.correo_no_comprendido,undefined);assert.equal(s.reservas.size,0);
+ }
+});
+test('voz: rechazar dos candidatos cuenta como fallo y sin WhatsApp habilitado no ofrece un canal inexistente',async()=>{
+ const s=escenario({whatsapp:true});await s.comienzo();await s.turno('El martes para dos a las dos');await s.turno('Cliente ficticio');
+ await s.turno('primero arroba example punto invalid');let r=await s.turno('No');assert.equal(r.paso,'email');
+ await s.turno('segundo arroba example punto invalid');r=await s.turno('No');assert.equal(r.paso,'ofrecer_whatsapp');
+ const sin=escenario();await sin.comienzo();await sin.turno('El martes para dos a las dos');await sin.turno('Cliente ficticio');
+ await sin.turno('no sé');r=await sin.turno('no sé');assert.equal(r.paso,'email');
 });

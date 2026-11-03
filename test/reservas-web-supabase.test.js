@@ -35,7 +35,7 @@ test('origen cruzado, host no autorizado y ausencia de IP fiable se rechazan',as
  }
 });
 test('el navegador no decide mesas ni duraciones y las fechas imposibles no se aceptan',async()=>{
- for(const body of [{...datos,mesa_ids:['mesa']},{...datos,duracion:10},{...datos,fecha:'2026-02-30'},
+ for(const body of [{...datos,email:'',correo_no_comprendido:true,whatsapp_autorizado:true},{...datos,correo_no_comprendido:true},{...datos,mesa_ids:['mesa']},{...datos,duracion:10},{...datos,fecha:'2026-02-30'},
   {...datos,personas:0},{...datos,turnstile_token:''},{...datos,hora:'24:00'},{...datos,peticion_id:{toString:'x'}}]){
   const {r,c}=await ejecutar({body});assert.equal(r.statusCode,400);assert.equal(c.llamadas.length,0);
  }

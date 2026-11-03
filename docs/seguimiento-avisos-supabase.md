@@ -52,3 +52,24 @@ estado cifrado y se guarda en la misma transacción ya utilizada por el formular
 El envío sigue bajo el control del panel y de la lista de teléfonos de prueba.
 La integración SIP→reserva→rebote→WhatsApp→entrega se prueba con SQL local real y
 proveedores simulados en `test/telefono-whatsapp-recorrido.test.js`.
+
+### Correo que no se consigue recoger por teléfono
+
+En voz, dos intentos no interpretables o dos candidatos que el cliente rechaza
+permiten ofrecer WhatsApp. La elección del canal no es autorización: se pide
+el teléfono, se lee cifra a cifra para confirmarlo y después se solicita permiso
+expreso para enviar la confirmación. Rechazar el canal o el permiso devuelve al
+correo. El sí final sigue siendo necesario para crear la reserva.
+
+Este caso guarda `email=''` y `correo_no_comprendido=true`, con consentimiento
+`confirmacion-sin-correo-v1`. No inventa una dirección ni simula un rebote.
+El formulario escrito no admite esa marca: solo procede del estado cifrado del
+motor de voz. El RPC de creación es exclusivo del servidor.
+
+Después de confirmar se intenta un WhatsApp, con la plantilla española aprobada,
+el emisor existente y la lista de teléfonos de pruebas. El trabajo se reclama en
+SQL y conserva la instantánea de la reserva. Un resultado incierto o un envío ya
+aceptado nunca se reenvían al repetir el sí final. La reserva se conserva incluso
+si falla el proveedor; solo se anuncia aceptación cuando consta esa respuesta.
+El panel muestra «Correo no comprendido» y permite comprobar la entrega de
+WhatsApp. El respaldo por rebote de correo mantiene su operación manual.

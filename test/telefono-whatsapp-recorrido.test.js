@@ -38,7 +38,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false}={}){
  insert into public.mesas(restaurante_id,zona_id,nombre,capacidad) select restaurante_id,id,'Mesa uno',4 from public.zonas;
  set local role service_role;`);
  const {fecha}=await dato(`select to_char((clock_timestamp() at time zone 'Europe/Madrid')::date+7,'YYYY-MM-DD') as fecha`);
- const permitidas=new Set(['consumir_limite_web','consultar_disponibilidad_web','reservar_web_con_avisos','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
+ const permitidas=new Set(['consumir_limite_web','consultar_disponibilidad_web','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
  const cliente={rpc:async(n,a)=>{
   assert.ok(permitidas.has(n),n);await db.exec('savepoint rpc');
   try{const pares=Object.entries(a),llamada=pares.map(([k,v],i)=>k+'=> '+(Array.isArray(v)?'array(select jsonb_array_elements_text($'+(i+1)+'::jsonb))':'$'+(i+1))).join(',');
@@ -54,7 +54,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false}={}){
  const b={room,identity,timestamp:Date.now()},r=res();
  await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,b)},body:b},r);
  assert.equal(r.statusCode,200,JSON.stringify(r.body));let token=r.body.conversacion_token;
- const motor=telefono.crearMotor({env,clientFactory:()=>cliente,correo});
+ const motor=telefono.crearMotor({env,clientFactory:()=>cliente,correo,whatsapp:args=>avisos.enviarSinCorreo({...args,fetchImpl})});
  async function turno(mensaje,t=token){const out=res();await motor({method:'POST',headers:{host,'content-type':'application/json',authorization:'Bearer '+r.body.acceso},body:{mensaje,conversacion_token:t}},out);
   assert.equal(out.statusCode,200,JSON.stringify(out.body));token=out.body.conversacion_token;return out.body;}
  async function completar(respuesta){
@@ -72,7 +72,16 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false}={}){
   return{ok:true,json:async()=>({sid:sidWhatsApp,account_sid:env.TWILIO_ACCOUNT_SID,status:'delivered'})};
  };
  async function accion(operacion){const r=await dato('select id,restaurante_id from public.reservas limit 1');return avisos.ejecutar({env,usuario:propietario,body:{accion:'supabase_avisos',operacion,restaurante_id:Number(r.restaurante_id),reserva_id:r.id},clientFactory:()=>cliente,fetchImpl});}
- return{turno,completar,accion,get correos(){return enviosCorreo;},get whatsapps(){return enviosWhatsApp;}};
+ async function sinCorreo(telefono='600000000'){
+  for(const t of [`Para el ${fecha.split('-').reverse().join('/')} para dos a las dos`,'Cliente ficticio','no lo recuerdo','no consigo decirlo'])await turno(t);
+  let r=await turno('Sí');assert.equal(r.paso,'telefono');
+  r=await turno(telefono);assert.equal(r.paso,'confirmar_telefono');
+  r=await turno('Sí');assert.equal(r.paso,'whatsapp_autorizado');
+  r=await turno('Sí');assert.equal(r.paso,'observaciones');
+  r=await turno('ninguna');assert.equal(r.paso,'final');assert.match(r.respuesta,/Confirmación por WhatsApp/);
+  assert.equal(enviosWhatsApp,0);const antes=token;r=await turno('Sí');assert.equal(r.paso,'terminado');return antes;
+ }
+ return{turno,completar,sinCorreo,accion,cliente,get correos(){return enviosCorreo;},get whatsapps(){return enviosWhatsApp;}};
 }
 test('SIP: sí explícito persiste autorización y el respaldo existente entrega tras rebote confirmado',async()=>{
  const s=await escenario(),antes=await s.completar('Sí, autorizo');
@@ -96,4 +105,39 @@ test('SIP: respuesta incierta de Twilio no permite repetir el envío y conserva 
  const s=await escenario({perderWhatsApp:true});await s.completar('Sí');await s.accion('consultar_correo');await s.accion('preparar_whatsapp');
  await s.accion('enviar_whatsapp');assert.equal((await dato('select whatsapp_estado from contactia_privado.contactos_reserva_web')).whatsapp_estado,'incierto');
  await assert.rejects(s.accion('enviar_whatsapp'));assert.equal(s.whatsapps,1);assert.equal((await dato('select estado from public.reservas')).estado,'confirmada');
+});
+
+test('SIP: dos fallos de correo permiten reservar sin dirección y enviar un único WhatsApp autorizado',async()=>{
+ const s=await escenario(),antes=await s.sinCorreo();
+ const r=await dato('select email,telefono,estado from public.reservas');assert.equal(r.email,'');assert.equal(r.estado,'confirmada');
+ assert.equal(s.correos,0);assert.equal(s.whatsapps,1);
+ const c=await dato('select correo_no_comprendido,whatsapp_estado,consentimiento_version from contactia_privado.contactos_reserva_web');
+ assert.equal(c.correo_no_comprendido,true);assert.equal(c.consentimiento_version,'confirmacion-sin-correo-v1');assert.equal(c.whatsapp_estado,'aceptado');
+ assert.equal((await dato('select count(*)::int as n from contactia_privado.correos_reserva_web')).n,0);
+ await s.turno('Sí',antes);assert.equal(s.whatsapps,1);assert.equal(s.correos,0);
+ assert.equal((await s.accion('consultar_whatsapp')).estado,'entregado');
+ await assert.rejects(s.accion('consultar_correo'));await assert.rejects(s.accion('reintentar_correo'));
+ const row=await dato('select id,restaurante_id from public.reservas');
+ const listado=await s.cliente.rpc('avisos_web_panel',{p_usuario:propietario,p_restaurante:row.restaurante_id,p_accion:'listar'});
+ assert.equal(listado.data.avisos[0].correo_motivo,'correo_no_comprendido');assert.equal(listado.data.avisos[0].puede_revisar_whatsapp,true);
+});
+test('SIP: sin correo, un envío incierto nunca se repite al recuperar la confirmación',async()=>{
+ const s=await escenario({perderWhatsApp:true}),antes=await s.sinCorreo();assert.equal(s.whatsapps,1);
+ assert.equal((await dato('select whatsapp_estado from contactia_privado.contactos_reserva_web')).whatsapp_estado,'incierto');
+ await s.turno('Sí',antes);assert.equal(s.whatsapps,1);assert.equal((await dato('select count(*)::int as n from public.reservas')).n,1);
+});
+
+test('SIP: el destino fuera de la lista no recibe WhatsApp y queda visible para revisión',async()=>{
+ const s=await escenario();await s.sinCorreo('600000001');assert.equal(s.whatsapps,0);assert.equal(s.correos,0);
+ const c=await dato('select whatsapp_estado from contactia_privado.contactos_reserva_web');assert.equal(c.whatsapp_estado,'preparado');
+});
+test('SQL: el trabajo sin correo exige hash propio, consentimiento y permisos exclusivos del servidor',async()=>{
+ const s=await escenario();await s.sinCorreo();
+ const r=await dato('select id from public.reservas');
+ let out=await s.cliente.rpc('whatsapp_voz_sin_correo',{p_reserva:r.id,p_hash:'0'.repeat(64),p_accion:'preparar_whatsapp'});assert.equal(out.error.code,'42501');
+ const e=await dato('select hash from contactia_privado.enlaces_gestion');
+ await db.query('update contactia_privado.contactos_reserva_web set whatsapp_autorizado=false where reserva_id=$1',[r.id]);
+ out=await s.cliente.rpc('whatsapp_voz_sin_correo',{p_reserva:r.id,p_hash:e.hash,p_accion:'preparar_whatsapp'});assert.equal(out.error.code,'55000');
+ const permisos=await dato("select has_function_privilege('anon','public.whatsapp_voz_sin_correo(uuid,text,text)','EXECUTE') as anon,has_function_privilege('authenticated','public.whatsapp_voz_sin_correo(uuid,text,text)','EXECUTE') as usuario");
+ assert.equal(permisos.anon,false);assert.equal(permisos.usuario,false);assert.equal(s.whatsapps,1);
 });

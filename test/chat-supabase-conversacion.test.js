@@ -246,3 +246,11 @@ test('voz breve: sin mesas no pide contactos; varias zonas requieren elección',
  assert.equal(s.chat.estado().paso,'corregir');assert.match(s.locuciones.at(-1),/No quedan mesas/);
  assert.equal(s.chat.exportar().datos.nombre,undefined);
 });
+
+test('deletrear: elimina solo la introducción explícita y rechaza puntos inválidos sin inventar dirección',()=>{
+ assert.equal(correoDictado('Lo voy a deletrear: be o u ene ce e de arroba resend punto dev'),'bounced@resend.dev');
+ assert.equal(correoDictado('bounced punto arroba resend punto dev'),null);
+ assert.equal(correoDictado('punto bounced arroba resend punto dev'),null);
+ assert.equal(correoDictado('bounced punto punto test arroba resend punto dev'),null);
+ assert.equal(correoDictado('bounced arroba resen punto dev'),'bounced@resen.dev');
+});
