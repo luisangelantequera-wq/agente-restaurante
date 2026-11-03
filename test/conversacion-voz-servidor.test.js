@@ -155,3 +155,28 @@ test('voz: puede revocar el permiso desde el resumen sin perder los datos de res
  r=await s.turno('No autorizo');assert.equal(r.paso,'final');assert.equal(r.estado.datos.nombre,'Cliente ficticio');
  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal([...s.reservas.values()][0].p_whatsapp,false);
 });
+
+test('voz: una corrección natural del teléfono pide el nuevo y solo guarda el último confirmado',async()=>{
+ for(const frase of ['Perdón, el teléfono no es correcto','Me equivoqué de teléfono','Quiero cambiar mi teléfono']){
+  const s=escenario({whatsapp:true});await hastaPermiso(s);await s.turno('Sí');await s.turno('ninguna');
+  let r=await s.turno(frase);assert.equal(r.paso,'telefono',frase);assert.match(r.respuesta,/Cuál es su teléfono/);
+  r=await s.turno('600000001');assert.equal(r.paso,'whatsapp_autorizado');assert.equal(r.estado.datos.whatsapp_autorizado,undefined);
+  r=await s.turno('Sí');assert.equal(r.paso,'final');assert.match(r.respuesta,/600000001/);assert.doesNotMatch(r.respuesta,/600000000/);
+  // Una segunda corrección tampoco recupera el teléfono de la primera toma.
+  await s.turno(frase);await s.turno('600000002');r=await s.turno('Sí');assert.equal(r.paso,'final');assert.match(r.respuesta,/600000002/);
+  assert.equal(s.reservas.size,0);await s.turno('Sí');assert.equal(s.reservas.size,1);
+  const d=[...s.reservas.values()][0];assert.equal(d.p_telefono,'+34600000002');assert.equal(d.p_whatsapp,true);
+ }
+});
+test('voz: corregir el teléfono antes de las observaciones completa los datos antes del resumen',async()=>{
+ for(const antesDelPermiso of [true,false]){
+  const s=escenario({whatsapp:true});await hastaPermiso(s);if(!antesDelPermiso)await s.turno('Sí');
+  let r=await s.turno('Perdón, el teléfono no es correcto');assert.equal(r.paso,'telefono');
+  await s.turno('600000001');r=await s.turno('Sí');assert.equal(r.paso,'observaciones');
+  r=await s.turno('ninguna');assert.equal(r.paso,'final');assert.match(r.respuesta,/600000001/);
+  await s.turno('Sí');assert.equal([...s.reservas.values()][0].p_telefono,'+34600000001');
+ }
+});
+test('voz: mencionar que el teléfono es correcto no abre una corrección',async()=>{
+ const s=escenario();await s.hastaFinal();const r=await s.turno('El teléfono es correcto');assert.notEqual(r.paso,'telefono');
+});
