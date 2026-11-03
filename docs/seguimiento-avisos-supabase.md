@@ -56,9 +56,10 @@ proveedores simulados en `test/telefono-whatsapp-recorrido.test.js`.
 ### Correo que no se consigue recoger por teléfono
 
 En voz, dos intentos no interpretables o dos candidatos que el cliente rechaza
-permiten ofrecer WhatsApp. La elección del canal no es autorización: se pide
-el teléfono, se lee cifra a cifra para confirmarlo y después se solicita permiso
-expreso para enviar la confirmación. Rechazar el canal o el permiso devuelve al
+permiten pedir directamente autorización para enviar la confirmación por WhatsApp
+al teléfono que indique el cliente. Después se recoge ese teléfono y se lee cifra
+a cifra para confirmarlo; no se repite el permiso. Si cambia el número después de
+confirmarlo, se invalida el permiso y se solicita para el nuevo destino. Rechazar el canal o el permiso devuelve al
 correo. El sí final sigue siendo necesario para crear la reserva.
 
 Este caso guarda `email=''` y `correo_no_comprendido=true`, con consentimiento

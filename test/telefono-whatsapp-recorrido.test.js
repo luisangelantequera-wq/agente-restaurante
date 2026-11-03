@@ -76,7 +76,6 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false}={}){
   for(const t of [`Para el ${fecha.split('-').reverse().join('/')} para dos a las dos`,'Cliente ficticio','no lo recuerdo','no consigo decirlo'])await turno(t);
   let r=await turno('Sí');assert.equal(r.paso,'telefono');
   r=await turno(telefono);assert.equal(r.paso,'confirmar_telefono');
-  r=await turno('Sí');assert.equal(r.paso,'whatsapp_autorizado');
   r=await turno('Sí');assert.equal(r.paso,'observaciones');
   r=await turno('ninguna');assert.equal(r.paso,'final');assert.match(r.respuesta,/Confirmación por WhatsApp/);
   assert.equal(enviosWhatsApp,0);const antes=token;r=await turno('Sí');assert.equal(r.paso,'terminado');return antes;

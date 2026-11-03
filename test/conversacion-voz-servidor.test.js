@@ -191,9 +191,8 @@ test('voz: tras dos correos rechazados ofrece WhatsApp, confirma el teléfono y 
  let r=await s.turno('quizá');assert.equal(r.paso,'ofrecer_whatsapp');assert.equal(s.reservas.size,0);
  await s.turno('Sí');r=await s.turno('600000001');assert.equal(r.paso,'confirmar_telefono');assert.match(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 1/);
  r=await s.turno('No');assert.equal(r.paso,'telefono');await s.turno('600000002');
- r=await s.turno('Sí');assert.equal(r.paso,'whatsapp_autorizado');assert.doesNotMatch(r.respuesta,/Si falla el correo/);
- r=await s.turno('vale');assert.equal(r.paso,'whatsapp_autorizado');assert.equal(s.reservas.size,0);
- await s.turno('Sí, autorizo');r=await s.turno('ninguna');assert.equal(r.paso,'final');assert.match(r.respuesta,/Confirmación por WhatsApp/);
+ r=await s.turno('Sí');assert.equal(r.paso,'observaciones');assert.equal(r.estado.datos.whatsapp_autorizado,true);assert.doesNotMatch(r.respuesta,/autoriza/i);
+ assert.equal(s.reservas.size,0);r=await s.turno('ninguna');assert.equal(r.paso,'final');assert.match(r.respuesta,/Confirmación por WhatsApp/);
  assert.equal(s.reservas.size,0);r=await s.turno('Sí');assert.equal(r.paso,'terminado');
  const d=[...s.reservas.values()][0];assert.equal(d.p_email,'');assert.equal(d.p_telefono,'+34600000002');assert.equal(d.p_whatsapp,true);
  assert.ok(s.llamadas.some(x=>x.n==='reservar_voz_sin_correo'));
@@ -201,7 +200,7 @@ test('voz: tras dos correos rechazados ofrece WhatsApp, confirma el teléfono y 
 test('voz: rechazar WhatsApp o su autorización vuelve al correo sin reservar ni reutilizar permiso',async()=>{
  for(const permiso of [false,true]){
   const s=escenario({whatsapp:true});await hastaFalloCorreo(s);
-  if(permiso){await s.turno('Sí');await s.turno('600000001');await s.turno('Sí');}
+  if(permiso){await s.turno('Sí');await s.turno('600000001');await s.turno('Sí');await s.turno('ninguna');await s.turno('No');await s.turno('WhatsApp');}
   const r=await s.turno('No');assert.equal(r.paso,'email');assert.equal(r.estado.datos.correo_no_comprendido,undefined);assert.equal(s.reservas.size,0);
  }
 });
@@ -211,4 +210,15 @@ test('voz: rechazar dos candidatos cuenta como fallo y sin WhatsApp habilitado n
  await s.turno('segundo arroba example punto invalid');r=await s.turno('No');assert.equal(r.paso,'ofrecer_whatsapp');
  const sin=escenario();await sin.comienzo();await sin.turno('El martes para dos a las dos');await sin.turno('Cliente ficticio');
  await sin.turno('no sé');r=await sin.turno('no sé');assert.equal(r.paso,'email');
+});
+
+test('voz: permiso inicial de WhatsApp no se repite; cambiar el teléfono del resumen exige autorizar el nuevo',async()=>{
+ const s=escenario({whatsapp:true});const oferta=await hastaFalloCorreo(s);assert.match(oferta.respuesta,/Autoriza.*teléfono que nos indique/);
+ for(const t of ['vale','prefiero whatsapp','sí pero a otro teléfono']){const r=await s.turno(t);assert.equal(r.paso,'ofrecer_whatsapp');}
+ await s.turno('Sí, autorizo');let r=await s.turno('600000001');assert.equal(r.estado.datos.whatsapp_autorizado,undefined);
+ r=await s.turno('Sí');assert.equal(r.paso,'observaciones');assert.equal(r.estado.datos.whatsapp_autorizado,true);
+ await s.turno('ninguna');await s.turno('perdón el teléfono no es correcto');await s.turno('600000002');
+ r=await s.turno('Sí');assert.equal(r.paso,'whatsapp_autorizado');assert.equal(r.estado.datos.whatsapp_autorizado,undefined);
+ r=await s.turno('Sí');assert.equal(r.paso,'final');assert.equal(r.estado.datos.telefono,'+34600000002');
+ await s.turno('Sí');assert.equal([...s.reservas.values()][0].p_whatsapp,true);
 });
