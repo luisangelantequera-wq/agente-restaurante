@@ -516,3 +516,10 @@ posee un UUID determinista por sesión y propuesta: una respuesta perdida permit
 comprobar la misma operación sin duplicarla ni sustituir sus datos. No se envía
 un segundo WhatsApp ni un correo nuevo al realizar la gestión en esta primera
 versión; el resultado se confirma por voz y en el panel.
+
+
+El teléfono admite cifras sueltas, grupos escritos y bloques hablados entre diez
+y noventa y nueve (por ejemplo «seis, cuarenta y seis, cero, veintitrés, seis,
+veinticuatro»). Se conserva cada cero dicho y no se rellenan bloques incompletos.
+Las alternativas ambiguas se vuelven a pedir. La lectura de confirmación puede
+seguir siendo cifra a cifra aunque el cliente haya dictado por bloques.

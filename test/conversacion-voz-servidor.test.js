@@ -222,3 +222,10 @@ test('voz: permiso inicial de WhatsApp no se repite; cambiar el teléfono del re
  r=await s.turno('Sí');assert.equal(r.paso,'final');assert.equal(r.estado.datos.telefono,'+34600000002');
  await s.turno('Sí');assert.equal([...s.reservas.values()][0].p_whatsapp,true);
 });
+
+test('voz: recoge y guarda el teléfono dictado por bloques de dos cifras',async()=>{
+ const s=escenario();await s.comienzo();
+ for(const t of ['El martes para dos a las dos','Cliente ficticio','cliente arroba example punto invalid','Sí'])await s.turno(t);
+ let r=await s.turno('seis cuarenta y seis cero veintitrés seis veinticuatro');assert.equal(r.paso,'observaciones');
+ r=await s.turno('ninguna');assert.match(r.respuesta,/646023624/);await s.turno('Sí');assert.equal([...s.reservas.values()][0].p_telefono,'+34646023624');
+});
