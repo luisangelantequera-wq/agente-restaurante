@@ -482,3 +482,37 @@ reserva idempotente, correo rebotado/entregado, negativa del cliente, envío de
 plantilla y consulta de entrega, e incertidumbre sin duplicados. Las pruebas no
 usan la base remota ni envían mensajes. La siguiente prueba real necesita una
 nueva llamada con autorización y un fallo de correo elegible revisado en el panel.
+
+## Gestión telefónica con código corto (Preview)
+
+`CONTACTIA_SUPABASE_GESTION_VOZ_ENABLED=1` habilita el circuito solo en la rama
+Preview existente. Las nuevas reservas obtienen un código de seis cifras
+pseudorrandom seguro, representado en dos grupos de tres. Es estable al reintentar
+una reserva y se incluye en las confirmaciones nuevas por email y WhatsApp. La
+plantilla aprobada conserva su texto: la variable de localizador contiene el
+código agrupado. No se dictan el código ni el enlace privado durante la llamada.
+Los mensajes ya enviados y los correos con instantánea previa no se reescriben.
+
+Al empezar una llamada, «cancelar» o «modificar mi reserva» activa la gestión.
+Se pide teléfono y seis cifras, sin nombre de restaurante: la llamada ya está
+vinculada a su restaurante en el servidor. Los códigos admiten ceros iniciales y
+cifras habladas. No se revelan datos de reserva antes de validar ambos valores.
+La gestión inicial permite cancelar o cambiar día/hora; cambiar comensales o zona
+no está incluido todavía en esta ruta telefónica.
+
+Se guardan hashes HMAC del código y teléfono en un esquema privado con RLS y
+acceso exclusivo del servidor. Los intentos se limitan a cinco por teléfono y
+restaurante cada quince minutos, incluyendo llamadas nuevas, y diez por origen.
+Las respuestas negativas no distinguen teléfono, código o reserva inexistentes.
+Los códigos solo autentican reservas futuras, con enlace no revocado y vigente;
+la autorización posterior queda dentro de la sesión cifrada de seis minutos.
+La rotación de la clave del servidor requiere planificar la renovación de enlaces
+y códigos, que dependen de esa clave.
+
+Cada cambio o cancelación se resume y exige un sí explícito. Se reutilizan las
+transacciones existentes, la comprobación de disponibilidad y el inicio anterior
+para evitar cambios sobre una reserva modificada por otro canal. La operación
+posee un UUID determinista por sesión y propuesta: una respuesta perdida permite
+comprobar la misma operación sin duplicarla ni sustituir sus datos. No se envía
+un segundo WhatsApp ni un correo nuevo al realizar la gestión en esta primera
+versión; el resultado se confirma por voz y en el panel.
