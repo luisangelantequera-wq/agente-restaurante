@@ -152,7 +152,7 @@ test('SIP gestión: teléfono y código agrupado permiten cancelar solo tras con
  r=await s.turno(c.slice(0,3)+' '+c.slice(3));assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/Confirma la cancelación/);
  assert.equal((await dato('select estado from public.reservas')).estado,'confirmada');
  r=await s.turno('quizá');assert.equal(r.paso,'gestion_confirmar');
- r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal((await dato('select estado from public.reservas')).estado,'cancelada');
+ r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/cancelada[\s\S]*Gracias por llamar\. Hasta pronto\.$/);assert.equal((await dato('select estado from public.reservas')).estado,'cancelada');
  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,1);
 });
 test('SIP gestión: modifica la hora y conserva nombre, teléfono, código y número de personas',async()=>{

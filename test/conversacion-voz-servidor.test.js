@@ -229,3 +229,10 @@ test('voz: recoge y guarda el teléfono dictado por bloques de dos cifras',async
  let r=await s.turno('seis cuarenta y seis cero veintitrés seis veinticuatro');assert.equal(r.paso,'observaciones');
  r=await s.turno('ninguna');assert.match(r.respuesta,/646023624/);await s.turno('Sí');assert.equal([...s.reservas.values()][0].p_telefono,'+34646023624');
 });
+
+test('voz: despide la llamada después de confirmar y no duplica la despedida al repetir el cierre',async()=>{
+ const s=escenario();await s.hastaFinal();let r=await s.turno('Sí');
+ assert.match(r.respuesta,/Reserva de prueba confirmada[\s\S]*Gracias por llamar\. Hasta pronto\.$/);
+ assert.equal((r.respuesta.match(/Gracias por llamar/g)||[]).length,1);
+ r=await s.turno('Sí');assert.equal((r.respuesta.match(/Gracias por llamar/g)||[]).length,1);assert.equal(s.reservas.size,1);
+});

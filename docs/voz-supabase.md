@@ -565,3 +565,9 @@ el día/la fecha» lleva directamente a pedir el nuevo día después de validar
 el teléfono y código; «quiero cambiar la hora» lleva a pedir la nueva hora.
 Si no se indicó un único campo, se mantiene la pregunta de día u hora. Esto no
 sustituye la identificación ni el resumen y sí final antes de ejecutar el cambio.
+
+
+La respuesta terminal de voz añade «Gracias por llamar. Hasta pronto» después del
+resultado de reserva o gestión. La despedida forma parte del mismo audio final;
+se conserva una sola vez en reintentos y no cambia cuándo se confirma la operación.
+El worker mantiene su espera de final de locución y pausa posterior antes de colgar.
