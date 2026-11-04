@@ -559,3 +559,9 @@ Los registros caducan a los 30 días. Nunca se muestran tras caducar, y se elimi
 físicamente al siguiente acceso o escritura de ese restaurante. No hay un borrado
 periódico independiente: si el restaurante no vuelve a acceder, el borrado físico
 puede ocurrir después de la caducidad. No se ha activado grabación de audio.
+
+En gestión telefónica se conserva el campo indicado al inicio: «quiero cambiar
+el día/la fecha» lleva directamente a pedir el nuevo día después de validar
+el teléfono y código; «quiero cambiar la hora» lleva a pedir la nueva hora.
+Si no se indicó un único campo, se mantiene la pregunta de día u hora. Esto no
+sustituye la identificación ni el resumen y sí final antes de ejecutar el cambio.

@@ -228,3 +228,20 @@ test('registro SQL: caducidad, permisos de servidor y borrado de registros expir
  assert.equal((await dato('select count(*)::int as n from contactia_privado.turnos_llamadas_voz')).n,0);
  const p=await dato("select has_function_privilege('anon','public.registrar_turno_llamada_voz(text,uuid,integer,jsonb)','execute') as anon,has_function_privilege('authenticated','public.consultar_llamadas_voz_panel(uuid,bigint,uuid)','execute') as autenticado");assert.equal(p.anon,false);assert.equal(p.autenticado,false);
 });
+
+for(const [frase,paso] of [['Quiero cambiar el día.','gestion_fecha'],['Quiero modificar la fecha.','gestion_fecha'],['Quiero cambiar la hora.','gestion_hora']]){
+ test('SIP gestión: conserva el campo inicial tras identificar al cliente: '+frase,async()=>{
+  const s=await escenario();await s.sinCorreo();const c=await s.codigo();await s.nuevaLlamada();
+  let r=await s.turno(frase);assert.equal(r.paso,'gestion_telefono');
+  await s.turno('600000000');r=await s.turno(c);assert.equal(r.paso,paso);assert.doesNotMatch(r.respuesta,/día o la hora/);
+  assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,0);
+  if(paso==='gestion_hora')await s.turno('a las tres');
+  else{await s.turno('el viernes');r=await s.turno('la misma');assert.equal(r.paso,'gestion_confirmar');}
+  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,1);
+ });
+}
+test('SIP gestión: si la petición inicial menciona día y hora, pregunta qué desea cambiar',async()=>{
+ const s=await escenario();await s.sinCorreo();const c=await s.codigo();await s.nuevaLlamada();
+ for(const t of ['Quiero cambiar el día o la hora','600000000'])await s.turno(t);
+ const r=await s.turno(c);assert.equal(r.paso,'gestion_cambio');assert.match(r.respuesta,/día o la hora/);
+});
