@@ -523,3 +523,39 @@ y noventa y nueve (por ejemplo «seis, cuarenta y seis, cero, veintitrés, seis,
 veinticuatro»). Se conserva cada cero dicho y no se rellenan bloques incompletos.
 Las alternativas ambiguas se vuelven a pedir. La lectura de confirmación puede
 seguir siendo cifra a cifra aunque el cliente haya dictado por bloques.
+
+## Registro de diagnóstico de voz en Supabase
+
+`CONTACTIA_SUPABASE_REGISTRO_VOZ_ENABLED=1`, exclusivo de Preview y de esta rama,
+guarda un par de turnos (entrada literal que recibe el motor y respuesta que
+prevé comunicar) por solicitud autenticada. No equivale a una transcripción
+verificada de lo que sonó: no captura el saludo emitido directamente por el
+worker, ni las reformulaciones de voz o el audio. `record=False` de LiveKit se
+mantiene. No requiere actualizar el worker ni consulta Airtable.
+
+El panel añade «Conversaciones de voz», con carga manual de las últimas 25
+llamadas y detalle de sus turnos. Se marcan repeticiones de paso y respuestas de
+rechazo para facilitar la revisión; estas marcas no demuestran un fallo por sí
+solas. Una llamada interrumpida conserva sus turnos anteriores y último paso,
+sin inventar una despedida ni un resultado final. Solo se registran llamadas
+a partir de activar el circuito; las anteriores no se pueden reconstruir.
+
+Se omiten los campos de nombre, correo, teléfono, observaciones y código; también
+se filtran correos, teléfonos, secuencias numéricas y enlaces dictados fuera de su
+campo. Los resúmenes que contienen contactos se omiten. No se guarda el estado
+cifrado, identificador de sala con teléfono, IP, credenciales o audio. Se conserva
+el texto de peticiones de día/hora y del menú de cambio para revisar su comprensión.
+Es un registro filtrado, no una garantía de anonimización de cualquier dato que
+alguien mencione espontáneamente fuera de esos campos.
+
+Cada llamada tiene un UUID no semántico y cada índice de turno es único: repetir
+una solicitud no duplica el registro. La escritura tiene un plazo de 1,2 segundos;
+un fallo de diagnóstico no cambia el resultado de la reserva o gestión. La tabla
+privada usa RLS; solo el servidor ejecuta sus RPC. Para consultar desde el panel
+se verifica Auth y la pertenencia activa como propietario o encargado al mismo
+restaurante. No hay acceso anónimo ni entre restaurantes.
+
+Los registros caducan a los 30 días. Nunca se muestran tras caducar, y se eliminan
+físicamente al siguiente acceso o escritura de ese restaurante. No hay un borrado
+periódico independiente: si el restaurante no vuelve a acceder, el borrado físico
+puede ocurrir después de la caducidad. No se ha activado grabación de audio.

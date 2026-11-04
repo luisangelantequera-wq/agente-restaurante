@@ -73,6 +73,7 @@ async function cargar() {
       return resultado;
     }),reservas, nota, resumen,
       window.ContactiaAvisosPanel.crear(datos.restaurante,pedir),
+      window.ContactiaLlamadasPanel.crear(datos.restaurante,pedir),
       tabla('Zonas', ['Nombre', 'Estado', 'Acciones'], datos.zonas.map(z => [z.nombre, z.estado === 'activo' ? 'Abierta' : 'Cerrada',
         botonDisponibilidad('zona',z,datos.restaurante.id,datos.puede_editar_disponibilidad)])),
       tabla('Mesas', ['Nombre', 'Zona', 'Personas', 'Estado', 'Acciones'], datos.mesas.map(m => [m.nombre,zonas.get(m.zona_id)||'',`${m.min_personas}–${m.capacidad}`,

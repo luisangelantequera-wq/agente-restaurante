@@ -11,7 +11,7 @@ const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1
  CONTACTIA_SIP_WORKER_SECRET:'secreto-compartido-ficticio-000000000',CONTACTIA_WEB_SUPABASE_ENABLED:'1',CONTACTIA_SUPABASE_VOICE_ENABLED:'1',
  CONTACTIA_SUPABASE_SERVER_KEY:'sb_secret_servidor-ficticio-recorrido-wa',LIVEKIT_API_KEY:'ficticia',LIVEKIT_API_SECRET:'ficticia-livekit-000000000',LIVEKIT_URL:'wss://prueba.livekit.cloud',
  CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL:'https://'+host+'/api/restaurante?canal=telefono_prueba',CONTACTIA_PUBLIC_HOSTNAME:host,
- CONTACTIA_SUPABASE_GESTION_VOZ_ENABLED:'1',CONTACTIA_SUPABASE_WHATSAPP_ENABLED:'1',CONTACTIA_SUPABASE_WHATSAPP_ALLOWLIST:'+34600000000',
+ CONTACTIA_SUPABASE_REGISTRO_VOZ_ENABLED:'1',CONTACTIA_SUPABASE_GESTION_VOZ_ENABLED:'1',CONTACTIA_SUPABASE_WHATSAPP_ENABLED:'1',CONTACTIA_SUPABASE_WHATSAPP_ALLOWLIST:'+34600000000',
  CONTACTIA_SUPABASE_EMAIL_ENABLED:'1',CONTACTIA_SUPABASE_EMAIL_ALLOWLIST:'cliente@example.invalid',EMAIL_FROM:'Prueba <prueba@example.invalid>',RESEND_API_KEY:'ficticia',
  TWILIO_ACCOUNT_SID:'AC'+'1'.repeat(32),TWILIO_AUTH_TOKEN:'2'.repeat(32),TWILIO_WHATSAPP_FROM:'whatsapp:+34910000000',TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID:'HX'+'3'.repeat(32)};
 let db;
@@ -39,7 +39,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  set local role service_role;`);
  const {fecha}=await dato(`select to_char((clock_timestamp() at time zone 'Europe/Madrid')::date+7,'YYYY-MM-DD') as fecha`);
  let perdidaGestion=perderGestion;
- const permitidas=new Set(['consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
+ const permitidas=new Set(['registrar_turno_llamada_voz','consultar_llamadas_voz_panel','consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
  const cliente={rpc:async(n,a)=>{
   assert.ok(permitidas.has(n),n);await db.exec('savepoint rpc');
   try{const pares=Object.entries(a),llamada=pares.map(([k,v],i)=>k+'=> '+(Array.isArray(v)&&k!=='p_candidatos'?'array(select jsonb_array_elements_text($'+(i+1)+'::jsonb))':'$'+(i+1))).join(',');
@@ -49,14 +49,15 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  },from:tabla=>({select(){return this;},eq(){return this;},maybeSingle:async()=>({data:await dato("select id,nombre,zona_horaria from public.restaurantes where slug='prueba-sol'")}),order:async()=>({data:(await db.query("select id,nombre from public.zonas where estado='activo'")).rows})})};
  const sidCorreo='60000000-0000-4000-8000-000000000001',sidWhatsApp='SM'+'4'.repeat(32);let enviosCorreo=0,enviosWhatsApp=0;
  const correo=async args=>enviarConfirmacion({...args,fetchImpl:async()=>{enviosCorreo++;return{ok:true,json:async()=>({id:sidCorreo})};}});
+ let sidLlamada='RM_ficticia';
  const inicio=sip.crearInicio({env,clientFactory:()=>cliente,livekitFactory:()=>({room:{
   getParticipant:async()=>({identity,kind:3,attributes:{'sip.trunkID':env.CONTACTIA_SIP_TRUNK_ID,'sip.trunkPhoneNumber':sip.NUMERO,'sip.callStatus':'active'}}),
-  listRooms:async()=>[{name:room,sid:'RM_ficticia',creationTime:Math.floor(Date.now()/1000)}]}})});
+  listRooms:async()=>[{name:room,sid:sidLlamada,creationTime:Math.floor(Date.now()/1000)}]}})});
  const b={room,identity,timestamp:Date.now()},r=res();
  await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,b)},body:b},r);
- assert.equal(r.statusCode,200,JSON.stringify(r.body));let token=r.body.conversacion_token;
+ assert.equal(r.statusCode,200,JSON.stringify(r.body));let token=r.body.conversacion_token,acceso=r.body.acceso;
  const motor=telefono.crearMotor({env,clientFactory:()=>cliente,correo,whatsapp:args=>avisos.enviarSinCorreo({...args,fetchImpl})});
- async function turno(mensaje,t=token){const out=res();await motor({method:'POST',headers:{host,'content-type':'application/json',authorization:'Bearer '+r.body.acceso},body:{mensaje,conversacion_token:t}},out);
+ async function turno(mensaje,t=token){const out=res();await motor({method:'POST',headers:{host,'content-type':'application/json',authorization:'Bearer '+acceso},body:{mensaje,conversacion_token:t}},out);
   assert.equal(out.statusCode,200,JSON.stringify(out.body));token=out.body.conversacion_token;return out.body;}
  async function completar(respuesta){
   for(const t of [`Para el ${fecha.split('-').reverse().join('/')} para dos a las dos`,'Cliente ficticio','cliente arroba example punto invalid','Sí','600000000'])await turno(t);
@@ -81,7 +82,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
   r=await turno('ninguna');assert.equal(r.paso,'final');assert.match(r.respuesta,/Confirmación por WhatsApp/);
   assert.equal(enviosWhatsApp,0);const antes=token;r=await turno('Sí');assert.equal(r.paso,'terminado');return antes;
  }
- async function nuevaLlamada(){const out=res();const nb={room,identity,timestamp:Date.now()};await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,nb)},body:nb},out);assert.equal(out.statusCode,200);token=out.body.conversacion_token;}
+ async function nuevaLlamada(){sidLlamada+='otra';const out=res();const nb={room,identity,timestamp:Date.now()};await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,nb)},body:nb},out);assert.equal(out.statusCode,200);token=out.body.conversacion_token;acceso=out.body.acceso;}
  async function codigo(){const r=await dato('select r.peticion_id,c.contador from public.reservas r join contactia_privado.codigos_gestion_voz c on c.reserva_id=r.id');return require('../lib/codigo-gestion-voz').codigo(env,'prueba-sol',r.peticion_id,r.contador);}
  return{turno,completar,sinCorreo,accion,cliente,nuevaLlamada,codigo,get correos(){return enviosCorreo;},get whatsapps(){return enviosWhatsApp;}};
 }
@@ -200,4 +201,30 @@ test('SQL gestión: cambiar el teléfono guardado invalida la combinación anter
  await db.exec("update public.reservas set telefono='+34600000001'");
  const r=await s.cliente.rpc('autenticar_gestion_voz',{p_slug:'prueba-sol',p_telefono:C.telefonoHash(env,'prueba-sol','+34600000000'),p_codigo:C.codigoHash(env,'prueba-sol','+34600000000',c),p_origen:'e'.repeat(64)});
  assert.equal(r.data.ok,false);assert.equal(r.data.reserva,undefined);
+});
+
+test('registro SIP: conserva la dificultad para pedir un cambio y oculta contactos y código',async()=>{
+ const s=await escenario();const antes=await s.sinCorreo();await s.turno('Sí',antes);
+ const guardado=await dato("select count(*)::int as n,jsonb_agg(jsonb_build_object('cliente',cliente,'asistente',asistente))::text as texto from contactia_privado.turnos_llamadas_voz");
+ assert.ok(guardado.n>5);assert.doesNotMatch(guardado.texto,/600000000|Cliente ficticio|example.invalid/);
+ const numeroAntes=guardado.n;await s.turno('Sí',antes);assert.equal((await dato('select count(*)::int as n from contactia_privado.turnos_llamadas_voz')).n,numeroAntes);
+ const c=await s.codigo();await s.nuevaLlamada();for(const t of ['modificar','600000000',c])await s.turno(t);
+ await s.turno('Cámbiela al viernes');
+ const rest=Number((await dato('select id from public.restaurantes')).id);
+ const lista=await s.cliente.rpc('consultar_llamadas_voz_panel',{p_usuario:propietario,p_restaurante:rest,p_llamada:null});assert.equal(lista.error,undefined);assert.equal(lista.data.llamadas.length,2);
+ const id=lista.data.llamadas.find(x=>!x.finalizada).llamada_id;
+ const detalle=await s.cliente.rpc('consultar_llamadas_voz_panel',{p_usuario:propietario,p_restaurante:rest,p_llamada:id});
+ const t=detalle.data.turnos.at(-1);assert.equal(t.cliente,'Cámbiela al viernes');assert.equal(t.incidencia,true);assert.equal(t.antes,'gestion_cambio');
+ assert.ok(!JSON.stringify(detalle.data).includes(c));
+ const ajeno=await s.cliente.rpc('consultar_llamadas_voz_panel',{p_usuario:propietario,p_restaurante:rest+1,p_llamada:id});assert.equal(ajeno.error.code,'42501');
+ await db.exec("update public.restaurante_usuarios set activo=false");
+ const inactivo=await s.cliente.rpc('consultar_llamadas_voz_panel',{p_usuario:propietario,p_restaurante:rest,p_llamada:id});assert.equal(inactivo.error.code,'42501');
+});
+
+test('registro SQL: caducidad, permisos de servidor y borrado de registros expirados al consultar',async()=>{
+ const s=await escenario();await s.sinCorreo();const rest=Number((await dato('select id from public.restaurantes')).id);
+ await db.exec("update contactia_privado.turnos_llamadas_voz set caduca_en=clock_timestamp()-interval '1 second'");
+ const r=await s.cliente.rpc('consultar_llamadas_voz_panel',{p_usuario:propietario,p_restaurante:rest,p_llamada:null});assert.deepEqual(r.data.llamadas,[]);
+ assert.equal((await dato('select count(*)::int as n from contactia_privado.turnos_llamadas_voz')).n,0);
+ const p=await dato("select has_function_privilege('anon','public.registrar_turno_llamada_voz(text,uuid,integer,jsonb)','execute') as anon,has_function_privilege('authenticated','public.consultar_llamadas_voz_panel(uuid,bigint,uuid)','execute') as autenticado");assert.equal(p.anon,false);assert.equal(p.autenticado,false);
 });
