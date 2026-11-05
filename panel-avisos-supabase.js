@@ -54,7 +54,32 @@ window.ContactiaAvisosPanel={crear(restaurante,pedir){
    }catch(e){estado.textContent=`${n} comprobadas. ${e.message}`;try{await cargar();}catch{}}
    finally{bloquear(false);}
   }));
- raiz.append(titulo,nota,controles,estado,contenido);
+ const cambios=document.createElement('div');cambios.className='tabla-reservas';
+ const solicitarGestion=(operacion,id)=>pedir('supabase_avisos',{restaurante_id:restaurante.id,operacion,...(id?{aviso_id:id}:{})});
+ async function cargarGestion(){
+  const d=await solicitarGestion('listar_gestion'),tabla=document.createElement('table');tabla.createCaption().textContent='Correos de modificaciones y cancelaciones';
+  const cab=tabla.createTHead().insertRow();['Reserva','Aviso','Estado del correo','Acciones'].forEach(t=>{const th=document.createElement('th');th.scope='col';th.textContent=t;cab.append(th);});
+  const cuerpo=tabla.createTBody();
+  d.avisos.forEach(f=>{
+   const tr=cuerpo.insertRow();tr.insertCell().textContent=`${f.nombre} · ${f.fecha} · ${f.hora}`;
+   tr.insertCell().textContent=f.tipo==='cancelada'?'Cancelación':'Modificación';
+   tr.insertCell().textContent=f.estado==='omitido'?'Sin correo habilitado':textos[f.estado]||'Sin información';
+   const a=tr.insertCell();
+   if(f.puede_revisar)a.append(boton('Comprobar entrega',()=>actuarGestion('consultar_gestion',f)));
+   if(f.puede_reintentar)a.append(boton('Reintentar aviso',()=>{if(window.confirm(`¿Reintentar el correo de ${f.tipo==='cancelada'?'cancelación':'modificación'} de ${f.nombre}?`))actuarGestion('reintentar_gestion',f);}));
+   if(!a.childNodes.length)a.textContent='Solo consulta';
+  });
+  cambios.replaceChildren(tabla);if(!d.avisos.length){const p=document.createElement('p');p.textContent='Todavía no hay correos de modificaciones o cancelaciones.';cambios.append(p);}
+ }
+ async function actuarGestion(accion,f){
+  if(ocupado)return;bloquear(true);estado.textContent='Comprobando el aviso…';
+  try{const d=await solicitarGestion(accion,f.aviso_id);await cargarGestion();estado.textContent=d.mensaje;}
+  catch(e){estado.textContent=e.message;}finally{bloquear(false);}
+ }
+ const verCambios=boton('Ver correos de cambios y cancelaciones',async()=>{
+  if(ocupado)return;bloquear(true);try{await cargarGestion();estado.textContent='Correos de cambios y cancelaciones actualizados.';}catch(e){estado.textContent=e.message;}finally{bloquear(false);}
+ });
+ raiz.append(titulo,nota,controles,estado,contenido,verCambios,cambios);
  raiz.addEventListener('toggle',async()=>{if(!raiz.open||cargado||ocupado)return;bloquear(true);try{await cargar();}catch(e){estado.textContent=e.message;}finally{bloquear(false);}});
  return raiz;
 }};

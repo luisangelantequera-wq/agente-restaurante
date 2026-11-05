@@ -29,7 +29,7 @@ test.beforeEach(async()=>{await db.exec('begin');});
 test.afterEach(async()=>{await db.exec('rollback');});
 const dato=async(sql,p=[])=> (await db.query(sql,p)).rows[0];
 function res(){return{setHeader(){},end(s){this.body=JSON.parse(s);}};}
-async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false}={}){
+async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false,fallarCorreoGestion=false}={}){
  const horario=Object.fromEntries(['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map(d=>[d,['13:00-16:00','20:00-23:00']]));
  await db.query('insert into auth.users(id) values($1)',[propietario]);
  await db.query(`insert into public.restaurantes(slug,nombre,duracion_reserva_minutos,reservas_web_activas,horario_reservas) values('prueba-sol','Sol',90,true,$1)`,[JSON.stringify(horario)]);
@@ -40,12 +40,12 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  if(variasZonas)await db.exec("insert into public.zonas(restaurante_id,nombre) select id,'TERRAZA' from public.restaurantes");
  const {fecha}=await dato(`select to_char((clock_timestamp() at time zone 'Europe/Madrid')::date+7,'YYYY-MM-DD') as fecha`);
  let perdidaGestion=perderGestion;
- const permitidas=new Set(['registrar_turno_llamada_voz','consultar_llamadas_voz_panel','consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','gestionar_personas_voz','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
+ const permitidas=new Set(['registrar_turno_llamada_voz','consultar_llamadas_voz_panel','consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','gestionar_personas_voz','gestionar_reserva_con_correo','preparar_correo_gestion','finalizar_correo_gestion','correos_gestion_panel','entrega_correo_gestion','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
  const cliente={rpc:async(n,a)=>{
   assert.ok(permitidas.has(n),n);await db.exec('savepoint rpc');
   try{const pares=Object.entries(a),llamada=pares.map(([k,v],i)=>k+'=> '+(Array.isArray(v)&&k!=='p_candidatos'?'array(select jsonb_array_elements_text($'+(i+1)+'::jsonb))':'$'+(i+1))).join(',');
    const r=await dato(`select public.${n}(${llamada}) as valor`,pares.map(([,v])=>v&&typeof v==='object'?JSON.stringify(v):v));
-   await db.exec('release savepoint rpc');if(['gestionar_reserva_web','gestionar_personas_voz'].includes(n)&&a.p_accion!=='consultar'&&perdidaGestion){perdidaGestion=false;return{error:{code:'08006'}};}return{data:r.valor};
+   await db.exec('release savepoint rpc');if(['gestionar_reserva_web','gestionar_personas_voz','gestionar_reserva_con_correo'].includes(n)&&a.p_accion!=='consultar'&&perdidaGestion){perdidaGestion=false;return{error:{code:'08006'}};}return{data:r.valor};
   }catch(e){await db.exec('rollback to savepoint rpc');await db.exec('release savepoint rpc');return{error:{code:e.code,message:e.message}};}
  },from:tabla=>({select(){return this;},eq(){return this;},maybeSingle:async()=>({data:await dato("select id,nombre,zona_horaria from public.restaurantes where slug='prueba-sol'")}),order:async()=>({data:(await db.query("select id,nombre from public.zonas where estado='activo'")).rows})})};
  const sidCorreo='60000000-0000-4000-8000-000000000001',sidWhatsApp='SM'+'4'.repeat(32);let enviosCorreo=0,enviosWhatsApp=0;
@@ -57,7 +57,9 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  const b={room,identity,timestamp:Date.now()},r=res();
  await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,b)},body:b},r);
  assert.equal(r.statusCode,200,JSON.stringify(r.body));let token=r.body.conversacion_token,acceso=r.body.acceso;
- const motor=telefono.crearMotor({env,clientFactory:()=>cliente,correo,whatsapp:args=>avisos.enviarSinCorreo({...args,fetchImpl})});
+ const correosGestion=[];
+ const correoGestion=args=>require('../lib/correo-gestion-supabase').enviar({...args,fetchImpl:async(url,init)=>{assert.equal(url,'https://api.resend.com/emails');correosGestion.push({payload:JSON.parse(init.body),clave:init.headers['Idempotency-Key']});if(fallarCorreoGestion)throw Error('red');return{ok:true,json:async()=>({id:'80000000-0000-4000-8000-'+String(correosGestion.length).padStart(12,'0')})};}});
+ const motor=telefono.crearMotor({env,clientFactory:()=>cliente,correo,correoGestion,whatsapp:args=>avisos.enviarSinCorreo({...args,fetchImpl})});
  async function turno(mensaje,t=token){const out=res();await motor({method:'POST',headers:{host,'content-type':'application/json',authorization:'Bearer '+acceso},body:{mensaje,conversacion_token:t}},out);
   assert.equal(out.statusCode,200,JSON.stringify(out.body));token=out.body.conversacion_token;return out.body;}
  async function completar(respuesta){
@@ -85,7 +87,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  }
  async function nuevaLlamada(){sidLlamada+='otra';const out=res();const nb={room,identity,timestamp:Date.now()};await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,nb)},body:nb},out);assert.equal(out.statusCode,200);token=out.body.conversacion_token;acceso=out.body.acceso;}
  async function codigo(){const r=await dato('select r.peticion_id,c.contador from public.reservas r join contactia_privado.codigos_gestion_voz c on c.reserva_id=r.id');return require('../lib/codigo-gestion-voz').codigo(env,'prueba-sol',r.peticion_id,r.contador);}
- return{turno,completar,sinCorreo,accion,cliente,nuevaLlamada,codigo,get correos(){return enviosCorreo;},get whatsapps(){return enviosWhatsApp;}};
+ return{turno,completar,sinCorreo,accion,cliente,nuevaLlamada,codigo,correosGestion,get correos(){return enviosCorreo;},get whatsapps(){return enviosWhatsApp;}};
 }
 test('SIP: sí explícito persiste autorización y el respaldo existente entrega tras rebote confirmado',async()=>{
  const s=await escenario(),antes=await s.completar('Sí, autorizo');
@@ -404,4 +406,71 @@ test('SIP: un código incorrecto no revela que una reserva ya estaba cancelada',
  const s=await escenario();const {c}=await intentarCancelarYaCancelada(s);await s.nuevaLlamada();
  for(const t of ['Quiero cancelar','600000000'])await s.turno(t);
  const r=await s.turno(c==='000000'?'111111':'000000');assert.equal(r.paso,'gestion_codigo');assert.doesNotMatch(r.respuesta,/ya estaba cancelada|nueva reserva/);
+});
+
+test('correo gestión: modificación y cancelación tienen avisos distintos; reintentar la misma operación no duplica',async()=>{
+ const s=await escenario();await s.completar('No');const codigo=await s.codigo();await s.nuevaLlamada();let r;
+ for(const t of ['Quiero modificar','600000000',codigo,'Quiero cambiar la hora a las tres y media'])r=await s.turno(t);
+ assert.equal(r.paso,'gestion_confirmar');assert.equal(s.correosGestion.length,0);const token=r.conversacion_token;
+ r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.correosGestion.length,1);
+ let aviso=s.correosGestion[0];assert.match(aviso.payload.subject,/modificada/);assert.match(aviso.payload.text,/15:30/);assert.match(aviso.payload.text,/Código de gestión: \d{3} \d{3}/);
+ await s.turno('Sí',token);assert.equal(s.correosGestion.length,1);
+ await s.nuevaLlamada();for(const t of ['Quiero cancelar','600000000',codigo,'Sí'])r=await s.turno(t);
+ assert.equal(r.paso,'terminado');assert.equal(s.correosGestion.length,2);aviso=s.correosGestion[1];
+ assert.match(aviso.payload.subject,/cancelada/);assert.match(aviso.payload.text,/ha sido cancelada/);assert.doesNotMatch(aviso.payload.text,/está confirmada|Código de gestión|cambiar o cancelar mi reserva/);
+ assert.notEqual(s.correosGestion[0].clave,aviso.clave);
+ assert.equal((await dato("select count(*)::int as n from contactia_privado.correos_gestion_reserva where estado='aceptado'")).n,2);
+});
+test('correo gestión: cambio sin disponibilidad y rechazo de cancelación no crean avisos',async()=>{
+ const s=await escenario();await s.completar('No');const c=await s.codigo();await s.nuevaLlamada();
+ for(const t of ['modificar','600000000',c,'hora','a las cuatro de la mañana','Sí'])await s.turno(t);
+ assert.equal((await dato('select count(*)::int as n from contactia_privado.correos_gestion_reserva')).n,0);
+ await s.nuevaLlamada();for(const t of ['cancelar','600000000',c,'No','Mantengo la reserva'])await s.turno(t);
+ assert.equal(s.correosGestion.length,0);assert.equal((await dato('select estado from public.reservas')).estado,'confirmada');
+});
+test('correo gestión: cambio de personas incluye la cantidad nueva y una reserva sin correo no inventa dirección',async()=>{
+ const s=await escenario();await s.completar('No');await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await s.turno('Sí');
+ assert.equal(s.correosGestion.length,1);assert.match(s.correosGestion[0].payload.text,/Personas: 4/);
+ await db.exec("update public.reservas set email=''");const c=await s.codigo();await s.nuevaLlamada();for(const t of ['cancelar','600000000',c,'Sí'])await s.turno(t);
+ assert.equal(s.correosGestion.length,1);assert.equal((await dato("select estado from contactia_privado.correos_gestion_reserva order by secuencia desc limit 1")).estado,'omitido');
+});
+test('correo gestión: un fallo del proveedor conserva la modificación; reintento manual conserva contenido y clave',async()=>{
+ const s=await escenario({fallarCorreoGestion:true});await s.completar('No');await gestionarPersonas(s,'Quiero cambiar a cuatro personas');assert.equal((await s.turno('Sí')).paso,'terminado');
+ const c=await dato('select * from contactia_privado.correos_gestion_reserva');assert.equal(c.estado,'pendiente');assert.equal((await dato('select personas from public.reservas')).personas,4);
+ let envios=0;const args={env,usuario:propietario,clientFactory:()=>s.cliente,body:{accion:'supabase_avisos',operacion:'reintentar_gestion',restaurante_id:Number(c.restaurante_id),aviso_id:c.id},fetchImpl:async(url,init)=>{
+  envios++;assert.equal(init.headers['Idempotency-Key'],s.correosGestion[0].clave);assert.deepEqual(JSON.parse(init.body),s.correosGestion[0].payload);return{ok:true,json:async()=>({id:'80000000-0000-4000-8000-000000000002'})};
+ }};
+ const r=await require('../lib/avisos-supabase').ejecutar(args);assert.equal(r.estado,'aceptado');
+ const lista=await require('../lib/avisos-supabase').ejecutar({...args,body:{accion:'supabase_avisos',operacion:'listar_gestion',restaurante_id:Number(c.restaurante_id)}});assert.equal(lista.avisos[0].estado,'aceptado');assert.equal(lista.avisos[0].tipo,'modificada');await require('../lib/avisos-supabase').ejecutar(args);assert.equal(envios,1);
+ const consulta=await require('../lib/avisos-supabase').ejecutar({...args,body:{...args.body,operacion:'consultar_gestion'},fetchImpl:async()=>({ok:true,json:async()=>({id:'80000000-0000-4000-8000-000000000002',last_event:'delivered'})})});
+ assert.equal(consulta.estado,'entregado');assert.equal((await dato('select entrega_estado from contactia_privado.correos_gestion_reserva')).entrega_estado,'entregado');
+});
+test('correo gestión: aviso antiguo se bloquea tras otro cambio; propietario ajeno e inactivo no pueden consultarlo',async()=>{
+ const s=await escenario({fallarCorreoGestion:true});await s.completar('No');await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await s.turno('Sí');const anterior=await dato('select * from contactia_privado.correos_gestion_reserva');
+ const c=await s.codigo();await s.nuevaLlamada();for(const t of ['cancelar','600000000',c,'Sí'])await s.turno(t);
+ const r=await require('../lib/correo-gestion-supabase').enviar({cliente:s.cliente,env,aviso:anterior.id,hash:anterior.enlace_hash,fetchImpl:async()=>assert.fail('No reenviar un cambio obsoleto')});assert.equal(r,'revision');
+ let listado=await s.cliente.rpc('correos_gestion_panel',{p_usuario:propietario,p_restaurante:Number(anterior.restaurante_id)+1,p_accion:'listar_gestion'});assert.equal(listado.error.code,'42501');
+ await db.exec('update public.restaurante_usuarios set activo=false');listado=await s.cliente.rpc('correos_gestion_panel',{p_usuario:propietario,p_restaurante:Number(anterior.restaurante_id),p_accion:'listar_gestion'});assert.equal(listado.error.code,'42501');
+ const permisos=await dato("select has_function_privilege('anon','public.gestionar_reserva_con_correo(text,text,text,uuid,date,time,timestamptz,integer,integer)','execute') as anon,has_function_privilege('authenticated','public.correos_gestion_panel(uuid,bigint,text,uuid)','execute') as usuario");assert.equal(permisos.anon,false);assert.equal(permisos.usuario,false);
+});
+test('correo gestión: volver a una operación histórica nunca genera un correo retroactivo',async()=>{
+ const s=await escenario();await s.completar('No');const v=await dato('select r.inicio,e.hash from public.reservas r join contactia_privado.enlaces_gestion e on e.reserva_id=r.id');
+ const args={p_slug:'prueba-sol',p_hash:v.hash,p_accion:'reprogramar',p_operacion:'70000000-0000-4000-8000-000000000001',p_fecha:(await dato("select to_char(inicio at time zone 'Europe/Madrid','YYYY-MM-DD') as f from public.reservas")).f,p_hora:'15:00',p_inicio_anterior:v.inicio};
+ assert.equal((await s.cliente.rpc('gestionar_reserva_web',args)).error,undefined);const r=await s.cliente.rpc('gestionar_reserva_con_correo',args);assert.equal(r.error,undefined);assert.equal(r.data.correo_gestion_id,null);assert.equal((await dato('select count(*)::int as n from contactia_privado.correos_gestion_reserva')).n,0);
+});
+
+test('correo gestión: reclamación exclusiva y caducidad evitan dobles envíos y reintentos fuera de ventana',async()=>{
+ const s=await escenario({fallarCorreoGestion:true});await s.completar('No');await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await s.turno('Sí');
+ const c=await dato('select * from contactia_privado.correos_gestion_reserva');
+ const args={p_aviso:c.id,p_hash:c.enlace_hash,p_remitente:env.EMAIL_FROM,p_hostname:env.CONTACTIA_PUBLIC_HOSTNAME,p_permitidos:['cliente@example.invalid']};
+ const uno=await s.cliente.rpc('preparar_correo_gestion',args);assert.equal(uno.data.estado,'enviar');
+ const dos=await s.cliente.rpc('preparar_correo_gestion',args);assert.equal(dos.data.estado,'pendiente');
+ const falsa=await s.cliente.rpc('finalizar_correo_gestion',{p_aviso:c.id,p_intento:'90000000-0000-4000-8000-000000000001',p_estado:'aceptado',p_id_proveedor:'id-ficticio'});assert.equal(falsa.data,false);
+ await db.exec("update contactia_privado.correos_gestion_reserva set creado_en=clock_timestamp()-interval '24 hours',bloqueado_hasta=null");
+ const viejo=await s.cliente.rpc('preparar_correo_gestion',args);assert.equal(viejo.data.estado,'revision');assert.equal((await dato('select personas from public.reservas')).personas,4);
+});
+test('correo gestión: corregir el destinatario impide enviar la instantánea al correo anterior',async()=>{
+ const s=await escenario({fallarCorreoGestion:true});await s.completar('No');await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await s.turno('Sí');
+ const c=await dato('select * from contactia_privado.correos_gestion_reserva');await db.exec("update public.reservas set email='otro@example.invalid'");
+ const r=await require('../lib/correo-gestion-supabase').enviar({cliente:s.cliente,env,aviso:c.id,hash:c.enlace_hash,fetchImpl:async()=>assert.fail('No enviar a dirección anterior')});assert.equal(r,'revision');
 });
