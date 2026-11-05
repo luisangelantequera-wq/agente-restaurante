@@ -41,7 +41,9 @@ reales y aprobación, el envío permanece bloqueado. Textos en
 
 La modificación lleva siete variables: restaurante, día, hora, personas, zona,
 código de gestión (seis cifras, agrupadas 3 + 3) y referencia completa. Código y
-referencia aparecen en párrafos separados al pie. La cancelación lleva seis
+referencia aparecen en párrafos separados al pie. Ambas plantillas terminan con
+la frase fija «Mensaje automático de gestión de reservas.»: WhatsApp rechaza
+una variable final incluso si va seguida de un punto. La cancelación lleva seis
 variables y muestra la referencia aparte; no la presenta como código de gestión.
 
 El permiso y el teléfono se comprueban de nuevo antes del envío. Una operación

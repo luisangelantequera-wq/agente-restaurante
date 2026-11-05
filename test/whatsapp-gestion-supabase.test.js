@@ -11,9 +11,9 @@ test('plantillas de cambios describen cada operación y no reutilizan la confirm
  const m=borrador(datos,env),c=borrador({...datos,accion:'cancelada'},env);
  assert.match(m.texto,/ha sido modificada/);assert.match(c.texto,/ha sido cancelada/);assert.doesNotMatch(c.texto,/está confirmada|Código de gestión/);assert.notEqual(PLANTILLAS.cancelada,PLANTILLAS.modificada);
  assert.match(m.variables['6'],/^\d{3} \d{3}$/);assert.equal(c.variables['6'],datos.referencia);assert.throws(()=>borrador({...datos,whatsapp_autorizado:false},env));
- assert.equal(m.variables['7'],datos.referencia);assert.equal(Object.keys(m.variables).length,7);assert.equal(Object.keys(c.variables).length,6);
- assert.ok(m.texto.endsWith('\n\nCódigo de gestión: '+m.variables['6']+'\n\nReferencia de la reserva: '+datos.referencia+'.'));
- assert.ok(c.texto.endsWith('\n\nReferencia de la reserva: '+datos.referencia+'.'));assert.doesNotMatch(m.texto,/\{\{/);assert.doesNotMatch(c.texto,/Conserve esta referencia/);
+ assert.equal(m.variables['7'],datos.referencia);assert.equal(Object.keys(m.variables).length,7);for(const plantilla of Object.values(PLANTILLAS))assert.doesNotMatch(plantilla,/\{\{\d+\}\}[\s.!?]*$/);assert.equal(Object.keys(c.variables).length,6);
+ assert.ok(m.texto.endsWith('\n\nCódigo de gestión: '+m.variables['6']+'\n\nReferencia de la reserva: '+datos.referencia+'.\n\nMensaje automático de gestión de reservas.'));
+ assert.ok(c.texto.endsWith('\n\nReferencia de la reserva: '+datos.referencia+'.\n\nMensaje automático de gestión de reservas.'));assert.doesNotMatch(m.texto,/\{\{/);assert.doesNotMatch(c.texto,/Conserve esta referencia/);
 });
 test('sin plantillas propias, canal habilitado y destino permitido no se envía WhatsApp',async()=>{
  for(const cambio of [{CONTACTIA_SUPABASE_WHATSAPP_GESTION_ENABLED:'0'},{TWILIO_WHATSAPP_MODIFICACION_CONTENT_SID:env.TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID},{TWILIO_WHATSAPP_CANCELACION_CONTENT_SID:env.TWILIO_WHATSAPP_MODIFICACION_CONTENT_SID},{CONTACTIA_SUPABASE_WHATSAPP_ALLOWLIST:'+34600000001'}]){
