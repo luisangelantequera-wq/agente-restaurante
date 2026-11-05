@@ -243,7 +243,7 @@ for(const [frase,paso] of [['Quiero cambiar el día.','gestion_fecha'],['Quiero 
 test('SIP gestión: si la petición inicial menciona día y hora, pregunta qué desea cambiar',async()=>{
  const s=await escenario();await s.sinCorreo();const c=await s.codigo();await s.nuevaLlamada();
  for(const t of ['Quiero cambiar el día o la hora','600000000'])await s.turno(t);
- const r=await s.turno(c);assert.equal(r.paso,'gestion_cambio');assert.match(r.respuesta,/día, la hora o el número de personas/);
+ const r=await s.turno(c);assert.equal(r.paso,'gestion_cambio');assert.equal(r.respuesta,'Indíqueme qué cambio quiere realizar.');
 });
 
 async function gestionarPersonas(s,inicial='Quiero hacer una modificación'){
@@ -251,7 +251,7 @@ async function gestionarPersonas(s,inicial='Quiero hacer una modificación'){
 }
 test('SIP personas: identifica primero y admite personas, comprueba y escribe solo tras sí',async()=>{
  const s=await escenario();await s.sinCorreo();let r=await gestionarPersonas(s);
- assert.equal(r.paso,'gestion_cambio');assert.match(r.respuesta,/día, la hora o el número de personas/);
+ assert.equal(r.paso,'gestion_cambio');assert.equal(r.respuesta,'Indíqueme qué cambio quiere realizar.');
  r=await s.turno('Quiero cambiar a cuatro personas');assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/4 personas/);
  assert.equal((await dato('select personas from public.reservas')).personas,2);
  r=await s.turno('quizá');assert.equal(r.paso,'gestion_confirmar');r=await s.turno('Sí');assert.equal(r.paso,'terminado');
