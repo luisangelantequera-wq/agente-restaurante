@@ -571,3 +571,24 @@ La respuesta terminal de voz añade «Gracias por llamar. Hasta pronto» despué
 resultado de reserva o gestión. La despedida forma parte del mismo audio final;
 se conserva una sola vez en reintentos y no cambia cuándo se confirma la operación.
 El worker mantiene su espera de final de locución y pausa posterior antes de colgar.
+
+
+## Celia preparada para prueba telefónica (05/11/2026)
+
+El usuario solicita sustituir Marta por Alba (Gradium) o Celia (Cartesia),
+siempre que el coste no aumente mucho. Se prepara primero Celia, manteniendo
+Cartesia Sonic 3 y el idioma `es`; solo cambia la voz a
+`ad38904c-0ce9-42b1-9159-5ad5352ef089`.
+
+El catálogo oficial identifica Celia como voz femenina de español peninsular:
+https://www.cartesia.ai/voices/library/celia-practical-analyst-ad38904c-0ce9-42b1-9159-5ad5352ef089
+
+La tarifa publicada de Sonic 3 en LiveKit Build/Ship es 50 USD por millón de
+caracteres; no cambia al sustituir Marta por Celia dentro del mismo modelo.
+Fuente comprobada el 05/11/2026: https://livekit.com/pricing/inference
+La tarifa se calcula por caracteres, no por minutos de la llamada completa.
+
+Requiere sustituir `agent.py` en el equipo Windows y publicar el worker con
+`lk agent deploy --id CA_vkyHrJpZtdWT`. Publicar Git/Vercel no cambia por sí solo
+la voz del worker en LiveKit. La escucha real de Celia por teléfono queda
+pendiente del despliegue y de una llamada del usuario.

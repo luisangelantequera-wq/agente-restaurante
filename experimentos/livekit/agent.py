@@ -101,10 +101,10 @@ async def iniciar_sesion(ctx, participante, relay=None):
         stt=inference.STT(model="deepgram/nova-3", language="es"),
         llm=inference.LLM(model="openai/gpt-4.1-mini"),
         # Rime Coda no admite el servicio EU: REGION_RESTRICTED en Cloud.
-        # Marta: voz conversacional de España del catálogo oficial de Cartesia.
+        # Celia: voz de español peninsular del catálogo oficial de Cartesia.
         tts=inference.TTS(
             model="cartesia/sonic-3",
-            voice="de38f545-c574-44e8-9b54-a7d6fec1c6b1",
+            voice="ad38904c-0ce9-42b1-9159-5ad5352ef089",
             language="es",
         ),
     )
