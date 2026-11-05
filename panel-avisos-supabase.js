@@ -32,12 +32,12 @@ window.ContactiaAvisosPanel={crear(restaurante,pedir){
   contenido.replaceChildren(tabla);if(!filas.length){const p=document.createElement('p');p.textContent='Todavía no hay envíos registrados.';contenido.append(p);}
  }
  async function cargar(){const d=await solicitar('listar');filas=d.avisos;wa=d.whatsapp_habilitado;cargado=true;pintar();}
- function previsualizar(d,f){
+ function previsualizar(d,f,gestion=false){
   const dialog=document.createElement('dialog'),h=document.createElement('h2'),p=document.createElement('p'),texto=document.createElement('p'),aviso=document.createElement('p');
   h.textContent='Revisar aviso de WhatsApp';p.textContent=`Destino: ${d.destino}`;texto.textContent=d.borrador;
   aviso.textContent=d.envio_habilitado?'Se enviará la plantilla aprobada. Después podrá comprobar su entrega.':'El envío está desactivado o el teléfono no está habilitado para pruebas.';
   const cerrar=boton('Volver sin enviar',()=>dialog.close());dialog.append(h,p,texto,aviso,cerrar);
-  if(d.envio_habilitado&&wa)dialog.append(boton('Enviar aviso de WhatsApp',()=>{dialog.close();actuar('enviar_whatsapp',f);}));
+  if(d.envio_habilitado&&(gestion||wa))dialog.append(boton('Enviar aviso de WhatsApp',()=>{dialog.close();gestion?actuarGestion('enviar_whatsapp_gestion',f):actuar('enviar_whatsapp',f);}));
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();cerrar.focus();
  }
  async function actuar(accion,f){
@@ -57,26 +57,29 @@ window.ContactiaAvisosPanel={crear(restaurante,pedir){
  const cambios=document.createElement('div');cambios.className='tabla-reservas';
  const solicitarGestion=(operacion,id)=>pedir('supabase_avisos',{restaurante_id:restaurante.id,operacion,...(id?{aviso_id:id}:{})});
  async function cargarGestion(){
-  const d=await solicitarGestion('listar_gestion'),tabla=document.createElement('table');tabla.createCaption().textContent='Correos de modificaciones y cancelaciones';
-  const cab=tabla.createTHead().insertRow();['Reserva','Aviso','Estado del correo','Acciones'].forEach(t=>{const th=document.createElement('th');th.scope='col';th.textContent=t;cab.append(th);});
+  const d=await solicitarGestion('listar_gestion'),tabla=document.createElement('table');tabla.createCaption().textContent='Avisos de modificaciones y cancelaciones';
+  const cab=tabla.createTHead().insertRow();['Reserva','Aviso','Correo','WhatsApp','Acciones'].forEach(t=>{const th=document.createElement('th');th.scope='col';th.textContent=t;cab.append(th);});
   const cuerpo=tabla.createTBody();
   d.avisos.forEach(f=>{
    const tr=cuerpo.insertRow();tr.insertCell().textContent=`${f.nombre} · ${f.fecha} · ${f.hora}`;
    tr.insertCell().textContent=f.tipo==='cancelada'?'Cancelación':'Modificación';
    tr.insertCell().textContent=f.estado==='omitido'?'Sin correo habilitado':textos[f.estado]||'Sin información';
+   tr.insertCell().textContent=textos[f.whatsapp_estado]||'Sin solicitar';
    const a=tr.insertCell();
    if(f.puede_revisar)a.append(boton('Comprobar entrega',()=>actuarGestion('consultar_gestion',f)));
    if(f.puede_reintentar)a.append(boton('Reintentar aviso',()=>{if(window.confirm(`¿Reintentar el correo de ${f.tipo==='cancelada'?'cancelación':'modificación'} de ${f.nombre}?`))actuarGestion('reintentar_gestion',f);}));
+   if(f.puede_preparar_whatsapp)a.append(boton('Preparar WhatsApp del aviso',()=>actuarGestion('preparar_whatsapp_gestion',f)));
+   if(f.puede_revisar_whatsapp)a.append(boton('Comprobar WhatsApp del aviso',()=>actuarGestion('consultar_whatsapp_gestion',f)));
    if(!a.childNodes.length)a.textContent='Solo consulta';
   });
-  cambios.replaceChildren(tabla);if(!d.avisos.length){const p=document.createElement('p');p.textContent='Todavía no hay correos de modificaciones o cancelaciones.';cambios.append(p);}
+  cambios.replaceChildren(tabla);if(!d.avisos.length){const p=document.createElement('p');p.textContent='Todavía no hay avisos de modificaciones o cancelaciones.';cambios.append(p);}
  }
  async function actuarGestion(accion,f){
   if(ocupado)return;bloquear(true);estado.textContent='Comprobando el aviso…';
-  try{const d=await solicitarGestion(accion,f.aviso_id);await cargarGestion();estado.textContent=d.mensaje;}
+  try{const d=await solicitarGestion(accion,f.aviso_id);await cargarGestion();estado.textContent=d.mensaje;if(accion==='preparar_whatsapp_gestion'&&typeof d.borrador==='string')previsualizar(d,f,true);}
   catch(e){estado.textContent=e.message;}finally{bloquear(false);}
  }
- const verCambios=boton('Ver correos de cambios y cancelaciones',async()=>{
+ const verCambios=boton('Ver avisos de cambios y cancelaciones',async()=>{
   if(ocupado)return;bloquear(true);try{await cargarGestion();estado.textContent='Correos de cambios y cancelaciones actualizados.';}catch(e){estado.textContent=e.message;}finally{bloquear(false);}
  });
  raiz.append(titulo,nota,controles,estado,contenido,verCambios,cambios);

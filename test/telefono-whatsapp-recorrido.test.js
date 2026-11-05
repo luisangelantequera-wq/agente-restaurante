@@ -29,7 +29,7 @@ test.beforeEach(async()=>{await db.exec('begin');});
 test.afterEach(async()=>{await db.exec('rollback');});
 const dato=async(sql,p=[])=> (await db.query(sql,p)).rows[0];
 function res(){return{setHeader(){},end(s){this.body=JSON.parse(s);}};}
-async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false,fallarCorreoGestion=false}={}){
+async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false,fallarCorreoGestion=false,whatsappGestionActivo=false,perderWhatsAppGestion=false}={}){
  const horario=Object.fromEntries(['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map(d=>[d,['13:00-16:00','20:00-23:00']]));
  await db.query('insert into auth.users(id) values($1)',[propietario]);
  await db.query(`insert into public.restaurantes(slug,nombre,duracion_reserva_minutos,reservas_web_activas,horario_reservas) values('prueba-sol','Sol',90,true,$1)`,[JSON.stringify(horario)]);
@@ -40,7 +40,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  if(variasZonas)await db.exec("insert into public.zonas(restaurante_id,nombre) select id,'TERRAZA' from public.restaurantes");
  const {fecha}=await dato(`select to_char((clock_timestamp() at time zone 'Europe/Madrid')::date+7,'YYYY-MM-DD') as fecha`);
  let perdidaGestion=perderGestion;
- const permitidas=new Set(['registrar_turno_llamada_voz','consultar_llamadas_voz_panel','consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','gestionar_personas_voz','gestionar_reserva_con_correo','preparar_correo_gestion','finalizar_correo_gestion','correos_gestion_panel','entrega_correo_gestion','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
+ const permitidas=new Set(['registrar_turno_llamada_voz','consultar_llamadas_voz_panel','consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','gestionar_personas_voz','gestionar_reserva_con_correo','preparar_correo_gestion','finalizar_correo_gestion','correos_gestion_panel','entrega_correo_gestion','entrega_correo_gestion_evento','preparar_whatsapp_gestion','reclamar_whatsapp_gestion','finalizar_whatsapp_gestion','entrega_whatsapp_gestion','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
  const cliente={rpc:async(n,a)=>{
   assert.ok(permitidas.has(n),n);await db.exec('savepoint rpc');
   try{const pares=Object.entries(a),llamada=pares.map(([k,v],i)=>k+'=> '+(Array.isArray(v)&&k!=='p_candidatos'?'array(select jsonb_array_elements_text($'+(i+1)+'::jsonb))':'$'+(i+1))).join(',');
@@ -57,9 +57,11 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  const b={room,identity,timestamp:Date.now()},r=res();
  await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,b)},body:b},r);
  assert.equal(r.statusCode,200,JSON.stringify(r.body));let token=r.body.conversacion_token,acceso=r.body.acceso;
- const correosGestion=[];
+ const correosGestion=[],whatsappsGestion=[];
+ const envGestion={...env,CONTACTIA_SUPABASE_WHATSAPP_GESTION_ENABLED:whatsappGestionActivo?'1':'0',TWILIO_WHATSAPP_MODIFICACION_CONTENT_SID:'HX'+'5'.repeat(32),TWILIO_WHATSAPP_CANCELACION_CONTENT_SID:'HX'+'6'.repeat(32)};
+ const whatsappGestion=args=>require('../lib/whatsapp-gestion-supabase').enviar({...args,env:envGestion,fetchImpl:async(url,init)=>{const f=new URLSearchParams(init.body);whatsappsGestion.push({sid:f.get('ContentSid'),variables:JSON.parse(f.get('ContentVariables')),to:f.get('To')});assert.equal(f.has('StatusCallback'),false);if(perderWhatsAppGestion)throw Error('Respuesta perdida');return{ok:true,json:async()=>({sid:'SM'+String(whatsappsGestion.length).padStart(32,'7')})};}});
  const correoGestion=args=>require('../lib/correo-gestion-supabase').enviar({...args,fetchImpl:async(url,init)=>{assert.equal(url,'https://api.resend.com/emails');correosGestion.push({payload:JSON.parse(init.body),clave:init.headers['Idempotency-Key']});if(fallarCorreoGestion)throw Error('red');return{ok:true,json:async()=>({id:'80000000-0000-4000-8000-'+String(correosGestion.length).padStart(12,'0')})};}});
- const motor=telefono.crearMotor({env,clientFactory:()=>cliente,correo,correoGestion,whatsapp:args=>avisos.enviarSinCorreo({...args,fetchImpl})});
+ const motor=telefono.crearMotor({env,clientFactory:()=>cliente,correo,correoGestion,whatsappGestion,whatsapp:args=>avisos.enviarSinCorreo({...args,fetchImpl})});
  async function turno(mensaje,t=token){const out=res();await motor({method:'POST',headers:{host,'content-type':'application/json',authorization:'Bearer '+acceso},body:{mensaje,conversacion_token:t}},out);
   assert.equal(out.statusCode,200,JSON.stringify(out.body));token=out.body.conversacion_token;return out.body;}
  async function completar(respuesta){
@@ -87,7 +89,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  }
  async function nuevaLlamada(){sidLlamada+='otra';const out=res();const nb={room,identity,timestamp:Date.now()};await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,nb)},body:nb},out);assert.equal(out.statusCode,200);token=out.body.conversacion_token;acceso=out.body.acceso;}
  async function codigo(){const r=await dato('select r.peticion_id,c.contador from public.reservas r join contactia_privado.codigos_gestion_voz c on c.reserva_id=r.id');return require('../lib/codigo-gestion-voz').codigo(env,'prueba-sol',r.peticion_id,r.contador);}
- return{turno,completar,sinCorreo,accion,cliente,nuevaLlamada,codigo,correosGestion,get correos(){return enviosCorreo;},get whatsapps(){return enviosWhatsApp;}};
+ return{turno,completar,sinCorreo,accion,cliente,nuevaLlamada,codigo,correosGestion,whatsappsGestion,envGestion,get correos(){return enviosCorreo;},get whatsapps(){return enviosWhatsApp;}};
 }
 test('SIP: sí explícito persiste autorización y el respaldo existente entrega tras rebote confirmado',async()=>{
  const s=await escenario(),antes=await s.completar('Sí, autorizo');
@@ -473,4 +475,47 @@ test('correo gestión: corregir el destinatario impide enviar la instantánea al
  const s=await escenario({fallarCorreoGestion:true});await s.completar('No');await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await s.turno('Sí');
  const c=await dato('select * from contactia_privado.correos_gestion_reserva');await db.exec("update public.reservas set email='otro@example.invalid'");
  const r=await require('../lib/correo-gestion-supabase').enviar({cliente:s.cliente,env,aviso:c.id,hash:c.enlace_hash,fetchImpl:async()=>assert.fail('No enviar a dirección anterior')});assert.equal(r,'revision');
+});
+
+for(const tipo of ['modificada','cancelada']){
+ test('WhatsApp gestión: sin correo envía el aviso correcto y no repite la misma operación: '+tipo,async()=>{
+  const s=await escenario({whatsappGestionActivo:true});await s.sinCorreo();const c=await s.codigo();await s.nuevaLlamada();let r;
+  for(const t of [tipo==='modificada'?'Quiero cambiar a cuatro personas':'Quiero cancelar','600000000',c])r=await s.turno(t);
+  const token=r.conversacion_token;r=await s.turno('Sí');assert.equal(r.paso,'terminado');
+  assert.equal(s.whatsappsGestion.length,1);assert.equal(s.whatsappsGestion[0].sid,s.envGestion[tipo==='modificada'?'TWILIO_WHATSAPP_MODIFICACION_CONTENT_SID':'TWILIO_WHATSAPP_CANCELACION_CONTENT_SID']);
+  assert.notEqual(s.whatsappsGestion[0].sid,env.TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID);
+  assert.equal(s.whatsappsGestion[0].to,'whatsapp:+34600000000');
+  assert.match(s.whatsappsGestion[0].variables['6'],tipo==='modificada'?/^\d{3} \d{3}$/:/^PRUEBA-/);
+  await s.turno('Sí',token);assert.equal(s.whatsappsGestion.length,1);
+ });
+}
+test('WhatsApp gestión: resultado incierto conserva la modificación y jamás vuelve a enviar',async()=>{
+ const s=await escenario({whatsappGestionActivo:true,perderWhatsAppGestion:true});await s.sinCorreo();await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await s.turno('Sí');
+ const c=await dato('select * from contactia_privado.correos_gestion_reserva');assert.equal(c.whatsapp_estado,'incierto');assert.equal(s.whatsappsGestion.length,1);
+ const r=await require('../lib/whatsapp-gestion-supabase').enviar({cliente:s.cliente,env:s.envGestion,aviso:c.id,hash:c.enlace_hash,fetchImpl:async()=>assert.fail('No repetir')});assert.equal(r,'incierto');assert.equal((await dato('select personas from public.reservas')).personas,4);
+});
+test('WhatsApp gestión: un correo aceptado o entregado no dispara el respaldo',async()=>{
+ const s=await escenario({whatsappGestionActivo:true});await s.completar('Sí');await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await s.turno('Sí');
+ assert.equal(s.whatsappsGestion.length,0);const c=await dato('select * from contactia_privado.correos_gestion_reserva');
+ const r=await s.cliente.rpc('preparar_whatsapp_gestion',{p_aviso:c.id,p_hash:c.enlace_hash});assert.equal(r.data.estado,'no_elegible');
+ await s.cliente.rpc('entrega_correo_gestion_evento',{p_aviso:c.id,p_id_proveedor:c.id_proveedor,p_evento:'delivered'});
+ assert.equal((await s.cliente.rpc('preparar_whatsapp_gestion',{p_aviso:c.id,p_hash:c.enlace_hash})).data.estado,'no_elegible');
+});
+for(const [evento,elegible] of [['bounced',true],['failed',true],['complained',false],['suppressed',false]]){
+ test('WhatsApp gestión: fallo de correo confirmado '+evento+' permite respaldo='+elegible,async()=>{
+  const s=await escenario({whatsappGestionActivo:true});await s.completar('Sí');await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await s.turno('Sí');const c=await dato('select * from contactia_privado.correos_gestion_reserva');
+  let envios=0;const r=await require('../lib/avisos-supabase').ejecutar({env:s.envGestion,usuario:propietario,clientFactory:()=>s.cliente,
+   body:{accion:'supabase_avisos',operacion:'consultar_gestion',restaurante_id:Number(c.restaurante_id),aviso_id:c.id},
+   fetchImpl:async(url,init)=>{
+    if(url.startsWith('https://api.resend.com/'))return{ok:true,json:async()=>({id:c.id_proveedor,last_event:evento})};
+    envios++;const f=new URLSearchParams(init.body);assert.equal(f.get('ContentSid'),s.envGestion.TWILIO_WHATSAPP_MODIFICACION_CONTENT_SID);return{ok:true,json:async()=>({sid:'SM'+'9'.repeat(32)})};
+   }});
+  assert.equal(r.estado,'rechazado');assert.equal(envios,elegible?1:0);
+ });
+}
+test('WhatsApp gestión: falta de permiso o cambio de teléfono bloquea el aviso',async()=>{
+ const s=await escenario({whatsappGestionActivo:true});await s.completar('No');await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await s.turno('Sí');const c=await dato('select * from contactia_privado.correos_gestion_reserva');
+ await s.cliente.rpc('entrega_correo_gestion_evento',{p_aviso:c.id,p_id_proveedor:c.id_proveedor,p_evento:'bounced'});
+ assert.equal((await s.cliente.rpc('preparar_whatsapp_gestion',{p_aviso:c.id,p_hash:c.enlace_hash})).data.estado,'no_elegible');assert.equal(s.whatsappsGestion.length,0);
+ await db.exec("update public.reservas set telefono='+34600000001'");assert.equal((await s.cliente.rpc('preparar_whatsapp_gestion',{p_aviso:c.id,p_hash:c.enlace_hash})).data.estado,'no_elegible');
 });

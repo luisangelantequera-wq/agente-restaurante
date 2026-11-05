@@ -12,7 +12,7 @@ test('panel de correos de cambios: carga manual, texto seguro y reintento dirigi
   assert.equal(b.operacion,'reintentar_gestion');assert.equal(b.aviso_id,f.aviso_id);assert.equal(b.reserva_id,undefined);return{ok:true,mensaje:'Correo aceptado por el proveedor.'};
  });dom.window.document.body.append(raiz);assert.equal(peticiones.length,0);
  const buscar=texto=>[...raiz.querySelectorAll('button')].find(b=>b.textContent===texto);
- buscar('Ver correos de cambios y cancelaciones').click();await esperar();await esperar();
+ buscar('Ver avisos de cambios y cancelaciones').click();await esperar();await esperar();
  assert.equal(peticiones[0].b.operacion,'listar_gestion');assert.equal(raiz.querySelectorAll('img').length,0);assert.ok(raiz.textContent.includes(f.nombre));
  buscar('Reintentar aviso').click();await esperar();await esperar();
  assert.deepEqual(peticiones.map(p=>p.b.operacion),['listar_gestion','reintentar_gestion','listar_gestion']);assert.match(raiz.textContent,/Correo aceptado por el proveedor/);

@@ -25,11 +25,26 @@ a revisión. Un correo aceptado no se reenvía y no equivale a entrega.
 En el panel, abrir «Avisos y confirmaciones» y pulsar «Ver correos de cambios y
 cancelaciones». La consulta es manual. Propietarios y encargados activos pueden
 comprobar la entrega o reintentar un correo pendiente; no se muestran secretos
-ni se hacen consultas periódicas. WhatsApp para modificaciones y cancelaciones
-no está activado: requiere su texto o plantilla y revisar el alcance del
-consentimiento. No se reutiliza la plantilla de confirmación inicial.
+ni se hacen consultas periódicas. El respaldo de WhatsApp se prepara para la misma operación cuando no hubo correo
+y el cliente autorizó el canal, o cuando la consulta manual de Resend confirma
+un rebote o fallo de entrega. No se usa para quejas, supresiones ni correos
+entregados. No hay sondeo periódico ni webhook nuevo: los fallos posteriores a
+la aceptación de un correo se conocen al comprobar su entrega en este panel.
 
-Validación local: `npm test` (932 pruebas) y `npm run test:supabase`. Los
+Requiere las dos plantillas de utilidad aprobadas y un interruptor exclusivo:
+`TWILIO_WHATSAPP_MODIFICACION_CONTENT_SID`,
+`TWILIO_WHATSAPP_CANCELACION_CONTENT_SID` y
+`CONTACTIA_SUPABASE_WHATSAPP_GESTION_ENABLED=1`. Las plantillas deben ser distintas
+entre sí y de la confirmación inicial. Hasta disponer de sus identificadores
+reales y aprobación, el envío permanece bloqueado. Textos en
+`lib/whatsapp-gestion-supabase.js`, constante `PLANTILLAS`.
+
+El permiso y el teléfono se comprueban de nuevo antes del envío. Una operación
+incierta no se reenvía; los resultados se conservan por modificación o
+cancelación y pueden consultarse manualmente en el mismo panel. No se aplican
+los nuevos avisos a operaciones históricas.
+
+Validación local: `npm test` (945 pruebas) y `npm run test:supabase`. Los
 proveedores están simulados; no se han enviado mensajes durante las pruebas.
 Queda comprobar la entrega real después de una nueva modificación o cancelación
 telefónica con una dirección habilitada. No se reenvían los avisos antiguos.
