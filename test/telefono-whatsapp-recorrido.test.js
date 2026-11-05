@@ -29,7 +29,7 @@ test.beforeEach(async()=>{await db.exec('begin');});
 test.afterEach(async()=>{await db.exec('rollback');});
 const dato=async(sql,p=[])=> (await db.query(sql,p)).rows[0];
 function res(){return{setHeader(){},end(s){this.body=JSON.parse(s);}};}
-async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false}={}){
+async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false}={}){
  const horario=Object.fromEntries(['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map(d=>[d,['13:00-16:00','20:00-23:00']]));
  await db.query('insert into auth.users(id) values($1)',[propietario]);
  await db.query(`insert into public.restaurantes(slug,nombre,duracion_reserva_minutos,reservas_web_activas,horario_reservas) values('prueba-sol','Sol',90,true,$1)`,[JSON.stringify(horario)]);
@@ -37,6 +37,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  await db.exec(`insert into public.zonas(restaurante_id,nombre) select id,'INTERIOR' from public.restaurantes;
  insert into public.mesas(restaurante_id,zona_id,nombre,capacidad) select restaurante_id,id,'Mesa uno',4 from public.zonas;
  set local role service_role;`);
+ if(variasZonas)await db.exec("insert into public.zonas(restaurante_id,nombre) select id,'TERRAZA' from public.restaurantes");
  const {fecha}=await dato(`select to_char((clock_timestamp() at time zone 'Europe/Madrid')::date+7,'YYYY-MM-DD') as fecha`);
  let perdidaGestion=perderGestion;
  const permitidas=new Set(['registrar_turno_llamada_voz','consultar_llamadas_voz_panel','consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','gestionar_personas_voz','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
@@ -252,7 +253,7 @@ async function gestionarPersonas(s,inicial='Quiero hacer una modificación'){
 test('SIP personas: identifica primero y admite personas, comprueba y escribe solo tras sí',async()=>{
  const s=await escenario();await s.sinCorreo();let r=await gestionarPersonas(s);
  assert.equal(r.paso,'gestion_cambio');assert.equal(r.respuesta,'Indíqueme qué cambio quiere realizar.');
- r=await s.turno('Quiero cambiar a cuatro personas');assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/4 personas/);assert.match(r.respuesta,/las dos de la tarde/);assert.doesNotMatch(r.respuesta,/14:00/);assert.doesNotMatch(r.respuesta,/2 personas/);assert.equal((r.respuesta.match(/INTERIOR/g)||[]).length,1);
+ r=await s.turno('Quiero cambiar a cuatro personas');assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/4 personas/);assert.match(r.respuesta,/las dos de la tarde/);assert.doesNotMatch(r.respuesta,/14:00/);assert.doesNotMatch(r.respuesta,/2 personas/);assert.doesNotMatch(r.respuesta,/INTERIOR/);
  assert.equal((await dato('select personas from public.reservas')).personas,2);
  r=await s.turno('quizá');assert.equal(r.paso,'gestion_confirmar');r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(r.respuesta,'Su reserva ha quedado modificada. Gracias por llamar. Hasta pronto.');
  assert.equal((await dato('select personas from public.reservas')).personas,4);
@@ -311,3 +312,28 @@ for(const [frase,paso] of [['Quiero cambiar mi reserva al viernes','gestion_hora
   assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,0);
  });
 }
+
+for(const variasZonas of [false,true]){
+ for(const accion of ['cancelar','hora','personas']){
+  test(`SIP: zona en ${accion}, varias zonas=${variasZonas}`,async()=>{
+   const s=await escenario({variasZonas});
+   // La nueva reserva conserva su zona interna aunque no se locute.
+   const cRes=await dato("select to_char((clock_timestamp() at time zone 'Europe/Madrid')::date+7,'DD/MM/YYYY') as fecha");
+   let r=await s.turno(`Para el ${cRes.fecha} para dos a las dos en INTERIOR`);
+   for(const t of ['Cliente ficticio','cliente arroba example punto invalid','Sí','600000000','No','ninguna'])r=await s.turno(t);
+   assert.equal(r.paso,'final');assert.equal(/INTERIOR/.test(r.respuesta),variasZonas);
+   await s.turno('Sí');assert.equal((await dato('select z.nombre from public.reservas r join public.zonas z on z.id=r.zona_id')).nombre,'INTERIOR');
+   const codigo=await s.codigo();await s.nuevaLlamada();
+   for(const t of [accion==='cancelar'?'Quiero cancelar':'Quiero modificar','600000000',codigo])r=await s.turno(t);
+   if(accion!=='cancelar')r=await s.turno(accion==='hora'?'Quiero cambiar la hora a las tres y media':'Quiero cambiar a cuatro personas');
+   assert.equal(r.paso,'gestion_confirmar');assert.equal(/INTERIOR/.test(r.respuesta),variasZonas);
+   assert.equal((await dato('select estado from public.reservas')).estado,'confirmada');
+  });
+ }
+}
+test('SIP: conserva el nombre de una zona de la reserva que ya no es la única abierta',async()=>{
+ const s=await escenario();await s.sinCorreo();const c=await s.codigo();
+ await db.exec("update public.zonas set estado='inactivo'; insert into public.zonas(restaurante_id,nombre) select id,'TERRAZA' from public.restaurantes");
+ await s.nuevaLlamada();let r;for(const t of ['Quiero cancelar','600000000',c])r=await s.turno(t);
+ assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/INTERIOR/);
+});
