@@ -177,7 +177,8 @@ test('SQL gestión: cinco intentos por teléfono persisten aunque cambie el orig
 test('SIP gestión: rechazar la cancelación conserva reserva y ocupación',async()=>{
  const s=await escenario();await s.sinCorreo();const c=await s.codigo();await s.nuevaLlamada();
  for(const t of ['cancelar','600000000',c])await s.turno(t);
- const r=await s.turno('No');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/No he cancelado/);
+ let r=await s.turno('No');assert.equal(r.paso,'gestion_tras_no_cancelacion');assert.equal(r.respuesta,'No ha cancelado la reserva. ¿Ha cambiado de idea o desea hacer un cambio?');assert.doesNotMatch(r.respuesta,/Hasta pronto/);
+ r=await s.turno('Mantengo la reserva');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/se mantiene como estaba/);
  assert.equal((await dato('select estado from public.reservas')).estado,'confirmada');assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,0);
 });
 test('SIP gestión: respuesta perdida no ejecuta dos veces ni permite cambiar el destino mientras está incierto',async()=>{
@@ -337,3 +338,36 @@ test('SIP: conserva el nombre de una zona de la reserva que ya no es la única a
  await s.nuevaLlamada();let r;for(const t of ['Quiero cancelar','600000000',c])r=await s.turno(t);
  assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/INTERIOR/);
 });
+
+async function rechazarCancelacion(s){
+ await s.sinCorreo();const c=await s.codigo();await s.nuevaLlamada();
+ for(const t of ['Quiero cancelar','600000000',c])await s.turno(t);
+ return s.turno('No');
+}
+for(const frase of ['He cambiado de idea','No quiero hacer cambios','La dejo como está']){
+ test('SIP: tras rechazar cancelar mantiene la reserva: '+frase,async()=>{
+  const s=await escenario();await rechazarCancelacion(s);const r=await s.turno(frase);
+  assert.equal(r.paso,'terminado');assert.equal((await dato('select estado from public.reservas')).estado,'confirmada');
+  assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,0);
+ });
+}
+test('SIP: sí y no ambiguos después de rechazar cancelar nunca cancelan ni terminan la llamada',async()=>{
+ const s=await escenario();await rechazarCancelacion(s);
+ for(const t of ['Sí','No','No quiero mantenerla','No sé']){
+  const r=await s.turno(t);assert.equal(r.paso,'gestion_tras_no_cancelacion');assert.match(r.respuesta,/mantener la reserva/);
+ }
+ assert.equal((await dato('select estado from public.reservas')).estado,'confirmada');
+ assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,0);
+});
+for(const [peticion,campo,valor] of [['Quiero hacer un cambio','personas','cuatro'],['Quiero cambiar la hora a las tres y media',null,null]]){
+ test('SIP: pasa de cancelar a modificar sin volver a autenticar: '+peticion,async()=>{
+  const s=await escenario();await rechazarCancelacion(s);let r=await s.turno(peticion);
+  if(campo){assert.equal(r.paso,'gestion_cambio');r=await s.turno(campo);assert.equal(r.paso,'gestion_personas');r=await s.turno(valor);}
+  assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/Confirma el cambio/);assert.doesNotMatch(r.respuesta,/cancelación|teléfono|código/);
+  assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,0);
+  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/ha quedado modificada/);
+  const v=await dato("select estado,personas,to_char(inicio at time zone 'Europe/Madrid','HH24:MI') as hora from public.reservas");
+  assert.equal(v.estado,'confirmada');assert.equal(v.personas,campo?4:2);assert.equal(v.hora,campo?'14:00':'15:30');
+  assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,1);
+ });
+}
