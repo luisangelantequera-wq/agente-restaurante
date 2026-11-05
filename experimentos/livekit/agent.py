@@ -123,8 +123,7 @@ async def iniciar_sesion(ctx, participante, relay=None):
         record=False,  # Desactivar audio, transcripciones, trazas y logs en Agent Insights.
     )
     await session.say(
-        "Bienvenido a Restaurante Sol. Esta es una prueba con datos ficticios. "
-        "¿Qué día, a qué hora y para cuántas personas desea reservar?"
+        "Bienvenido al sistema de reservas del Restaurante Sol. ¿En qué le puedo ayudar?"
     )
     return session
 

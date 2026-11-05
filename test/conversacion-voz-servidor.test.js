@@ -236,3 +236,13 @@ test('voz: despide la llamada después de confirmar y no duplica la despedida al
  assert.equal((r.respuesta.match(/Gracias por llamar/g)||[]).length,1);
  r=await s.turno('Sí');assert.equal((r.respuesta.match(/Gracias por llamar/g)||[]).length,1);assert.equal(s.reservas.size,1);
 });
+
+for(const [entrada,paso] of [['El martes a las dos','personas'],['El martes','hora']]){
+ test('voz: pregunta hora antes de personas: '+entrada,async()=>{
+  const s=escenario();await s.comienzo();let r=await s.turno('quiero hacer una reserva');
+  assert.equal(r.respuesta,'Dígame el día y la hora de la reserva.');assert.doesNotMatch(r.respuesta,/personas/);
+  r=await s.turno(entrada);assert.equal(r.paso,paso);assert.equal(r.estado.datos.personas,undefined);
+  if(paso==='hora'){r=await s.turno('a las dos');assert.equal(r.paso,'personas');}
+  assert.equal(r.estado.datos.hora,'14:00');r=await s.turno('dos');assert.equal(r.paso,'nombre');assert.equal(r.estado.datos.personas,2);
+ });
+}

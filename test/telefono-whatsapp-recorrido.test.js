@@ -39,12 +39,12 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  set local role service_role;`);
  const {fecha}=await dato(`select to_char((clock_timestamp() at time zone 'Europe/Madrid')::date+7,'YYYY-MM-DD') as fecha`);
  let perdidaGestion=perderGestion;
- const permitidas=new Set(['registrar_turno_llamada_voz','consultar_llamadas_voz_panel','consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
+ const permitidas=new Set(['registrar_turno_llamada_voz','consultar_llamadas_voz_panel','consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','gestionar_personas_voz','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
  const cliente={rpc:async(n,a)=>{
   assert.ok(permitidas.has(n),n);await db.exec('savepoint rpc');
   try{const pares=Object.entries(a),llamada=pares.map(([k,v],i)=>k+'=> '+(Array.isArray(v)&&k!=='p_candidatos'?'array(select jsonb_array_elements_text($'+(i+1)+'::jsonb))':'$'+(i+1))).join(',');
    const r=await dato(`select public.${n}(${llamada}) as valor`,pares.map(([,v])=>v&&typeof v==='object'?JSON.stringify(v):v));
-   await db.exec('release savepoint rpc');if(n==='gestionar_reserva_web'&&a.p_accion!=='consultar'&&perdidaGestion){perdidaGestion=false;return{error:{code:'08006'}};}return{data:r.valor};
+   await db.exec('release savepoint rpc');if(['gestionar_reserva_web','gestionar_personas_voz'].includes(n)&&a.p_accion!=='consultar'&&perdidaGestion){perdidaGestion=false;return{error:{code:'08006'}};}return{data:r.valor};
   }catch(e){await db.exec('rollback to savepoint rpc');await db.exec('release savepoint rpc');return{error:{code:e.code,message:e.message}};}
  },from:tabla=>({select(){return this;},eq(){return this;},maybeSingle:async()=>({data:await dato("select id,nombre,zona_horaria from public.restaurantes where slug='prueba-sol'")}),order:async()=>({data:(await db.query("select id,nombre from public.zonas where estado='activo'")).rows})})};
  const sidCorreo='60000000-0000-4000-8000-000000000001',sidWhatsApp='SM'+'4'.repeat(32);let enviosCorreo=0,enviosWhatsApp=0;
@@ -214,7 +214,7 @@ test('registro SIP: conserva la dificultad para pedir un cambio y oculta contact
  const lista=await s.cliente.rpc('consultar_llamadas_voz_panel',{p_usuario:propietario,p_restaurante:rest,p_llamada:null});assert.equal(lista.error,undefined);assert.equal(lista.data.llamadas.length,2);
  const id=lista.data.llamadas.find(x=>!x.finalizada).llamada_id;
  const detalle=await s.cliente.rpc('consultar_llamadas_voz_panel',{p_usuario:propietario,p_restaurante:rest,p_llamada:id});
- const t=detalle.data.turnos.at(-1);assert.equal(t.cliente,'Cámbiela al viernes');assert.equal(t.incidencia,true);assert.equal(t.antes,'gestion_cambio');
+ const t=detalle.data.turnos.at(-1);assert.equal(t.cliente,'Cámbiela al viernes');assert.equal(t.incidencia,false);assert.equal(t.antes,'gestion_cambio');assert.equal(t.despues,'gestion_hora');
  assert.ok(!JSON.stringify(detalle.data).includes(c));
  const ajeno=await s.cliente.rpc('consultar_llamadas_voz_panel',{p_usuario:propietario,p_restaurante:rest+1,p_llamada:id});assert.equal(ajeno.error.code,'42501');
  await db.exec("update public.restaurante_usuarios set activo=false");
@@ -243,5 +243,71 @@ for(const [frase,paso] of [['Quiero cambiar el día.','gestion_fecha'],['Quiero 
 test('SIP gestión: si la petición inicial menciona día y hora, pregunta qué desea cambiar',async()=>{
  const s=await escenario();await s.sinCorreo();const c=await s.codigo();await s.nuevaLlamada();
  for(const t of ['Quiero cambiar el día o la hora','600000000'])await s.turno(t);
- const r=await s.turno(c);assert.equal(r.paso,'gestion_cambio');assert.match(r.respuesta,/día o la hora/);
+ const r=await s.turno(c);assert.equal(r.paso,'gestion_cambio');assert.match(r.respuesta,/día, la hora o el número de personas/);
 });
+
+async function gestionarPersonas(s,inicial='Quiero hacer una modificación'){
+ const c=await s.codigo();await s.nuevaLlamada();await s.turno(inicial);await s.turno('600000000');return s.turno(c);
+}
+test('SIP personas: identifica primero y admite personas, comprueba y escribe solo tras sí',async()=>{
+ const s=await escenario();await s.sinCorreo();let r=await gestionarPersonas(s);
+ assert.equal(r.paso,'gestion_cambio');assert.match(r.respuesta,/día, la hora o el número de personas/);
+ r=await s.turno('Quiero cambiar a cuatro personas');assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/4 personas/);
+ assert.equal((await dato('select personas from public.reservas')).personas,2);
+ r=await s.turno('quizá');assert.equal(r.paso,'gestion_confirmar');r=await s.turno('Sí');assert.equal(r.paso,'terminado');
+ assert.equal((await dato('select personas from public.reservas')).personas,4);
+ assert.equal((await dato('select count(*)::int as n from public.reserva_mesas where activa')).n,1);
+});
+test('SIP personas: conserva la cantidad adelantada antes del teléfono y código',async()=>{
+ const s=await escenario();await s.sinCorreo();const r=await gestionarPersonas(s,'Quiero modificar mi reserva a cuatro personas');
+ assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/4 personas/);
+ const no=await s.turno('No');assert.equal(no.paso,'gestion_cambio');assert.equal((await dato('select personas from public.reservas')).personas,2);
+ await s.turno('personas');const invalido=await s.turno('dos o cuatro personas');assert.equal(invalido.paso,'gestion_personas');
+});
+test('SIP personas: sin mesa adecuada conserva exactamente la ocupación y permite otra propuesta',async()=>{
+ const s=await escenario();await s.sinCorreo();const antes=await dato('select jsonb_agg(to_jsonb(m)) as mesas from public.reserva_mesas m');
+ await gestionarPersonas(s,'Quiero cambiar a seis personas');const r=await s.turno('Sí');
+ assert.equal(r.paso,'gestion_cambio');assert.match(r.respuesta,/reserva original se mantiene/);
+ assert.equal((await dato('select personas from public.reservas')).personas,2);
+ assert.deepEqual((await dato('select jsonb_agg(to_jsonb(m)) as mesas from public.reserva_mesas m')).mesas,antes.mesas);
+ assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,0);
+ await s.turno('cuatro personas');assert.equal((await s.turno('Sí')).paso,'terminado');
+});
+test('SIP personas: busca otra mesa cuando la original ya no tiene capacidad',async()=>{
+ const s=await escenario();await s.sinCorreo();await db.exec("insert into public.mesas(restaurante_id,zona_id,nombre,capacidad) select restaurante_id,id,'Mesa grande',6 from public.zonas");
+ const original=await dato('select mesa_id from public.reserva_mesas');await gestionarPersonas(s,'Quiero cambiar a seis personas');assert.equal((await s.turno('Sí')).paso,'terminado');
+ assert.notEqual((await dato('select mesa_id from public.reserva_mesas')).mesa_id,original.mesa_id);assert.equal((await dato('select personas from public.reservas')).personas,6);
+});
+test('SIP personas: una mesa ocupada no se roba y el intento fallido conserva la original',async()=>{
+ const s=await escenario();await s.sinCorreo();await db.exec("insert into public.mesas(restaurante_id,zona_id,nombre,capacidad) select restaurante_id,id,'Mesa grande',6 from public.zonas");
+ const a=await dato("select public.crear_reserva(r.restaurante_id,gen_random_uuid(),array[m.id],r.inicio,6,'Otro','','','') as id from public.reservas r join public.mesas m on m.nombre='Mesa grande' limit 1");
+ const antes=(await db.query('select reserva_id,mesa_id,periodo::text,activa from public.reserva_mesas order by reserva_id')).rows;
+ // El código de esta llamada pertenece a la reserva creada por teléfono, no a la otra reserva.
+ const c=await dato('select r.peticion_id,c.contador from public.reservas r join contactia_privado.codigos_gestion_voz c on c.reserva_id=r.id');
+ const codigo=require('../lib/codigo-gestion-voz').codigo(env,'prueba-sol',c.peticion_id,c.contador);
+ await s.nuevaLlamada();for(const t of ['Quiero cambiar a seis personas','600000000',codigo,'Sí'])await s.turno(t);
+ assert.deepEqual((await db.query('select reserva_id,mesa_id,periodo::text,activa from public.reserva_mesas order by reserva_id')).rows,antes);
+ assert.equal((await dato('select personas from public.reservas where id<>$1',[a.id])).personas,2);
+});
+test('SIP personas: solo combina mesas configuradas y conserva el mismo código',async()=>{
+ const s=await escenario();await s.sinCorreo();const codigo=await s.codigo();
+ await db.exec("insert into public.mesas(restaurante_id,zona_id,nombre,capacidad) select restaurante_id,id,'Mesa segunda',2 from public.zonas; insert into public.combinaciones_mesas(restaurante_id,zona_id,nombre,min_personas,max_personas) select restaurante_id,id,'Conjunto',5,6 from public.zonas; insert into public.combinacion_mesas(restaurante_id,combinacion_id,mesa_id) select m.restaurante_id,c.id,m.id from public.mesas m join public.combinaciones_mesas c on c.zona_id=m.zona_id");
+ await gestionarPersonas(s,'Quiero cambiar a seis personas');assert.equal((await s.turno('Sí')).paso,'terminado');assert.equal((await dato('select count(*)::int as n from public.reserva_mesas where activa')).n,2);assert.equal(await s.codigo(),codigo);
+});
+test('SIP personas: resultado perdido se recupera sin repetir la modificación',async()=>{
+ const s=await escenario({perderGestion:true});await s.sinCorreo();await gestionarPersonas(s,'Quiero cambiar a cuatro personas');
+ assert.equal((await s.turno('Sí')).paso,'gestion_incierto');assert.equal((await s.turno('dos personas')).paso,'gestion_incierto');assert.equal((await s.turno('reintentar')).paso,'terminado');
+ assert.equal((await dato('select personas from public.reservas')).personas,4);assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,1);
+});
+test('SIP personas: detecta cambios simultáneos de cantidad aunque la hora sea la misma',async()=>{
+ const s=await escenario();await s.sinCorreo();await gestionarPersonas(s,'Quiero cambiar a cuatro personas');await db.exec('update public.reservas set personas=3');
+ const r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/ha cambiado/);assert.equal((await dato('select personas from public.reservas')).personas,3);
+ const p=await dato("select has_function_privilege('anon','public.gestionar_personas_voz(text,text,text,uuid,date,time,timestamptz,integer,integer)','execute') as anon,has_function_privilege('authenticated','public.gestionar_personas_voz(text,text,text,uuid,date,time,timestamptz,integer,integer)','execute') as usuario");assert.equal(p.anon,false);assert.equal(p.usuario,false);
+});
+
+for(const [frase,paso] of [['Quiero cambiar mi reserva al viernes','gestion_hora'],['Quiero cambiar mi reserva a las tres','gestion_confirmar'],['Quiero cambiar el número de personas','gestion_personas']]){
+ test('SIP gestión: recuerda el cambio adelantado: '+frase,async()=>{
+  const s=await escenario();await s.sinCorreo();const r=await gestionarPersonas(s,frase);assert.equal(r.paso,paso);
+  assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,0);
+ });
+}

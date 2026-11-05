@@ -59,12 +59,12 @@ test('el motor exige autorización y snapshot de esa llamada; ignora cualquier i
  assert.equal((await s.turno({...m},'Sí',{}, {authorization:'Bearer incorrecto'})).statusCode,403);
  assert.throws(()=>verificar(env,m.acceso,Date.now()+180001));
  assert.equal(s.reservas.size,0);
- const r=await s.turno(m,'Para el martes');assert.equal(r.statusCode,200);assert.match(r.body.respuesta,/personas/);
+ const r=await s.turno(m,'Para el martes');assert.equal(r.statusCode,200);assert.match(r.body.respuesta,/hora/);
  assert.deepEqual(Object.keys(r.body).sort(),['conversacion_token','ok','paso','respuesta']);
 });
 test('reserva telefónica completa: hora natural, nombre limpio, email confirmado y sin captcha final',async()=>{
  const s=escenario();await s.callback();const m=JSON.parse(s.conexiones[0].agents[0].metadata);
- for(const texto of ['martes','Dos.','A las dos','A nombre de Antonio','Antonio García arroba Gmail punto com','Sí','seis seis seis cuatro cuatro cuatro cinco cinco cinco','Ninguna']){
+ for(const texto of ['martes','A las dos','Dos.','A nombre de Antonio','Antonio García arroba Gmail punto com','Sí','seis seis seis cuatro cuatro cuatro cinco cinco cinco','Ninguna']){
   const r=await s.turno(m,texto);assert.equal(r.statusCode,200);assert.notEqual(r.body.paso,'terminado');
  }
  assert.equal(s.reservas.size,0);const previo=m.conversacion_token;
@@ -77,6 +77,6 @@ test('reserva telefónica completa: hora natural, nombre limpio, email confirmad
 });
 test('si SQL pierde el resultado tras guardar, reintentar recupera la misma reserva',async()=>{
  const s=escenario({perderEscritura:true});await s.callback();const m=JSON.parse(s.conexiones[0].agents[0].metadata);
- for(const t of ['martes','dos','a las dos','sí','Antonio','pepito arroba gmail punto com','sí','666444555','ninguna','sí'])await s.turno(m,t);
+ for(const t of ['martes','a las dos','dos','sí','Antonio','pepito arroba gmail punto com','sí','666444555','ninguna','sí'])await s.turno(m,t);
  assert.equal(s.reservas.size,1);const r=await s.turno(m,'reintentar');assert.equal(r.body.paso,'terminado');assert.equal(s.reservas.size,1);
 });

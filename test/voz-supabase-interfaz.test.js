@@ -46,8 +46,8 @@ async function probarRecorrido(t,{respuestaPerdida=false}={}){
  const rpc=(id,mensaje,callerIdentity='agente')=>activa.rpc({requestId:id,callerIdentity,payload:JSON.stringify({mensaje})});
  await rpc('intruso','mañana','otro');assert.equal(rpcBase.filter(l=>l.n==='consultar_disponibilidad_web').length,0);
  await Promise.all([rpc('fecha','mañana'),rpc('fecha','mañana')]);assert.equal(rpcBase.filter(l=>l.n==='consultar_disponibilidad_web').length,1);
- await rpc('personas','Dos.');const info=JSON.parse(await rpc('info','teneis cocido'));assert.match(info.respuesta,/miércoles tenemos cocido/);assert.equal(info.paso,'hora');
- for(const [i,m] of ['A las dos.','si','A nombre de Juan','juan arroba example punto invalid','si','600000000','ninguna','si'].entries()){
+ await rpc('hora','A las dos.');const info=JSON.parse(await rpc('info','teneis cocido'));assert.match(info.respuesta,/miércoles tenemos cocido/);assert.equal(info.paso,'personas');
+ for(const [i,m] of ['Dos.','si','A nombre de Juan','juan arroba example punto invalid','si','600000000','ninguna','si'].entries()){
   const resultado=JSON.parse(await rpc('turno-'+i,m));
   if(m==='juan arroba example punto invalid'){
    assert.ok(d.querySelector('#mensajes').textContent.includes('juan@example.invalid'));
