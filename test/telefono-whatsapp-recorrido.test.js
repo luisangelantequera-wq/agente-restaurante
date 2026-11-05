@@ -252,7 +252,7 @@ async function gestionarPersonas(s,inicial='Quiero hacer una modificación'){
 test('SIP personas: identifica primero y admite personas, comprueba y escribe solo tras sí',async()=>{
  const s=await escenario();await s.sinCorreo();let r=await gestionarPersonas(s);
  assert.equal(r.paso,'gestion_cambio');assert.equal(r.respuesta,'Indíqueme qué cambio quiere realizar.');
- r=await s.turno('Quiero cambiar a cuatro personas');assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/4 personas/);assert.doesNotMatch(r.respuesta,/2 personas/);assert.equal((r.respuesta.match(/INTERIOR/g)||[]).length,1);
+ r=await s.turno('Quiero cambiar a cuatro personas');assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/4 personas/);assert.match(r.respuesta,/las dos de la tarde/);assert.doesNotMatch(r.respuesta,/14:00/);assert.doesNotMatch(r.respuesta,/2 personas/);assert.equal((r.respuesta.match(/INTERIOR/g)||[]).length,1);
  assert.equal((await dato('select personas from public.reservas')).personas,2);
  r=await s.turno('quizá');assert.equal(r.paso,'gestion_confirmar');r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(r.respuesta,'Su reserva ha quedado modificada. Gracias por llamar. Hasta pronto.');
  assert.equal((await dato('select personas from public.reservas')).personas,4);
