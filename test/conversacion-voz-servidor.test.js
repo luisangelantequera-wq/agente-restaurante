@@ -232,7 +232,7 @@ test('voz: recoge y guarda el teléfono dictado por bloques de dos cifras',async
 
 test('voz: despide la llamada después de confirmar y no duplica la despedida al repetir el cierre',async()=>{
  const s=escenario();await s.hastaFinal();let r=await s.turno('Sí');
- assert.match(r.respuesta,/Reserva de prueba confirmada[\s\S]*Gracias por llamar\. Hasta pronto\.$/);
+ assert.match(r.respuesta,/Reserva de prueba confirmada[\s\S]*Gracias por llamar\. Que tenga un buen día\.$/);
  assert.equal((r.respuesta.match(/Gracias por llamar/g)||[]).length,1);
  r=await s.turno('Sí');assert.equal((r.respuesta.match(/Gracias por llamar/g)||[]).length,1);assert.equal(s.reservas.size,1);
 });

@@ -153,7 +153,7 @@ test('SIP gestión: teléfono y código agrupado permiten cancelar solo tras con
  r=await s.turno(c.slice(0,3)+' '+c.slice(3));assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/Confirma la cancelación/);
  assert.equal((await dato('select estado from public.reservas')).estado,'confirmada');
  r=await s.turno('quizá');assert.equal(r.paso,'gestion_confirmar');
- r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/cancelada[\s\S]*Gracias por llamar\. Hasta pronto\.$/);assert.equal((await dato('select estado from public.reservas')).estado,'cancelada');
+ r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/cancelada[\s\S]*Gracias por llamar\. Que tenga un buen día\.$/);assert.equal((await dato('select estado from public.reservas')).estado,'cancelada');
  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,1);
 });
 test('SIP gestión: modifica la hora y conserva nombre, teléfono, código y número de personas',async()=>{
@@ -177,7 +177,7 @@ test('SQL gestión: cinco intentos por teléfono persisten aunque cambie el orig
 test('SIP gestión: rechazar la cancelación conserva reserva y ocupación',async()=>{
  const s=await escenario();await s.sinCorreo();const c=await s.codigo();await s.nuevaLlamada();
  for(const t of ['cancelar','600000000',c])await s.turno(t);
- let r=await s.turno('No');assert.equal(r.paso,'gestion_tras_no_cancelacion');assert.equal(r.respuesta,'No ha cancelado la reserva. ¿Ha cambiado de idea o desea hacer un cambio?');assert.doesNotMatch(r.respuesta,/Hasta pronto/);
+ let r=await s.turno('No');assert.equal(r.paso,'gestion_tras_no_cancelacion');assert.equal(r.respuesta,'No ha cancelado la reserva. ¿Ha cambiado de idea o desea hacer un cambio?');assert.doesNotMatch(r.respuesta,/Que tenga un buen día/);
  r=await s.turno('Mantengo la reserva');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/se mantiene como estaba/);
  assert.equal((await dato('select estado from public.reservas')).estado,'confirmada');assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,0);
 });
@@ -256,7 +256,7 @@ test('SIP personas: identifica primero y admite personas, comprueba y escribe so
  assert.equal(r.paso,'gestion_cambio');assert.equal(r.respuesta,'Indíqueme qué cambio quiere realizar.');
  r=await s.turno('Quiero cambiar a cuatro personas');assert.equal(r.paso,'gestion_confirmar');assert.match(r.respuesta,/4 personas/);assert.match(r.respuesta,/las dos de la tarde/);assert.doesNotMatch(r.respuesta,/14:00/);assert.doesNotMatch(r.respuesta,/2 personas/);assert.doesNotMatch(r.respuesta,/INTERIOR/);
  assert.equal((await dato('select personas from public.reservas')).personas,2);
- r=await s.turno('quizá');assert.equal(r.paso,'gestion_confirmar');r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(r.respuesta,'Su reserva ha quedado modificada. Gracias por llamar. Hasta pronto.');
+ r=await s.turno('quizá');assert.equal(r.paso,'gestion_confirmar');r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(r.respuesta,'Su reserva ha quedado modificada. Gracias por llamar. Que tenga un buen día.');
  assert.equal((await dato('select personas from public.reservas')).personas,4);
  assert.equal((await dato('select count(*)::int as n from public.reserva_mesas where activa')).n,1);
 });
@@ -371,3 +371,37 @@ for(const [peticion,campo,valor] of [['Quiero hacer un cambio','personas','cuatr
   assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,1);
  });
 }
+
+async function intentarCancelarYaCancelada(s){
+ await s.sinCorreo();const c=await s.codigo();await s.nuevaLlamada();
+ for(const t of ['Quiero cancelar','600000000',c,'Sí'])await s.turno(t);
+ await s.nuevaLlamada();let r;for(const t of ['Quiero cancelar','600000000',c])r=await s.turno(t);
+ return {r,c};
+}
+test('SIP: reserva ya cancelada ofrece reservar de nuevo y permite rechazar sin otra operación',async()=>{
+ const s=await escenario();let {r}=await intentarCancelarYaCancelada(s);
+ assert.equal(r.paso,'gestion_ofrecer_nueva_reserva');assert.equal(r.respuesta,'La reserva ya estaba cancelada. ¿Quiere hacer una nueva reserva?');
+ r=await s.turno('Quizá');assert.equal(r.paso,'gestion_ofrecer_nueva_reserva');assert.doesNotMatch(r.respuesta,/Que tenga un buen día/);
+ r=await s.turno('No, gracias');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/sigue cancelada[\s\S]*Que tenga un buen día/);
+ assert.equal((await dato('select estado from public.reservas')).estado,'cancelada');assert.equal((await dato('select count(*)::int as n from contactia_privado.operaciones_gestion')).n,1);
+});
+for(const aceptar of ['Sí','Sí, quiero hacer una nueva reserva']){
+ test('SIP: una reserva cancelada permite crear otra con datos y permisos nuevos: '+aceptar,async()=>{
+  const s=await escenario();await intentarCancelarYaCancelada(s);let r=await s.turno(aceptar);
+  assert.equal(r.paso,'fecha');assert.match(r.respuesta,/día y la hora de la nueva reserva/);
+  const f=await dato("select to_char((clock_timestamp() at time zone 'Europe/Madrid')::date+8,'DD/MM/YYYY') as fecha");
+  r=await s.turno(`Para el ${f.fecha} para dos a las tres`);assert.equal(r.paso,'nombre');
+  for(const t of ['Nuevo cliente','cliente arroba example punto invalid','Sí','600000000'])r=await s.turno(t);
+  assert.equal(r.paso,'whatsapp_autorizado');await s.turno('No');r=await s.turno('ninguna');assert.equal(r.paso,'final');
+  assert.equal((await dato('select count(*)::int as n from public.reservas')).n,1);
+  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.match(r.respuesta,/Que tenga un buen día/);
+  const v=await dato("select count(*)::int as total,count(*) filter(where estado='cancelada')::int as canceladas,count(*) filter(where estado='confirmada' and nombre='Nuevo cliente')::int as nuevas from public.reservas");
+  assert.deepEqual(v,{total:2,canceladas:1,nuevas:1});
+  assert.equal((await dato("select c.whatsapp_autorizado from contactia_privado.contactos_reserva_web c join public.reservas r on r.id=c.reserva_id where r.estado='confirmada'")).whatsapp_autorizado,false);
+ });
+}
+test('SIP: un código incorrecto no revela que una reserva ya estaba cancelada',async()=>{
+ const s=await escenario();const {c}=await intentarCancelarYaCancelada(s);await s.nuevaLlamada();
+ for(const t of ['Quiero cancelar','600000000'])await s.turno(t);
+ const r=await s.turno(c==='000000'?'111111':'000000');assert.equal(r.paso,'gestion_codigo');assert.doesNotMatch(r.respuesta,/ya estaba cancelada|nueva reserva/);
+});
