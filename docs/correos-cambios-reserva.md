@@ -39,6 +39,11 @@ entre sí y de la confirmación inicial. Hasta disponer de sus identificadores
 reales y aprobación, el envío permanece bloqueado. Textos en
 `lib/whatsapp-gestion-supabase.js`, constante `PLANTILLAS`.
 
+La modificación lleva siete variables: restaurante, día, hora, personas, zona,
+código de gestión (seis cifras, agrupadas 3 + 3) y referencia completa. Código y
+referencia aparecen en párrafos separados al pie. La cancelación lleva seis
+variables y muestra la referencia aparte; no la presenta como código de gestión.
+
 El permiso y el teléfono se comprueban de nuevo antes del envío. Una operación
 incierta no se reenvía; los resultados se conservan por modificación o
 cancelación y pueden consultarse manualmente en el mismo panel. No se aplican

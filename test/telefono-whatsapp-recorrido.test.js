@@ -486,6 +486,7 @@ for(const tipo of ['modificada','cancelada']){
   assert.notEqual(s.whatsappsGestion[0].sid,env.TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID);
   assert.equal(s.whatsappsGestion[0].to,'whatsapp:+34600000000');
   assert.match(s.whatsappsGestion[0].variables['6'],tipo==='modificada'?/^\d{3} \d{3}$/:/^PRUEBA-/);
+  if(tipo==='modificada')assert.match(s.whatsappsGestion[0].variables['7'],/^PRUEBA-/);
   await s.turno('Sí',token);assert.equal(s.whatsappsGestion.length,1);
  });
 }
