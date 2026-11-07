@@ -55,3 +55,19 @@ Validación local: `npm test` (945 pruebas) y `npm run test:supabase`. Los
 proveedores están simulados; no se han enviado mensajes durante las pruebas.
 Queda comprobar la entrega real después de una nueva modificación o cancelación
 telefónica con una dirección habilitada. No se reenvían los avisos antiguos.
+
+Para dirigir al cliente a la web, crear tres plantillas Utility de tipo
+Call to action con un botón URL dinámico. Mantener las variables del cuerpo
+y añadir al botón la siguiente variable:
+
+| Aviso | Variable del botón | Etiqueta | Configuración Preview |
+|---|---|---|---|
+| Confirmación ES | 7 | Gestionar mi reserva | `TWILIO_WHATSAPP_CONFIRMACION_WEB_CONTENT_SID` |
+| Modificación | 8 | Gestionar mi reserva | `TWILIO_WHATSAPP_MODIFICACION_WEB_CONTENT_SID` |
+| Cancelación | 7 | Consultar estado | `TWILIO_WHATSAPP_CANCELACION_WEB_CONTENT_SID` |
+
+URL del botón: `https://<CONTACTIA_PUBLIC_HOSTNAME>/gestion-prueba.html#restaurante={{n}}`.
+Como ejemplo ficticio para la variable, utilizar `prueba-sol&token=` seguido de
+64 ceros. La aplicación reconstruye el mismo enlace privado que el correo,
+comprueba su hash y pasa el sufijo solo al proveedor; no lo guarda con el aviso.
+No configurar estos identificadores hasta que WhatsApp apruebe las plantillas.

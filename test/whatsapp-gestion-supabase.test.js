@@ -29,3 +29,24 @@ test('una respuesta perdida del proveedor no genera otro POST',async()=>{
  const c=cliente();let envios=0;const args={env,cliente:c,aviso,hash,fetchImpl:async()=>{envios++;throw Error('red');}};
  assert.equal(await enviar(args),'incierto');assert.equal(await enviar(args),'incierto');assert.equal(envios,1);
 });
+
+test('la plantilla web envía el enlace de la reserva sin guardar el token en el aviso',async()=>{
+ const {secretoGestion,hashGestion}=require('../lib/reservas-web-supabase');
+ const e={...env,CONTACTIA_PUBLIC_HOSTNAME:'prueba.example.com',TWILIO_WHATSAPP_MODIFICACION_WEB_CONTENT_SID:'HX'+'8'.repeat(32)};
+ const token=secretoGestion(e,datos.slug,datos.peticion_id),h=hashGestion(token);
+ const c=cliente(),rpc=c.rpc;c.rpc=(n,a)=>{
+  if(n==='reclamar_whatsapp_gestion')assert.doesNotMatch(JSON.stringify(a.p_snapshot),new RegExp(token));
+  return rpc(n,a);
+ };
+ const args={env:e,cliente:c,aviso,fetchImpl:async(url,init)=>{
+  const form=new URLSearchParams(init.body);
+  assert.equal(form.get('ContentSid'),e.TWILIO_WHATSAPP_MODIFICACION_WEB_CONTENT_SID);
+  const v=JSON.parse(form.get('ContentVariables'));
+  const link=new URL('https://'+e.CONTACTIA_PUBLIC_HOSTNAME+'/gestion-prueba.html#restaurante='+v['8']);
+  assert.equal(new URLSearchParams(link.hash.slice(1)).get('token'),token);
+  assert.equal(new URLSearchParams(link.hash.slice(1)).get('restaurante'),datos.slug);
+  return{ok:true,json:async()=>({sid:'SM'+'6'.repeat(32)})};
+ }};
+ assert.equal(await enviar({...args,hash}),'pendiente');
+ assert.equal(await enviar({...args,hash:h}),'aceptado');
+});

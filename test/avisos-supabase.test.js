@@ -88,3 +88,21 @@ test('un fallo al persistir impide anunciar éxito',async()=>{
  const c=cliente(),rpc=c.rpc;c.rpc=async(n,a)=>n==='finalizar_aviso_web'?{data:false}:rpc(n,a);
  await assert.rejects(ejecutarAccion('consultar_correo',{c,fetchImpl:async()=>({ok:true,json:async()=>({id:t.id_proveedor,last_event:'delivered'})})}));
 });
+
+test('la confirmación con botón usa el enlace privado sin mostrarlo en el panel',async()=>{
+ const {secretoGestion,hashGestion}=require('../lib/reservas-web-supabase');
+ const e={...env,CONTACTIA_SUPABASE_WHATSAPP_ENABLED:'1',CONTACTIA_SUPABASE_WHATSAPP_ALLOWLIST:'+34600000000',
+  TWILIO_WHATSAPP_CONFIRMACION_WEB_CONTENT_SID:'HX'+'8'.repeat(32)};
+ const slug='prueba-sol',peticion_id=reserva,token=secretoGestion(e,slug,peticion_id);
+ const trabajo={...t,slug,peticion_id,enlace_hash:hashGestion(token)};
+ const pre=await ejecutarAccion('preparar_whatsapp',{env:e,c:cliente(trabajo)});
+ assert.match(pre.resultado.borrador,/Gestionar mi reserva/);
+ assert.ok(!JSON.stringify(pre.resultado).includes(token));
+ let recibido;
+ const r=await ejecutarAccion('enviar_whatsapp',{env:e,c:cliente(trabajo),fetchImpl:async(url,init)=>{
+  recibido=new URLSearchParams(init.body);return{ok:true,json:async()=>({sid:t.whatsapp_sid})};
+ }});
+ assert.equal(r.resultado.estado,'aceptado');
+ assert.equal(recibido.get('ContentSid'),e.TWILIO_WHATSAPP_CONFIRMACION_WEB_CONTENT_SID);
+ assert.equal(JSON.parse(recibido.get('ContentVariables'))['7'],slug+'&token='+token);
+});
