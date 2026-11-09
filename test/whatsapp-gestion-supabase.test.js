@@ -42,7 +42,10 @@ test('la plantilla web envía el enlace de la reserva sin guardar el token en el
   const form=new URLSearchParams(init.body);
   assert.equal(form.get('ContentSid'),e.TWILIO_WHATSAPP_MODIFICACION_WEB_CONTENT_SID);
   const v=JSON.parse(form.get('ContentVariables'));
-  const link=new URL('https://'+e.CONTACTIA_PUBLIC_HOSTNAME+'/gestion-prueba.html#restaurante='+v['8']);
+  assert.deepEqual(Object.keys(v),['1','2','3','4','5','6','7']);
+  assert.match(v['6'],/^\d{3} \d{3}$/);
+  assert.ok(!Object.values(v).includes(datos.referencia));
+  const link=new URL('https://'+e.CONTACTIA_PUBLIC_HOSTNAME+'/gestion-prueba.html#restaurante='+v['7']);
   assert.equal(new URLSearchParams(link.hash.slice(1)).get('token'),token);
   assert.equal(new URLSearchParams(link.hash.slice(1)).get('restaurante'),datos.slug);
   return{ok:true,json:async()=>({sid:'SM'+'6'.repeat(32)})};

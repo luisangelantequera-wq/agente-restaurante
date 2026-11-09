@@ -57,13 +57,14 @@ Queda comprobar la entrega real después de una nueva modificación o cancelaci�
 telefónica con una dirección habilitada. No se reenvían los avisos antiguos.
 
 Para dirigir al cliente a la web, crear tres plantillas Utility de tipo
-Call to action con un botón URL dinámico. Mantener las variables del cuerpo
-y añadir al botón la siguiente variable:
+Call to action con un botón URL dinámico. El cuerpo tiene seis variables; la
+modificación web conserva el código de gestión, sin la referencia larga.
+Añadir al botón la siguiente variable:
 
 | Aviso | Variable del botón | Etiqueta | Configuración Preview |
 |---|---|---|---|
 | Confirmación ES | 7 | Gestionar mi reserva | `TWILIO_WHATSAPP_CONFIRMACION_WEB_CONTENT_SID` |
-| Modificación | 8 | Gestionar mi reserva | `TWILIO_WHATSAPP_MODIFICACION_WEB_CONTENT_SID` |
+| Modificación | 7 | Gestionar mi reserva | `TWILIO_WHATSAPP_MODIFICACION_WEB_CONTENT_SID` |
 | Cancelación | 7 | Consultar estado | `TWILIO_WHATSAPP_CANCELACION_WEB_CONTENT_SID` |
 
 URL del botón: `https://<CONTACTIA_PUBLIC_HOSTNAME>/gestion-prueba.html#restaurante={{n}}`.
