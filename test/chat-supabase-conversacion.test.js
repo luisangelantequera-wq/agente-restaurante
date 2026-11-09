@@ -273,3 +273,21 @@ for(const nombre of ['Sol','Luna']){
   }
  });
 }
+
+test('voz: después de una fecha imposible, aclarar comensales conserva la hora y solo vuelve a pedir el día',async()=>{
+ const s=escenario({cierrePorVoz:true});
+ await s.chat.enviar('El 31 de noviembre a las dos.',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'fecha');
+ assert.equal(s.llamadas.length,0);
+ await s.chat.enviar('Dos o tres personas.',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'personas');
+ await s.chat.enviar('Mejor cuatro.',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'fecha');
+ assert.equal(s.chat.exportar().datos.personas,4);
+ assert.equal(s.chat.exportar().datos.hora,'14:00');
+ assert.equal(s.llamadas.length,0);
+ await s.chat.enviar('El 15 de diciembre.',{canal:'voz'});
+ assert.equal(s.chat.estado().paso,'nombre');
+ assert.deepEqual(s.llamadas.map(l=>l.a),['supabase_web_fecha','supabase_web_disponibilidad']);
+ assert.deepEqual(s.llamadas.at(-1).d,{fecha:'2026-12-15',hora:'14:00',personas:4,zona_id:'zona1'});
+});
