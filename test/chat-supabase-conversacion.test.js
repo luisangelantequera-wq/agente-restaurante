@@ -254,3 +254,22 @@ test('deletrear: elimina solo la introducción explícita y rechaza puntos invá
  assert.equal(correoDictado('bounced punto punto test arroba resend punto dev'),null);
  assert.equal(correoDictado('bounced arroba resen punto dev'),'bounced@resen.dev');
 });
+
+for(const nombre of ['Sol','Luna']){
+ test(nombre+': voz conserva los comensales y la hora de comida en frases compuestas',async()=>{
+  for(const turnos of [
+   ['Para el martes, y dos personas.','A las dos.'],
+   ['Para el martes a eso de las dos, somos dos.'],
+   ['Para el martes a las dos, somos dos o tres.','Dos.']
+  ]){
+   const s=escenario({cierrePorVoz:true,config:{nombre},pedir:async(a,d)=>a==='supabase_web_fecha'
+    ?{fecha_admitida:true,horario:['13:00-16:00','20:00-23:00']}:{disponible:d.hora==='14:00'&&d.personas===2}});
+   await s.chat.enviar(turnos[0],{canal:'voz'});
+   if(turnos.length>1)assert.equal(s.chat.estado().paso,turnos[0].includes('o tres')?'personas':'hora',turnos[0]);
+   for(const t of turnos.slice(1))await s.chat.enviar(t,{canal:'voz'});
+   assert.equal(s.chat.estado().paso,'nombre',turnos.join(' / '));
+   assert.deepEqual(s.llamadas.map(l=>l.a),['supabase_web_fecha','supabase_web_disponibilidad']);
+   const {hora,personas}=s.llamadas.at(-1).d;assert.equal(hora,'14:00');assert.equal(personas,2);
+  }
+ });
+}
