@@ -7,13 +7,14 @@ const sip=require('../lib/telefono-sip'),telefono=require('../lib/telefono-entra
 const {enviarConfirmacion}=require('../lib/correo-supabase');
 const avisos=require('../lib/avisos-supabase');
 const propietario='b0000000-0000-4000-8000-000000000001',host='preview.example',room='contactia-telefono-sol-prueba-consentimiento',identity='sip_ficticio';
-const env={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1',CONTACTIA_SIP_ENABLED:'1',CONTACTIA_SIP_TRUNK_ID:'ST_ficticio',
+const baseEnv={VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'migracion-supabase-fase-1',CONTACTIA_SIP_ENABLED:'1',CONTACTIA_SIP_TRUNK_ID:'ST_ficticio',
  CONTACTIA_SIP_WORKER_SECRET:'secreto-compartido-ficticio-000000000',CONTACTIA_WEB_SUPABASE_ENABLED:'1',CONTACTIA_SUPABASE_VOICE_ENABLED:'1',
  CONTACTIA_SUPABASE_SERVER_KEY:'sb_secret_servidor-ficticio-recorrido-wa',LIVEKIT_API_KEY:'ficticia',LIVEKIT_API_SECRET:'ficticia-livekit-000000000',LIVEKIT_URL:'wss://prueba.livekit.cloud',
  CONTACTIA_TWILIO_BROWSER_WEBHOOK_URL:'https://'+host+'/api/restaurante?canal=telefono_prueba',CONTACTIA_PUBLIC_HOSTNAME:host,
  CONTACTIA_SUPABASE_REGISTRO_VOZ_ENABLED:'1',CONTACTIA_SUPABASE_GESTION_VOZ_ENABLED:'1',CONTACTIA_SUPABASE_WHATSAPP_ENABLED:'1',CONTACTIA_SUPABASE_WHATSAPP_ALLOWLIST:'+34600000000',
  CONTACTIA_SUPABASE_EMAIL_ENABLED:'1',CONTACTIA_SUPABASE_EMAIL_ALLOWLIST:'cliente@example.invalid',EMAIL_FROM:'Prueba <prueba@example.invalid>',RESEND_API_KEY:'ficticia',
  TWILIO_ACCOUNT_SID:'AC'+'1'.repeat(32),TWILIO_AUTH_TOKEN:'2'.repeat(32),TWILIO_WHATSAPP_FROM:'whatsapp:+34910000000',TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID:'HX'+'3'.repeat(32)};
+const env=baseEnv;
 let db;
 test.before(async()=>{
  db=new PGlite({extensions:{btree_gist}});
@@ -29,7 +30,8 @@ test.beforeEach(async()=>{await db.exec('begin');});
 test.afterEach(async()=>{await db.exec('rollback');});
 const dato=async(sql,p=[])=> (await db.query(sql,p)).rows[0];
 function res(){return{setHeader(){},end(s){this.body=JSON.parse(s);}};}
-async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false,fallarCorreoGestion=false,whatsappGestionActivo=false,perderWhatsAppGestion=false}={}){
+async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false,fallarCorreoGestion=false,whatsappGestionActivo=false,perderWhatsAppGestion=false,confirmacionWeb=false}={}){
+ const env={...baseEnv,...(confirmacionWeb?{TWILIO_WHATSAPP_CONFIRMACION_WEB_CONTENT_SID:'HX'+'8'.repeat(32)}:{})};
  const horario=Object.fromEntries(['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map(d=>[d,['13:00-16:00','20:00-23:00']]));
  await db.query('insert into auth.users(id) values($1)',[propietario]);
  await db.query(`insert into public.restaurantes(slug,nombre,duracion_reserva_minutos,reservas_web_activas,horario_reservas) values('prueba-sol','Sol',90,true,$1)`,[JSON.stringify(horario)]);
@@ -74,7 +76,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  const fetchImpl=async(url,init)=>{
   if(url.startsWith('https://api.resend.com/'))return{ok:true,json:async()=>({id:sidCorreo,last_event:correoEstado})};
   assert.ok(url.startsWith('https://api.twilio.com/'));
-  if(init.method==='POST'){enviosWhatsApp++;const f=new URLSearchParams(init.body);assert.equal(f.get('To'),'whatsapp:+34600000000');assert.equal(f.get('ContentSid'),env.TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID);assert.equal(f.has('StatusCallback'),false);assert.match(JSON.parse(f.get('ContentVariables'))['6'],/^\d{3} \d{3}$/);
+  if(init.method==='POST'){enviosWhatsApp++;const f=new URLSearchParams(init.body);assert.equal(f.get('To'),'whatsapp:+34600000000');assert.equal(f.get('ContentSid'),env.TWILIO_WHATSAPP_CONFIRMACION_WEB_CONTENT_SID||env.TWILIO_WHATSAPP_CONFIRMACION_CONTENT_SID);if(confirmacionWeb)assert.match(JSON.parse(f.get('ContentVariables'))['7'],/^prueba-sol&token=[a-f0-9]{64}$/);assert.equal(f.has('StatusCallback'),false);assert.match(JSON.parse(f.get('ContentVariables'))['6'],/^\d{3} \d{3}$/);
    if(perderWhatsApp)throw Error('respuesta perdida');return{ok:true,json:async()=>({sid:sidWhatsApp})};}
   return{ok:true,json:async()=>({sid:sidWhatsApp,account_sid:env.TWILIO_ACCOUNT_SID,status:'delivered'})};
  };
@@ -129,6 +131,21 @@ test('SIP: dos fallos de correo permiten reservar sin dirección y enviar un ún
  const listado=await s.cliente.rpc('avisos_web_panel',{p_usuario:propietario,p_restaurante:row.restaurante_id,p_accion:'listar'});
  assert.equal(listado.data.avisos[0].correo_motivo,'correo_no_comprendido');assert.equal(listado.data.avisos[0].puede_revisar_whatsapp,true);
 });
+test('SIP: no tener correo abre WhatsApp de inmediato y corregir el móvil no pierde el envío con botón',async()=>{
+ const s=await escenario({confirmacionWeb:true});
+ await s.turno('El martes para dos a las dos');
+ await s.turno('Cliente ficticio');
+ let r=await s.turno('No tengo correo electrónico');assert.equal(r.paso,'ofrecer_whatsapp');assert.match(r.respuesta,/Autoriza/);
+ await s.turno('Sí');await s.turno('600000001');
+ r=await s.turno('No, el fijo es 918000000');assert.equal(r.paso,'telefono');assert.match(r.respuesta,/no es un móvil/);
+ await s.turno('600000000');await s.turno('Sí');await s.turno('ninguna');
+ assert.equal(s.whatsapps,0);
+ r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.whatsapps,1);
+ const c=await dato('select whatsapp_estado from contactia_privado.contactos_reserva_web');
+ assert.equal(c.whatsapp_estado,'aceptado');
+ assert.equal((await dato('select telefono from public.reservas')).telefono,'+34600000000');
+});
+
 test('SIP: sin correo, un envío incierto nunca se repite al recuperar la confirmación',async()=>{
  const s=await escenario({perderWhatsApp:true}),antes=await s.sinCorreo();assert.equal(s.whatsapps,1);
  assert.equal((await dato('select whatsapp_estado from contactia_privado.contactos_reserva_web')).whatsapp_estado,'incierto');
