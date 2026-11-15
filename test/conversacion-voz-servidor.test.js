@@ -55,7 +55,7 @@ test('conflicto de mesa al escribir no anuncia éxito y permite corregir los dat
 test('un token de voz no autoriza datos, estado, UUID, restaurante, IP u origen elegidos por el cliente',async()=>{
  const s=escenario();await s.comienzo();const t=s.token(),base={accion:'supabase_voz_turno',slug:'prueba-sol',conversacion_token:t,mensaje:'Sí'};
  for(const extra of [{estado:{paso:'final'}},{peticion_id:peticion},{nombre:'Intruso'},{datos:{hora:'14:00'}},{slug:'prueba-luna'},
-  {whatsapp_autorizado:true},{conversacion_token:JSON.stringify({paso:'final'})},{conversacion_token:t.slice(0,80)+'A'+t.slice(81)}]){
+  {whatsapp_autorizado:true},{conversacion_token:JSON.stringify({paso:'final'})},{conversacion_token:t.slice(0,80)+(t[80]==='A'?'B':'A')+t.slice(81)}]){
   const r=await s.api({...base,...extra});assert.ok([400,403,404].includes(r.statusCode));
  }
  const otraIP={...req,headers:{...req.headers,'x-forwarded-for':'192.0.2.2'}};assert.equal((await s.api(base,otraIP)).statusCode,403);
@@ -98,7 +98,7 @@ test('reserva de voz en siete respuestas: correo confirmado y resumen final cons
  r=await s.turno('Sí');assert.equal(r.paso,'telefono');
  r=await s.turno('seis seis seis cuatro cuatro cuatro cinco cinco cinco');assert.equal(r.paso,'observaciones');
  r=await s.turno('Una trona');assert.equal(r.paso,'final');
- assert.match(r.respuesta,/4 personas/);assert.match(r.respuesta,/catorce horas/);assert.match(r.respuesta,/Marta/);assert.match(r.respuesta,/Teléfono: 666444555/);assert.doesNotMatch(r.respuesta,/\+34/);assert.match(r.respuesta,/Una trona/);
+ assert.match(r.respuesta,/4 personas/);assert.match(r.respuesta,/catorce horas/);assert.match(r.respuesta,/Marta/);assert.match(r.respuesta,/Teléfono: 6, 6, 6, 4, 4, 4, 5, 5, 5/);assert.doesNotMatch(r.respuesta,/\+34/);assert.match(r.respuesta,/Una trona/);
  assert.doesNotMatch(r.respuesta,/example|Observaciones: ninguna/);
  assert.equal(s.reservas.size,0);
  r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.reservas.size,1);
@@ -161,9 +161,9 @@ test('voz: una corrección natural del teléfono pide el nuevo y solo guarda el 
   const s=escenario({whatsapp:true});await hastaPermiso(s);await s.turno('Sí');await s.turno('ninguna');
   let r=await s.turno(frase);assert.equal(r.paso,'telefono',frase);assert.match(r.respuesta,/Cuál es su número de móvil/);
   r=await s.turno('600000001');assert.equal(r.paso,'whatsapp_autorizado');assert.equal(r.estado.datos.whatsapp_autorizado,undefined);
-  r=await s.turno('Sí');assert.equal(r.paso,'final');assert.match(r.respuesta,/600000001/);assert.doesNotMatch(r.respuesta,/600000000/);
+  r=await s.turno('Sí');assert.equal(r.paso,'final');assert.match(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 1/);assert.doesNotMatch(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 0/);
   // Una segunda corrección tampoco recupera el teléfono de la primera toma.
-  await s.turno(frase);await s.turno('600000002');r=await s.turno('Sí');assert.equal(r.paso,'final');assert.match(r.respuesta,/600000002/);
+  await s.turno(frase);await s.turno('600000002');r=await s.turno('Sí');assert.equal(r.paso,'final');assert.match(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 2/);
   assert.equal(s.reservas.size,0);await s.turno('Sí');assert.equal(s.reservas.size,1);
   const d=[...s.reservas.values()][0];assert.equal(d.p_telefono,'+34600000002');assert.equal(d.p_whatsapp,true);
  }
@@ -173,7 +173,7 @@ test('voz: corregir el teléfono antes de las observaciones completa los datos a
   const s=escenario({whatsapp:true});await hastaPermiso(s);if(!antesDelPermiso)await s.turno('Sí');
   let r=await s.turno('Perdón, el teléfono no es correcto');assert.equal(r.paso,'telefono');
   await s.turno('600000001');r=await s.turno('Sí');assert.equal(r.paso,'observaciones');
-  r=await s.turno('ninguna');assert.equal(r.paso,'final');assert.match(r.respuesta,/600000001/);
+  r=await s.turno('ninguna');assert.equal(r.paso,'final');assert.match(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 1/);
   await s.turno('Sí');assert.equal([...s.reservas.values()][0].p_telefono,'+34600000001');
  }
 });
@@ -227,7 +227,7 @@ test('voz: recoge y guarda el teléfono dictado por bloques de dos cifras',async
  const s=escenario();await s.comienzo();
  for(const t of ['El martes para dos a las dos','Cliente ficticio','cliente arroba example punto invalid','Sí'])await s.turno(t);
  let r=await s.turno('seis cuarenta y seis cero veintitrés seis veinticuatro');assert.equal(r.paso,'observaciones');
- r=await s.turno('ninguna');assert.match(r.respuesta,/646023624/);await s.turno('Sí');assert.equal([...s.reservas.values()][0].p_telefono,'+34646023624');
+ r=await s.turno('ninguna');assert.match(r.respuesta,/6, 4, 6, 0, 2, 3, 6, 2, 4/);await s.turno('Sí');assert.equal([...s.reservas.values()][0].p_telefono,'+34646023624');
 });
 
 test('voz: despide la llamada después de confirmar y no duplica la despedida al repetir el cierre',async()=>{

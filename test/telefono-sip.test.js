@@ -11,9 +11,9 @@ function escenario(cambios={}){
  let consultas=0,sql=0;const entorno={...env,...cambios.env};
  const c={rpc:async(n)=>{sql++;assert.equal(n,'consumir_limite_web');return{data:cambios.cuota!==false};},
  from:()=>({select(){return this;},eq(){return this;},maybeSingle:async()=>({data:{id:1,nombre:'Sol',zona_horaria:'Europe/Madrid'}}),order:async()=>({data:[{id:'66666666-7777-4888-8999-aaaaaaaaaaaa',nombre:'INTERIOR'}]})})};
- const h=sip.crearInicio({env:entorno,clientFactory:()=>c,ahora:()=>now,livekitFactory:()=>({room:{
- getParticipant:async()=>{consultas++;return{identity,kind:3,attributes:{'sip.trunkID':'ST_ficticio','sip.trunkPhoneNumber':sip.NUMERO,'sip.callStatus':'ringing',...cambios.attrs},...cambios.participante};},
- listRooms:async()=>[{name:room,sid:'RM_ficticia',creationTime:Math.floor(now/1000),...cambios.sala}]}})});
+ const h=sip.crearInicio({env:entorno,clientFactory:()=>c,ahora:()=>now,esperar:async()=>{},livekitFactory:()=>({room:{
+ getParticipant:async(_,solicitada)=>{consultas++;return{identity:cambios.variasSalas?solicitada:identity,kind:3,attributes:{'sip.trunkID':'ST_ficticio','sip.trunkPhoneNumber':sip.NUMERO,'sip.callStatus':'ringing',...(cambios.atributosPorIntento?.[consultas-1]||cambios.attrs)},...cambios.participante};},
+ listRooms:async([solicitada])=>[{name:cambios.variasSalas?solicitada:room,sid:cambios.variasSalas&&solicitada!==room?'RM_otra':'RM_ficticia',creationTime:Math.floor(now/1000),...cambios.sala}]}})});
  async function inicio(body={},cabeceras={}){const b={room,identity,timestamp:now,...body},r=res();await h({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(entorno,b),...cabeceras},body:b},r);return r;}
  return{inicio,get consultas(){return consultas;},get sql(){return sql;}};
 }
@@ -23,6 +23,22 @@ test('SIP: inicia con participante real del trunk y número permitidos, sin depe
  const estado=motor.abrir(env,r.body.conversacion_token,{slug:'prueba-sol',host,huella:a.huella,ahora:now});assert.equal(estado.room,room);
  assert.doesNotMatch(r.raw,/LIVEKIT_API_SECRET|ficticia-livekit-secret|sip.phoneNumber|x-vercel-protection-bypass/);
  assert.equal(s.sql,1);
+});
+test('SIP: una llamada que aún está iniciándose espera sus atributos sin consumir cuota dos veces',async()=>{
+ const s=escenario({atributosPorIntento:[{'sip.callStatus':'dialing','sip.trunkPhoneNumber':undefined},{}]});
+ assert.equal((await s.inicio()).statusCode,200);assert.equal(s.consultas,2);assert.equal(s.sql,1);
+ const noIdentificada=escenario({attrs:{'sip.trunkID':undefined}});
+ assert.equal((await noIdentificada.inicio()).statusCode,403);assert.equal(noIdentificada.consultas,3);assert.equal(noIdentificada.sql,0);
+ const ajena=escenario({attrs:{'sip.trunkID':'ST_ajeno','sip.callStatus':'dialing'}});
+ assert.equal((await ajena.inicio()).statusCode,403);assert.equal(ajena.consultas,1);assert.equal(ajena.sql,0);
+});
+test('SIP: dos llamadas simultáneas obtienen sesiones separadas',async()=>{
+ const s=escenario({variasSalas:true}),otra=room+'-otra';
+ const [a,b]=await Promise.all([s.inicio(),s.inicio({room:otra,identity:'sip_otro_cliente'})]);
+ assert.equal(a.statusCode,200);assert.equal(b.statusCode,200);assert.equal(s.sql,2);
+ const sesiones=[a,b].map(r=>entrada.verificar(env,r.body.acceso,now));
+ assert.deepEqual(sesiones.map(d=>d.room),[room,otra]);
+ assert.notEqual(sesiones[0].id,sesiones[1].id);
 });
 test('SIP: inicio repetido mantiene operación de reserva y vencimiento originales',async()=>{
  const s=escenario(),a=await s.inicio(),b=await s.inicio();
