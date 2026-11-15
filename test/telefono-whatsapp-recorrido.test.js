@@ -30,7 +30,7 @@ test.beforeEach(async()=>{await db.exec('begin');});
 test.afterEach(async()=>{await db.exec('rollback');});
 const dato=async(sql,p=[])=> (await db.query(sql,p)).rows[0];
 function res(){return{setHeader(){},end(s){this.body=JSON.parse(s);}};}
-async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false,fallarCorreoGestion=false,whatsappGestionActivo=false,perderWhatsAppGestion=false,confirmacionWeb=false}={}){
+async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false,fallarCorreoGestion=false,whatsappGestionActivo=false,perderWhatsAppGestion=false,confirmacionWeb=false,soloEnvioManual=false}={}){
  const env={...baseEnv,...(confirmacionWeb?{TWILIO_WHATSAPP_CONFIRMACION_WEB_CONTENT_SID:'HX'+'8'.repeat(32)}:{})};
  const horario=Object.fromEntries(['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map(d=>[d,['13:00-16:00','20:00-23:00']]));
  await db.query('insert into auth.users(id) values($1)',[propietario]);
@@ -63,7 +63,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  const envGestion={...env,CONTACTIA_SUPABASE_WHATSAPP_GESTION_ENABLED:whatsappGestionActivo?'1':'0',TWILIO_WHATSAPP_MODIFICACION_CONTENT_SID:'HX'+'5'.repeat(32),TWILIO_WHATSAPP_CANCELACION_CONTENT_SID:'HX'+'6'.repeat(32)};
  const whatsappGestion=args=>require('../lib/whatsapp-gestion-supabase').enviar({...args,env:envGestion,fetchImpl:async(url,init)=>{const f=new URLSearchParams(init.body);whatsappsGestion.push({sid:f.get('ContentSid'),variables:JSON.parse(f.get('ContentVariables')),to:f.get('To')});assert.equal(f.has('StatusCallback'),false);if(perderWhatsAppGestion)throw Error('Respuesta perdida');return{ok:true,json:async()=>({sid:'SM'+String(whatsappsGestion.length).padStart(32,'7')})};}});
  const correoGestion=args=>require('../lib/correo-gestion-supabase').enviar({...args,fetchImpl:async(url,init)=>{assert.equal(url,'https://api.resend.com/emails');correosGestion.push({payload:JSON.parse(init.body),clave:init.headers['Idempotency-Key']});if(fallarCorreoGestion)throw Error('red');return{ok:true,json:async()=>({id:'80000000-0000-4000-8000-'+String(correosGestion.length).padStart(12,'0')})};}});
- const motor=telefono.crearMotor({env,clientFactory:()=>cliente,correo,correoGestion,whatsappGestion,whatsapp:args=>avisos.enviarSinCorreo({...args,fetchImpl})});
+ const motor=telefono.crearMotor({env,clientFactory:()=>cliente,correo,correoGestion,whatsappGestion,whatsapp:args=>avisos.enviarSinCorreo({...args,env:soloEnvioManual?{...args.env,CONTACTIA_SUPABASE_WHATSAPP_ALLOWLIST:'+34600000001'}:args.env,fetchImpl})});
  async function turno(mensaje,t=token){const out=res();await motor({method:'POST',headers:{host,'content-type':'application/json',authorization:'Bearer '+acceso},body:{mensaje,conversacion_token:t}},out);
   assert.equal(out.statusCode,200,JSON.stringify(out.body));token=out.body.conversacion_token;return out.body;}
  async function completar(respuesta){
@@ -144,6 +144,24 @@ test('SIP: no tener correo abre WhatsApp de inmediato y corregir el móvil no pi
  const c=await dato('select whatsapp_estado from contactia_privado.contactos_reserva_web');
  assert.equal(c.whatsapp_estado,'aceptado');
  assert.equal((await dato('select telefono from public.reservas')).telefono,'+34600000000');
+});
+
+test('el panel recupera el WhatsApp con botón de una reserva sin correo y no acepta un enlace revocado',async()=>{
+ const s=await escenario({confirmacionWeb:true,soloEnvioManual:true});
+ await s.sinCorreo();assert.equal(s.whatsapps,0);
+ const vista=await s.accion('preparar_whatsapp');assert.equal(vista.envio_habilitado,true);
+ assert.match(vista.borrador,/Gestionar mi reserva/);assert.doesNotMatch(JSON.stringify(vista),/token=/);
+ await db.exec('update contactia_privado.enlaces_gestion set revocado=true');
+ await assert.rejects(s.accion('enviar_whatsapp'),/Enlace no disponible/);assert.equal(s.whatsapps,0);
+ assert.equal((await dato('select whatsapp_estado from contactia_privado.contactos_reserva_web')).whatsapp_estado,'bloqueado');
+});
+
+test('el panel envía el WhatsApp con botón para la misma reserva sin correo',async()=>{
+ const s=await escenario({confirmacionWeb:true,soloEnvioManual:true});
+ await s.sinCorreo();assert.equal(s.whatsapps,0);
+ await s.accion('preparar_whatsapp');
+ assert.equal((await s.accion('enviar_whatsapp')).estado,'aceptado');assert.equal(s.whatsapps,1);
+ assert.equal((await dato('select count(*)::int as n from public.reservas')).n,1);
 });
 
 test('SIP: sin correo, un envío incierto nunca se repite al recuperar la confirmación',async()=>{
