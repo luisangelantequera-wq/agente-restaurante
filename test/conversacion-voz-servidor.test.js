@@ -159,7 +159,7 @@ test('voz: puede revocar el permiso desde el resumen sin perder los datos de res
 test('voz: una corrección natural del teléfono pide el nuevo y solo guarda el último confirmado',async()=>{
  for(const frase of ['Perdón, el teléfono no es correcto','Me equivoqué de teléfono','Quiero cambiar mi teléfono']){
   const s=escenario({whatsapp:true});await hastaPermiso(s);await s.turno('Sí');await s.turno('ninguna');
-  let r=await s.turno(frase);assert.equal(r.paso,'telefono',frase);assert.match(r.respuesta,/Cuál es su teléfono/);
+  let r=await s.turno(frase);assert.equal(r.paso,'telefono',frase);assert.match(r.respuesta,/Cuál es su número de móvil/);
   r=await s.turno('600000001');assert.equal(r.paso,'whatsapp_autorizado');assert.equal(r.estado.datos.whatsapp_autorizado,undefined);
   r=await s.turno('Sí');assert.equal(r.paso,'final');assert.match(r.respuesta,/600000001/);assert.doesNotMatch(r.respuesta,/600000000/);
   // Una segunda corrección tampoco recupera el teléfono de la primera toma.

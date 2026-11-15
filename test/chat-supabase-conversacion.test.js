@@ -291,3 +291,23 @@ test('voz: después de una fecha imposible, aclarar comensales conserva la hora 
  assert.deepEqual(s.llamadas.map(l=>l.a),['supabase_web_fecha','supabase_web_disponibilidad']);
  assert.deepEqual(s.llamadas.at(-1).d,{fecha:'2026-12-15',hora:'14:00',personas:4,zona_id:'zona1'});
 });
+
+test('la reserva por voz pide móvil y distingue un fijo completo de un número incompleto',async()=>{
+ const {chat,mensajes}=escenario({cierrePorVoz:true});
+ for(const texto of ['El martes a las dos para dos personas','Ana','ana arroba example punto invalid','Sí']){
+  await chat.enviar(texto,{canal:'voz'});
+ }
+ assert.equal(chat.estado().paso,'telefono');
+ assert.match(mensajes.at(-1),/número de móvil/);
+ for(const fijo of ['918000000','+34 918 000 000','nueve uno ocho cero cero cero cero cero cero']){
+  await chat.enviar(fijo,{canal:'voz'});
+  assert.match(mensajes.at(-1),/Ese número no es un móvil/);
+  assert.equal(chat.estado().paso,'telefono');
+  assert.equal(chat.exportar().datos.telefono,undefined);
+ }
+ await chat.enviar('600 00',{canal:'voz'});
+ assert.match(mensajes.at(-1),/número completo/);
+ await chat.enviar('600 000 000',{canal:'voz'});
+ assert.equal(chat.estado().paso,'observaciones');
+ assert.equal(chat.exportar().datos.telefono,'+34600000000');
+});
