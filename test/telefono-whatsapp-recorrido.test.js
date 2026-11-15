@@ -30,7 +30,7 @@ test.beforeEach(async()=>{await db.exec('begin');});
 test.afterEach(async()=>{await db.exec('rollback');});
 const dato=async(sql,p=[])=> (await db.query(sql,p)).rows[0];
 function res(){return{setHeader(){},end(s){this.body=JSON.parse(s);}};}
-async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false,fallarCorreoGestion=false,whatsappGestionActivo=false,perderWhatsAppGestion=false,confirmacionWeb=false,soloEnvioManual=false}={}){
+async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGestion=false,variasZonas=false,fallarCorreoGestion=false,whatsappGestionActivo=false,perderWhatsAppGestion=false,confirmacionWeb=false,soloEnvioManual=false,numeroLlamante}={}){
  const env={...baseEnv,...(confirmacionWeb?{TWILIO_WHATSAPP_CONFIRMACION_WEB_CONTENT_SID:'HX'+'8'.repeat(32)}:{})};
  const horario=Object.fromEntries(['lunes','martes','miércoles','jueves','viernes','sábado','domingo'].map(d=>[d,['13:00-16:00','20:00-23:00']]));
  await db.query('insert into auth.users(id) values($1)',[propietario]);
@@ -54,7 +54,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  const correo=async args=>enviarConfirmacion({...args,fetchImpl:async()=>{enviosCorreo++;return{ok:true,json:async()=>({id:sidCorreo})};}});
  let sidLlamada='RM_ficticia';
  const inicio=sip.crearInicio({env,clientFactory:()=>cliente,livekitFactory:()=>({room:{
-  getParticipant:async()=>({identity,kind:3,attributes:{'sip.trunkID':env.CONTACTIA_SIP_TRUNK_ID,'sip.trunkPhoneNumber':sip.NUMERO,'sip.callStatus':'active'}}),
+  getParticipant:async()=>({identity,kind:3,attributes:{'sip.trunkID':env.CONTACTIA_SIP_TRUNK_ID,'sip.trunkPhoneNumber':sip.NUMERO,'sip.callStatus':'active','sip.phoneNumber':numeroLlamante}}),
   listRooms:async()=>[{name:room,sid:sidLlamada,creationTime:Math.floor(Date.now()/1000)}]}})});
  const b={room,identity,timestamp:Date.now()},r=res();
  await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,b)},body:b},r);
@@ -162,6 +162,28 @@ test('el panel envía el WhatsApp con botón para la misma reserva sin correo',a
  await s.accion('preparar_whatsapp');
  assert.equal((await s.accion('enviar_whatsapp')).estado,'aceptado');assert.equal(s.whatsapps,1);
  assert.equal((await dato('select count(*)::int as n from public.reservas')).n,1);
+});
+
+test('SIP: confirmar el móvil de origen y autorizar WhatsApp son pasos distintos',async()=>{
+ const s=await escenario({numeroLlamante:'+34600000000',confirmacionWeb:true});
+ for(const texto of ['El martes para dos a las dos','Cliente ficticio','No tengo correo electrónico'])await s.turno(texto);
+ let r=await s.turno('Envíenme el WhatsApp al número desde el que estoy llamando');
+ assert.equal(r.paso,'confirmar_telefono');assert.match(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 0/);
+ assert.equal(s.whatsapps,0);
+ r=await s.turno('Sí');assert.equal(r.paso,'whatsapp_autorizado');assert.match(r.respuesta,/Autoriza/);
+ assert.equal(s.whatsapps,0);
+ await s.turno('Sí');await s.turno('ninguna');
+ assert.equal(s.whatsapps,0);
+ r=await s.turno('Sí');assert.equal(r.paso,'terminado');assert.equal(s.whatsapps,1);
+ assert.equal((await dato('select telefono from public.reservas')).telefono,'+34600000000');
+});
+
+test('SIP: un fijo de origen no se usa y se puede dictar otro móvil',async()=>{
+ const s=await escenario({numeroLlamante:'+34918000000'});
+ for(const texto of ['El martes para dos a las dos','Cliente ficticio','No tengo correo electrónico','Sí'])await s.turno(texto);
+ let r=await s.turno('Al número desde el que llamo');
+ assert.equal(r.paso,'telefono');assert.match(r.respuesta,/No puedo usar el número/);
+ r=await s.turno('600000000');assert.equal(r.paso,'confirmar_telefono');assert.equal(s.whatsapps,0);
 });
 
 test('SIP: sin correo, un envío incierto nunca se repite al recuperar la confirmación',async()=>{
