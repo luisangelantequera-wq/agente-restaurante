@@ -41,6 +41,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  set local role service_role;`);
  if(variasZonas)await db.exec("insert into public.zonas(restaurante_id,nombre) select id,'TERRAZA' from public.restaurantes");
  const {fecha}=await dato(`select to_char((clock_timestamp() at time zone 'Europe/Madrid')::date+7,'YYYY-MM-DD') as fecha`);
+ const peticionReserva=`Para el ${fecha.split('-').reverse().join('/')} para dos a las dos`;
  let perdidaGestion=perderGestion;
  const permitidas=new Set(['registrar_turno_llamada_voz','consultar_llamadas_voz_panel','consumir_limite_web','consultar_disponibilidad_web','registrar_codigo_gestion_voz','autenticar_gestion_voz','gestionar_reserva_web','gestionar_personas_voz','gestionar_reserva_con_correo','preparar_correo_gestion','finalizar_correo_gestion','correos_gestion_panel','entrega_correo_gestion','entrega_correo_gestion_evento','preparar_whatsapp_gestion','reclamar_whatsapp_gestion','finalizar_whatsapp_gestion','entrega_whatsapp_gestion','reservar_web_con_avisos','reservar_voz_sin_correo','whatsapp_voz_sin_correo','preparar_correo_reserva_web','finalizar_correo_reserva_web','avisos_web_panel','finalizar_aviso_web']);
  const cliente={rpc:async(n,a)=>{
@@ -67,7 +68,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  async function turno(mensaje,t=token){const out=res();await motor({method:'POST',headers:{host,'content-type':'application/json',authorization:'Bearer '+acceso},body:{mensaje,conversacion_token:t}},out);
   assert.equal(out.statusCode,200,JSON.stringify(out.body));token=out.body.conversacion_token;return out.body;}
  async function completar(respuesta){
-  for(const t of [`Para el ${fecha.split('-').reverse().join('/')} para dos a las dos`,'Cliente ficticio','cliente arroba example punto invalid','Sí','600000000'])await turno(t);
+  for(const t of [peticionReserva,'Cliente ficticio','cliente arroba example punto invalid','Sí','600000000'])await turno(t);
   const permiso=await turno(respuesta);assert.equal(permiso.paso,'observaciones');
   const final=await turno('ninguna');assert.equal(final.paso,'final');
   assert.equal((await dato('select count(*)::int as n from public.reservas')).n,0);
@@ -82,7 +83,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  };
  async function accion(operacion){const r=await dato('select id,restaurante_id from public.reservas limit 1');return avisos.ejecutar({env,usuario:propietario,body:{accion:'supabase_avisos',operacion,restaurante_id:Number(r.restaurante_id),reserva_id:r.id},clientFactory:()=>cliente,fetchImpl});}
  async function sinCorreo(telefono='600000000'){
-  for(const t of [`Para el ${fecha.split('-').reverse().join('/')} para dos a las dos`,'Cliente ficticio','no lo recuerdo','no consigo decirlo'])await turno(t);
+  for(const t of [peticionReserva,'Cliente ficticio','no lo recuerdo','no consigo decirlo'])await turno(t);
   let r=await turno('Sí');assert.equal(r.paso,'telefono');
   r=await turno(telefono);assert.equal(r.paso,'confirmar_telefono');
   r=await turno('Sí');assert.equal(r.paso,'observaciones');
@@ -91,7 +92,7 @@ async function escenario({correoEstado='bounced',perderWhatsApp=false,perderGest
  }
  async function nuevaLlamada(){sidLlamada+='otra';const out=res();const nb={room,identity,timestamp:Date.now()};await inicio({method:'POST',headers:{host,'content-type':'application/json','x-contactia-sip-signature':sip.firma(env,nb)},body:nb},out);assert.equal(out.statusCode,200);token=out.body.conversacion_token;acceso=out.body.acceso;}
  async function codigo(){const r=await dato('select r.peticion_id,c.contador from public.reservas r join contactia_privado.codigos_gestion_voz c on c.reserva_id=r.id');return require('../lib/codigo-gestion-voz').codigo(env,'prueba-sol',r.peticion_id,r.contador);}
- return{turno,completar,sinCorreo,accion,cliente,nuevaLlamada,codigo,correosGestion,whatsappsGestion,envGestion,get correos(){return enviosCorreo;},get whatsapps(){return enviosWhatsApp;}};
+ return{turno,peticionReserva,completar,sinCorreo,accion,cliente,nuevaLlamada,codigo,correosGestion,whatsappsGestion,envGestion,get correos(){return enviosCorreo;},get whatsapps(){return enviosWhatsApp;}};
 }
 test('SIP: sí explícito persiste autorización y el respaldo existente entrega tras rebote confirmado',async()=>{
  const s=await escenario(),antes=await s.completar('Sí, autorizo');
@@ -133,7 +134,7 @@ test('SIP: dos fallos de correo permiten reservar sin dirección y enviar un ún
 });
 test('SIP: no tener correo abre WhatsApp de inmediato y corregir el móvil no pierde el envío con botón',async()=>{
  const s=await escenario({confirmacionWeb:true});
- await s.turno('El martes para dos a las dos');
+ await s.turno(s.peticionReserva);
  await s.turno('Cliente ficticio');
  let r=await s.turno('No tengo correo electrónico');assert.equal(r.paso,'ofrecer_whatsapp');assert.match(r.respuesta,/Autoriza/);
  await s.turno('Sí');await s.turno('600000001');
@@ -166,8 +167,10 @@ test('el panel envía el WhatsApp con botón para la misma reserva sin correo',a
 
 test('SIP: confirmar el móvil de origen y autorizar WhatsApp son pasos distintos',async()=>{
  const s=await escenario({numeroLlamante:'+34600000000',confirmacionWeb:true});
- for(const texto of ['El martes para dos a las dos','Cliente ficticio','No tengo correo electrónico'])await s.turno(texto);
- let r=await s.turno('Envíenme el WhatsApp al número desde el que estoy llamando');
+ for(const texto of [s.peticionReserva,'Cliente ficticio','No tengo correo electrónico'])await s.turno(texto);
+ let r=await s.turno('No, envíamelo a otro teléfono');
+ assert.equal(r.paso,'ofrecer_whatsapp');assert.doesNotMatch(r.respuesta,/6, 0, 0/);
+ r=await s.turno('Envíamelo al este teléfono');
  assert.equal(r.paso,'confirmar_telefono');assert.match(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 0/);
  assert.equal(s.whatsapps,0);
  r=await s.turno('Sí');assert.equal(r.paso,'whatsapp_autorizado');assert.match(r.respuesta,/Autoriza/);
@@ -178,9 +181,25 @@ test('SIP: confirmar el móvil de origen y autorizar WhatsApp son pasos distinto
  assert.equal((await dato('select telefono from public.reservas')).telefono,'+34600000000');
 });
 
+test('SIP: «envíamelo a mi móvil» funciona junto a «no tengo correo» y pide confirmar el destino',async()=>{
+ const s=await escenario({numeroLlamante:'+34600000000'});
+ await s.turno(s.peticionReserva);await s.turno('Cliente ficticio');
+ let r=await s.turno('No tengo correo, envíamelo a mi móvil');
+ assert.equal(r.paso,'confirmar_telefono');assert.match(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 0/);
+ r=await s.turno('Sí');assert.equal(r.paso,'whatsapp_autorizado');assert.equal(s.whatsapps,0);
+});
+
+test('SIP: «envíamelo a mi móvil» también funciona al pedir el número después de autorizar WhatsApp',async()=>{
+ const s=await escenario({numeroLlamante:'+34600000000'});
+ for(const texto of [s.peticionReserva,'Cliente ficticio','No tengo correo electrónico','Sí'])await s.turno(texto);
+ let r=await s.turno('Envíamelo a mi móvil');
+ assert.equal(r.paso,'confirmar_telefono');assert.match(r.respuesta,/6, 0, 0, 0, 0, 0, 0, 0, 0/);
+ r=await s.turno('Sí');assert.equal(r.paso,'observaciones');assert.equal(s.whatsapps,0);
+});
+
 test('SIP: un fijo de origen no se usa y se puede dictar otro móvil',async()=>{
  const s=await escenario({numeroLlamante:'+34918000000'});
- for(const texto of ['El martes para dos a las dos','Cliente ficticio','No tengo correo electrónico','Sí'])await s.turno(texto);
+ for(const texto of [s.peticionReserva,'Cliente ficticio','No tengo correo electrónico','Sí'])await s.turno(texto);
  let r=await s.turno('Al número desde el que llamo');
  assert.equal(r.paso,'telefono');assert.match(r.respuesta,/No puedo usar el número/);
  r=await s.turno('600000000');assert.equal(r.paso,'confirmar_telefono');assert.equal(s.whatsapps,0);
