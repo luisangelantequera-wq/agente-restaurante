@@ -29,7 +29,15 @@ test('administración SQL: campos completos, búsqueda, edición atómica, histo
  assert.equal((await rpc({p_accion:'detalle',p_id:2})).datos.nombre,'Luna');
  const igual=await rpc({p_accion:'guardar',p_id:1,p_version:saved.version,p_datos:datos(),p_configuracion:config});assert.equal(igual.sin_cambios,true);
  await assert.rejects(rpc({p_accion:'guardar',p_id:1,p_version:d.version,p_datos:datos(),p_configuracion:config}),e=>e.code==='40001');
- await db.exec('reset role;set role authenticated;');await assert.rejects(rpc({p_accion:'listar'}),e=>e.code==='42501');await assert.rejects(db.query('select * from contactia_privado.configuracion_interna_restaurantes'),e=>e.code==='42501');
+ const alta=(slug,capacidad)=>db.query('select public.alta_borrador_restaurante_contactia($1,$2::jsonb,$3::jsonb,$4::jsonb) as ficha',[slug,JSON.stringify(datos()),JSON.stringify({estado_servicio:'activo',contacto_nombre:'Responsable ficticio'}),JSON.stringify([{nombre:'Patio',mesas:[{nombre:'P1',capacidad}]}])]);
+ const nueva=(await alta('prueba-alta',4)).rows[0].ficha;
+ assert.equal(nueva.datos.reservas_web_activas,false);assert.equal(nueva.configuracion.estado_servicio,'borrador');assert.equal(nueva.configuracion.contacto_nombre,'Responsable ficticio');assert.equal(nueva.historial.length,1);
+ const mesa=(await db.query('select z.nombre as zona,m.nombre,m.capacidad from public.mesas m join public.zonas z on z.id=m.zona_id where m.restaurante_id=$1',[nueva.datos.id])).rows[0];
+ assert.deepEqual(mesa,{zona:'Patio',nombre:'P1',capacidad:4});
+ await assert.rejects(alta('prueba-alta',4),e=>e.code==='23505');
+ await assert.rejects(alta('prueba-alta-invalida',0),e=>e.code==='22023');
+ assert.equal((await rpc({p_accion:'listar',p_busqueda:'prueba-alta-invalida'})).total,0);
+ await db.exec('reset role;set role authenticated;');await assert.rejects(alta('prueba-bloqueada',4),e=>e.code==='42501');await assert.rejects(rpc({p_accion:'listar'}),e=>e.code==='42501');await assert.rejects(db.query('select * from contactia_privado.configuracion_interna_restaurantes'),e=>e.code==='42501');
  }finally{await db.close();}
 });
 
@@ -40,7 +48,7 @@ test('interfaz interna: buscador, ficha completa editable, guardado y protecció
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  w.eval(fs.readFileSync(path.join(__dirname,'../lib/ajustes-restaurante.js'),'utf8'));
  const datos={id:1,slug:'sol',nombre:'<img src=x onerror=alert(1)>',telefono_publico:'+34918000000',direccion:'Madrid',web:'https://example.invalid',zona_horaria:'Europe/Madrid',duracion_reserva_minutos:90,antelacion_minima_reserva_minutos:30,intervalo_minutos:15,reservas_web_activas:true,horario_reservas:{lunes:['13:00-16:00']},dias_cierre:[],cierres_especiales:[],informacion_publica:{},datos_version:0};
- w.fetch=async(url,init)=>{const b=JSON.parse(init.body);calls.push(b);let d={ok:true};if(b.operacion==='listar')d={...d,total:1,restaurantes:[{datos,configuracion:{}}]};if(['detalle','guardar'].includes(b.operacion))d={...d,datos,configuracion:{},version:'version-1',historial:[]};return{ok:true,json:async()=>d};};
+ w.fetch=async(url,init)=>{const b=JSON.parse(init.body);calls.push(b);let d={ok:true};if(b.operacion==='listar')d={...d,total:1,restaurantes:[{datos,configuracion:{}}]};if(['detalle','guardar'].includes(b.operacion))d={...d,datos,configuracion:{},version:'version-1',historial:[]};if(b.operacion==='crear')d={...d,datos:{...b.datos,id:2,slug:'local-nuevo'},configuracion:b.configuracion,version:'version-2',historial:[]};return{ok:true,json:async()=>d};};
  w.eval(fs.readFileSync(path.join(__dirname,'../administracion-restaurantes.js'),'utf8'));const tick=()=>new Promise(r=>setTimeout(r,10));await tick();await tick();
  assert.equal(w.document.querySelector('#lista img'),null);assert.match(w.document.querySelector('#lista').textContent,/<img/);
  w.document.querySelector('#lista button').click();await tick();assert.equal(w.document.querySelector('#ficha').open,true);
@@ -52,5 +60,11 @@ test('interfaz interna: buscador, ficha completa editable, guardado y protecció
  w.document.querySelector('#lista button').click();await tick();
  const input=w.document.querySelector('#campos input');input.value='Borrador';input.dispatchEvent(new w.Event('input',{bubbles:true}));
  w.document.querySelector('#cancelar').click();assert.equal(w.document.querySelector('#ficha').open,false);assert.equal(avisos.length,1);assert.equal(calls.filter(x=>x.operacion==='guardar').length,1);
+ w.document.querySelector('#nuevo').click();
+ w.document.querySelector('#campos input').value='Local nuevo';
+ assert.equal(w.document.querySelector('#guardar').textContent,'Guardar borrador');
+ w.document.querySelector('#editar').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await tick();
+ const alta=calls.find(x=>x.operacion==='crear');assert.equal(alta.datos.nombre,'Local nuevo');assert.equal(alta.datos.reservas_web_activas,false);assert.deepEqual(alta.zonas,[]);assert.equal(avisos.length,1);
+ assert.match(w.document.querySelector('#estado-ficha').textContent,/Borrador creado/);assert.equal(w.document.querySelector('#consulta').value,'local-nuevo');
  dom.window.close();
 });

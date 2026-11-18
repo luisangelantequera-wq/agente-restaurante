@@ -23,3 +23,9 @@
 #editar select,
 #editar textarea { font-weight: 400; }
 #editar dt { align-self: center; }
+
+.acciones-restaurantes { display: flex; justify-content: flex-end; padding-top: 12px; }
+.zona-alta { padding: 12px; border: 1px solid #425a4c; border-radius: 8px; }
+.zona-alta > button { margin: 8px 8px 0 0; }
+.mesa-alta { display: grid; grid-template-columns: minmax(0, 1fr) 90px auto; gap: 8px; align-items: end; margin-top: 12px; }
+@media (max-width: 520px) { .mesa-alta { grid-template-columns: minmax(0, 1fr) 80px; } }
