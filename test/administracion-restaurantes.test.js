@@ -36,7 +36,7 @@ test('administración SQL: campos completos, búsqueda, edición atómica, histo
 test('interfaz interna: buscador, ficha completa editable, guardado y protección frente a HTML',async()=>{
  const {JSDOM}=require('jsdom'),html=fs.readFileSync(path.join(__dirname,'../administracion-restaurantes.html'),'utf8');
  const dom=new JSDOM(html,{url:'https://preview.example/administracion-restaurantes.html',runScripts:'outside-only'});const w=dom.window,calls=[];
- w.structuredClone=structuredClone;w.confirm=()=>true;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+ const avisos=[];w.structuredClone=structuredClone;w.confirm=m=>{avisos.push(m);return true;};w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
  w.HTMLDialogElement.prototype.close=function(){this.open=false;};
  w.eval(fs.readFileSync(path.join(__dirname,'../lib/ajustes-restaurante.js'),'utf8'));
  const datos={id:1,slug:'sol',nombre:'<img src=x onerror=alert(1)>',telefono_publico:'+34918000000',direccion:'Madrid',web:'https://example.invalid',zona_horaria:'Europe/Madrid',duracion_reserva_minutos:90,antelacion_minima_reserva_minutos:30,intervalo_minutos:15,reservas_web_activas:true,horario_reservas:{lunes:['13:00-16:00']},dias_cierre:[],cierres_especiales:[],informacion_publica:{},datos_version:0};
@@ -47,5 +47,10 @@ test('interfaz interna: buscador, ficha completa editable, guardado y protecció
  assert.match(w.document.querySelector('#tecnicos').textContent,/sol/);assert.match(w.document.querySelector('#campos').textContent,/Cuota mensual/);
  w.document.querySelector('#editar').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await tick();
  const guardado=calls.find(x=>x.operacion==='guardar');assert.equal(guardado.id,1);assert.equal(guardado.version,'version-1');assert.equal(guardado.datos.nombre,datos.nombre);assert.equal(guardado.datos.informacion_publica.gastronomia,'');
+ assert.match(w.document.querySelector('#estado-ficha').textContent,/Cambios guardados/);
+ w.document.querySelector('#cerrar').click();assert.equal(w.document.querySelector('#ficha').open,false);assert.equal(avisos.length,1);
+ w.document.querySelector('#lista button').click();await tick();
+ const input=w.document.querySelector('#campos input');input.value='Borrador';input.dispatchEvent(new w.Event('input',{bubbles:true}));
+ w.document.querySelector('#cancelar').click();assert.equal(w.document.querySelector('#ficha').open,false);assert.equal(avisos.length,1);assert.equal(calls.filter(x=>x.operacion==='guardar').length,1);
  dom.window.close();
 });
