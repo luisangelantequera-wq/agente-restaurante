@@ -63,16 +63,18 @@ async function rpc(nombre,a){
   consumir_limite_web:[['p_clave','text'],['p_accion','text']],
   consultar_disponibilidad_web:[['p_slug','text'],['p_fecha','date'],['p_hora','time'],['p_zona','uuid'],['p_personas','integer']]
  };
- assert.ok(Object.hasOwn(funciones,nombre));const campos=funciones[nombre],punto='rpc_'+(++secuencia);await db.exec('savepoint '+punto);
- try{const r=await uno('select public.'+identificador(nombre)+'('+campos.map(([,tipo],i)=>'$'+(i+1)+'::'+tipo).join(',')+') as valor',
-   campos.map(([k,tipo])=>tipo==='jsonb'?JSON.stringify(a[k]):a[k]));await db.exec('release savepoint '+punto);return{data:r.valor};
+ const extras=['reservar_web_con_avisos','preparar_correo_reserva_web','finalizar_correo_reserva_web','gestionar_reserva_web','gestionar_reserva_con_correo','preparar_correo_gestion','finalizar_correo_gestion'];
+ const campos=funciones[nombre];assert.ok(campos||extras.includes(nombre));const punto='rpc_'+(++secuencia);await db.exec('savepoint '+punto);
+ try{const argumentos=campos?campos.map(([,tipo],i)=>'$'+(i+1)+'::'+tipo):Object.keys(a).map((k,i)=>identificador(k)+'=> $'+(i+1));
+  const valores=campos?campos.map(([k,tipo])=>tipo==='jsonb'?JSON.stringify(a[k]):a[k]):Object.values(a);
+  const r=await uno('select public.'+identificador(nombre)+'('+argumentos.join(',')+') as valor',valores);await db.exec('release savepoint '+punto);return{data:r.valor};
  }catch(e){await db.exec('rollback to savepoint '+punto);await db.exec('release savepoint '+punto);return{error:{code:e.code,message:e.message}};}
 }
-async function api(usuario,body,{publica=false}={}){
+async function api(usuario,body,{publica=false,opcionesWeb={}}={}){
  await db.exec(publica?'set local role service_role':'set local role authenticated');
  await db.query("select set_config('request.jwt.claim.sub',$1,true)",[usuario||'']);
  const c={from:tabla,rpc,auth:{getUser:async()=>({data:{user:usuario?{id:usuario,email:'ficticio@example.invalid',is_anonymous:false}:null}})}};
- const h=publica?web.crearHandler({env,clientFactory:()=>c,turnstile:async()=>assert.fail('Solo consultas públicas'),correo:async()=>assert.fail('No enviar correo')}):panel.crearHandler({env,clienteFactory:()=>c,avisos:async()=>assert.fail('No consultar avisos')});
+ const h=publica?web.crearHandler({env,clientFactory:()=>c,turnstile:async()=>assert.fail('Solo consultas públicas'),correo:async()=>assert.fail('No enviar correo'),...opcionesWeb}):panel.crearHandler({env,clienteFactory:()=>c,avisos:async()=>assert.fail('No consultar avisos')});
  const res={headers:{},setHeader(k,v){this.headers[k]=v;},end(s){this.raw=s;this.body=JSON.parse(s);}};
  try{await h({method:'POST',headers:{host:'preview.example',origin:'https://preview.example','content-type':'application/json','x-forwarded-for':'192.0.2.1'}},res,body);return res;}
  finally{await db.exec('reset role');}
@@ -152,4 +154,54 @@ test('cambiar los horarios de Sol solo actualiza su calendario público y conser
  }
  for(const id of [f.reservaSol,f.reservaLuna])assert.equal((await uno('select estado from public.reservas where id=$1',[id])).estado,'confirmada');
  const luna=await configuracion(usuarios[1],f.luna);assert.equal(luna.body.restaurante.horarios_version,0);
+});
+
+test('piloto Cielo: alta, acceso aislado, reserva web, cambio y cancelación con tres avisos simulados',async()=>{
+ const f=await preparar(),slug='prueba-cielo',u='10000000-0000-4000-8000-000000000005';
+ const seed=fs.readFileSync(path.join(raiz,'supabase/seed-piloto-cielo.sql'),'utf8').replace(/^begin;|^commit;/gm,'');
+ await db.exec(seed);await db.exec(seed);
+ const cielo=await uno('select id,reservas_web_activas from public.restaurantes where slug=$1',[slug]);
+ assert.equal(cielo.reservas_web_activas,false);
+ await db.query('insert into auth.users(id) values($1)',[u]);
+ await db.query("insert into public.restaurante_usuarios(restaurante_id,usuario_id,rol) values($1,$2,'propietario')",[cielo.id,u]);
+ const sesion=await api(u,{accion:'supabase_estado'});assert.equal(sesion.statusCode,200,sesion.raw);assert.deepEqual(sesion.body.restaurantes.map(r=>r.id),[cielo.id]);
+ const ficha=await configuracion(u,cielo.id);assert.equal(ficha.statusCode,200,ficha.raw);assert.equal(ficha.body.mesas.length,4);assert.deepEqual(ficha.body.zonas.map(x=>x.nombre).sort(),['INTERIOR','TERRAZA']);
+ for(const id of [f.sol,f.luna])assert.equal((await configuracion(u,id)).statusCode,403);
+ assert.equal((await configuracion(usuarios[0],cielo.id)).statusCode,403);
+ await db.query('update public.restaurantes set reservas_web_activas=true where id=$1',[cielo.id]);
+ const {fecha}=await uno("select to_char(hoy+delta,'YYYY-MM-DD') as fecha from (select (clock_timestamp() at time zone 'Europe/Madrid')::date hoy)x cross join generate_series(7,13) delta where extract(isodow from hoy+delta)=2");
+ const avisos=[],destino='piloto@example.invalid',host='preview.example';
+ const fetchImpl=async(url,req)=>{
+  assert.equal(url,'https://api.resend.com/emails');assert.equal(req.method,'POST');
+  const mensaje=JSON.parse(req.body);assert.deepEqual(mensaje.to,[destino]);
+  avisos.push({mensaje,clave:req.headers['Idempotency-Key']});
+  return {ok:true,json:async()=>({id:crypto.randomUUID()})};
+ };
+ const opcionesWeb={env:{...env,CONTACTIA_SUPABASE_EMAIL_ENABLED:'1',RESEND_API_KEY:'ficticio',CONTACTIA_SUPABASE_EMAIL_ALLOWLIST:destino,CONTACTIA_PUBLIC_HOSTNAME:host,EMAIL_FROM:'Contactia <piloto@example.invalid>'},
+  turnstile:async({token})=>token==='prueba-local',
+  correo:a=>require('../lib/correo-supabase').enviarConfirmacion({...a,fetchImpl}),
+  correoGestion:a=>require('../lib/correo-gestion-supabase').enviar({...a,fetchImpl})};
+ const publica=(accion,b={})=>api(null,{accion,slug,...b},{publica:true,opcionesWeb});
+ const zona=ficha.body.zonas.find(z=>z.nombre==='INTERIOR').id;
+ const calendario=await publica('supabase_web_fecha',{fecha});assert.equal(calendario.statusCode,200,calendario.raw);
+ const reserva=await publica('supabase_web_reservar',{fecha,hora:'14:00',personas:2,zona_id:zona,peticion_id:crypto.randomUUID(),nombre:'Cliente ficticio Cielo',email:destino,telefono:'600000000',observaciones:'',turnstile_token:'prueba-local'});
+ assert.equal(reserva.statusCode,200,reserva.raw);assert.match(reserva.body.mensaje,/aceptado/);
+ const token=new URLSearchParams(reserva.body.gestion_url.split('#')[1]).get('token');
+ const consulta=await publica('supabase_gestion_consultar',{token});assert.equal(consulta.statusCode,200,consulta.raw);
+ const cruzada=await publica('supabase_gestion_consultar',{token,slug:'prueba-sol'});assert.equal(cruzada.statusCode,404,cruzada.raw);
+ const cambio=await publica('supabase_gestion_reprogramar',{token,operacion_id:crypto.randomUUID(),inicio_anterior:consulta.body.reserva.inicio,fecha,hora:'15:00'});
+ assert.equal(cambio.statusCode,200,cambio.raw);assert.equal(cambio.body.reserva.hora,'15:00');
+ const cancelada=await publica('supabase_gestion_cancelar',{token,operacion_id:crypto.randomUUID(),inicio_anterior:cambio.body.reserva.inicio});
+ assert.equal(cancelada.statusCode,200,cancelada.raw);assert.equal(cancelada.body.reserva.estado,'cancelada');
+ const libre=await publica('supabase_web_disponibilidad',{fecha,hora:'15:00',personas:2,zona_id:zona});assert.equal(libre.body.disponible,true);
+ assert.equal(avisos.length,3);assert.equal(new Set(avisos.map(a=>a.clave)).size,3);
+ for(const [i,tema] of ['Confirmación','modificada','cancelada'].entries()){
+  assert.match(avisos[i].mensaje.subject,new RegExp(tema));assert.match(avisos[i].mensaje.text,/restaurante=prueba-cielo/);
+ }
+ assert.match(avisos[1].mensaje.text,/15:00/);
+ const r=await uno('select id from public.reservas where restaurante_id=$1',[cielo.id]);
+ assert.equal((await uno('select count(*)::int as activas from public.reserva_mesas where reserva_id=$1 and activa',[r.id])).activas,0);
+ assert.equal((await uno('select estado from contactia_privado.correos_reserva_web where reserva_id=$1',[r.id])).estado,'aceptado');
+ assert.deepEqual((await filas('select estado from contactia_privado.correos_gestion_reserva where reserva_id=$1',[r.id])).map(a=>a.estado),['aceptado','aceptado']);
+ for(const id of [f.reservaSol,f.reservaLuna])assert.equal((await uno('select estado from public.reservas where id=$1',[id])).estado,'confirmada');
 });

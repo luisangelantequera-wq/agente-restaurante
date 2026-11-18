@@ -42,7 +42,7 @@
  $('actualizar').addEventListener('click',consultar);$('reintentar').addEventListener('click',ejecutar);
  $('consultar-de-nuevo').addEventListener('click',consultar);
  window.addEventListener('beforeunload',e=>{if(pendiente){e.preventDefault();e.returnValue='';}});
- if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token)||!['prueba-sol','prueba-luna'].includes(slug)){
+ if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token)||!['prueba-sol','prueba-luna','prueba-cielo'].includes(slug)){
   $('estado').textContent='El enlace no es válido. Abra el enlace privado recibido al confirmar la reserva.';return;
  }
  consultar();
