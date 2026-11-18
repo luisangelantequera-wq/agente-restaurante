@@ -12,7 +12,7 @@ test('administración: producción, rama distinta, origen externo y sesión de p
 });
 test('administración: datos e importes inválidos se rechazan y los campos de auditoría no son editables',async()=>{
  for(const patch of [{slug:'otro'},{nombre:''},{zona_horaria:'No/Existe'},{duracion_reserva_minutos:0},{web:'javascript:alert(1)'},{dias_cierre:['inventado']}])assert.throws(()=>admin.validar({...datos(),...patch},{}));
- for(const c of [{suplemento_voz:'-2'},{moneda:'JPY'},{proveedor_voz:'inventado'},{contacto_email:'malo'}])assert.throws(()=>admin.validar(datos(),c));
+ for(const c of [{suplemento_voz:'-2'},{moneda:'JPY'},{proveedor_voz:'inventado'},{contacto_email:'malo'},{contacto_telefono:'123'}])assert.throws(()=>admin.validar(datos(),c));
  assert.equal((await pedir({operacion:'guardar',id:1,version:'ficticia',datos:{...datos(),id:9},configuracion:{}})).statusCode,400);
  assert.equal(admin.validar(datos(),{proveedor_voz:'azure',voz:'es-ES-Ximena:DragonHDLatestNeural',cuota_mensual:'89.90'}).datos.nombre,'Sol editado');
 });
@@ -29,9 +29,9 @@ test('administración SQL: campos completos, búsqueda, edición atómica, histo
  assert.equal((await rpc({p_accion:'detalle',p_id:2})).datos.nombre,'Luna');
  const igual=await rpc({p_accion:'guardar',p_id:1,p_version:saved.version,p_datos:datos(),p_configuracion:config});assert.equal(igual.sin_cambios,true);
  await assert.rejects(rpc({p_accion:'guardar',p_id:1,p_version:d.version,p_datos:datos(),p_configuracion:config}),e=>e.code==='40001');
- const alta=(slug,capacidad)=>db.query('select public.alta_borrador_restaurante_contactia($1,$2::jsonb,$3::jsonb,$4::jsonb) as ficha',[slug,JSON.stringify(datos()),JSON.stringify({estado_servicio:'activo',contacto_nombre:'Responsable ficticio'}),JSON.stringify([{nombre:'Patio',mesas:[{nombre:'P1',capacidad}]}])]);
+ const alta=(slug,capacidad)=>db.query('select public.alta_borrador_restaurante_contactia($1,$2::jsonb,$3::jsonb,$4::jsonb) as ficha',[slug,JSON.stringify(datos()),JSON.stringify({estado_servicio:'activo',contacto_nombre:'Responsable ficticio',contacto_telefono:'+34 600 000 000'}),JSON.stringify([{nombre:'Patio',mesas:[{nombre:'P1',capacidad}]}])]);
  const nueva=(await alta('prueba-alta',4)).rows[0].ficha;
- assert.equal(nueva.datos.reservas_web_activas,false);assert.equal(nueva.configuracion.estado_servicio,'borrador');assert.equal(nueva.configuracion.contacto_nombre,'Responsable ficticio');assert.equal(nueva.historial.length,1);
+ assert.equal(nueva.datos.reservas_web_activas,false);assert.equal(nueva.configuracion.estado_servicio,'borrador');assert.equal(nueva.configuracion.contacto_nombre,'Responsable ficticio');assert.equal(nueva.configuracion.contacto_telefono,'+34 600 000 000');assert.equal(nueva.historial.length,1);
  const mesa=(await db.query('select z.nombre as zona,m.nombre,m.capacidad from public.mesas m join public.zonas z on z.id=m.zona_id where m.restaurante_id=$1',[nueva.datos.id])).rows[0];
  assert.deepEqual(mesa,{zona:'Patio',nombre:'P1',capacidad:4});
  await assert.rejects(alta('prueba-alta',4),e=>e.code==='23505');
@@ -63,8 +63,10 @@ test('interfaz interna: buscador, ficha completa editable, guardado y protecció
  w.document.querySelector('#nuevo').click();
  w.document.querySelector('#campos input').value='Local nuevo';
  assert.equal(w.document.querySelector('#guardar').textContent,'Guardar borrador');
+ w.document.querySelector('#ir-zonas').click();assert.equal(w.document.activeElement.textContent,'Añadir zona');
+ [...w.document.querySelectorAll('#campos label')].find(l=>l.textContent==='Teléfono de la persona de contacto').querySelector('input').value='+34 600 000 000';
  w.document.querySelector('#editar').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await tick();
- const alta=calls.find(x=>x.operacion==='crear');assert.equal(alta.datos.nombre,'Local nuevo');assert.equal(alta.datos.reservas_web_activas,false);assert.deepEqual(alta.zonas,[]);assert.equal(avisos.length,1);
+ const alta=calls.find(x=>x.operacion==='crear');assert.equal(alta.datos.nombre,'Local nuevo');assert.equal(alta.datos.reservas_web_activas,false);assert.deepEqual(alta.zonas,[]);assert.equal(alta.configuracion.contacto_telefono,'+34 600 000 000');assert.equal(avisos.length,1);
  assert.match(w.document.querySelector('#estado-ficha').textContent,/Borrador creado/);assert.equal(w.document.querySelector('#consulta').value,'local-nuevo');
  dom.window.close();
 });

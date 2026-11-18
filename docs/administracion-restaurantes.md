@@ -13,7 +13,7 @@ identificadores y referencias de reservas; no cambia slug ni ID.
 
 La ficha guarda por separado estado del servicio, modalidad, cuota mensual,
 suplemento de voz, moneda, proveedor/voz acordados, estado de activación,
-teléfono de reservas, contacto y notas. No contiene claves de proveedores.
+teléfono de reservas, contacto (nombre, teléfono directo y correo) y notas. No contiene claves de proveedores.
 Estas condiciones son de gestión interna: no disparan cobros ni despliegues.
 Cambiar la voz se marca pendiente; la verificación se registra manualmente.
 No cambia el agente LiveKit ni necesita llamadas para comprobar el panel.
