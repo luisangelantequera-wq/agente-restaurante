@@ -7,9 +7,11 @@
   <title>Acceso del restaurante · Contactia</title>
   <link rel="stylesheet" href="acceso-restaurante.css">
   <link rel="stylesheet" href="panel-restaurante.css">
+  <link rel="stylesheet" href="panel-propietario.css">
   <script src="lib/ajustes-restaurante.js" defer></script>
   <script src="panel-horarios-supabase.js" defer></script>
   <script src="panel-datos-supabase.js" defer></script>
+  <script src="panel-contacto-supabase.js" defer></script>
   <script src="panel-avisos-supabase.js" defer></script>
   <script src="panel-llamadas-supabase.js" defer></script>
   <script src="acceso-restaurante.js" defer></script>
@@ -34,10 +36,34 @@
   <section id="panel" class="tarjeta" hidden aria-labelledby="titulo-panel">
     <div class="cabecera"><div><h2 id="titulo-panel">Mi restaurante</h2><p id="usuario"></p></div>
       <button id="salir" class="secundario" type="button">Cerrar sesión</button></div>
-    <label for="restaurante">Restaurante</label>
-    <select id="restaurante"></select>
-    <button id="actualizar" class="secundario" type="button">Actualizar</button>
-    <div id="configuracion" aria-live="polite"></div>
+    <div class="barra-panel">
+      <button id="plegar-menu" class="secundario" type="button" aria-controls="menu-restaurante" aria-expanded="true">Ocultar menú</button>
+      <div class="selector-panel"><label for="restaurante">Restaurante</label><select id="restaurante"></select></div>
+      <button id="actualizar" class="secundario" type="button">Actualizar</button>
+    </div>
+    <div id="distribucion-panel">
+      <nav id="menu-restaurante" aria-label="Secciones del restaurante">
+        <button type="button" data-seccion="inicio" aria-controls="vista-inicio" aria-current="page">Inicio</button>
+        <button type="button" data-seccion="reservas" aria-controls="vista-reservas">Reservas</button>
+        <button type="button" data-seccion="mesas" aria-controls="vista-mesas">Mesas y zonas</button>
+        <button type="button" data-seccion="avisos" aria-controls="vista-avisos">Avisos y recados</button>
+        <button type="button" data-seccion="ajustes" aria-controls="vista-ajustes">Ajustes del restaurante</button>
+        <button type="button" data-seccion="carta" aria-controls="vista-carta">Carta</button>
+        <button type="button" data-seccion="ayuda" aria-controls="vista-ayuda">Ayuda</button>
+      </nav>
+      <div id="configuracion">
+        <section id="vista-inicio" aria-labelledby="titulo-inicio"><h3 id="titulo-inicio" tabindex="-1">Inicio</h3><div id="contenido-inicio"></div></section>
+        <section id="vista-reservas" aria-labelledby="titulo-reservas" hidden><h3 id="titulo-reservas" tabindex="-1">Reservas</h3><div id="contenido-reservas"></div></section>
+        <section id="vista-mesas" aria-labelledby="titulo-mesas" hidden><h3 id="titulo-mesas" tabindex="-1">Mesas y zonas</h3><div id="contenido-mesas"></div></section>
+        <section id="vista-avisos" aria-labelledby="titulo-avisos" hidden><h3 id="titulo-avisos" tabindex="-1">Avisos y recados</h3><div id="contenido-avisos"></div></section>
+        <section id="vista-ajustes" aria-labelledby="titulo-ajustes" hidden><h3 id="titulo-ajustes" tabindex="-1">Ajustes del restaurante</h3><div id="contenido-ajustes"></div></section>
+        <section id="vista-carta" aria-labelledby="titulo-carta" hidden><h3 id="titulo-carta" tabindex="-1">Carta</h3><p>La edición de la carta aún no está disponible en este panel.</p></section>
+        <section id="vista-ayuda" aria-labelledby="titulo-ayuda" hidden><h3 id="titulo-ayuda" tabindex="-1">Ayuda</h3>
+          <p>En Ajustes del restaurante puedes actualizar la ficha y los horarios. En Mesas y zonas puedes consultar qué mesas están operativas.</p>
+          <p>Si necesitas recuperar tu cuenta o cambiar alguna condición del servicio, contacta con Contactia.</p>
+        </section>
+      </div>
+    </div>
   </section>
 </main>
 <dialog id="cambio-reserva" aria-labelledby="titulo-cambio">

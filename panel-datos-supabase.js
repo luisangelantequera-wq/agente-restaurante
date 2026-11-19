@@ -1,7 +1,7 @@
 'use strict';
 window.ContactiaDatosPanel={crear(r,puedeEditar,guardar){
  const A=window.ContactiaAjustes,raiz=document.createElement('details');raiz.className='editor-horarios editor-datos';
- const titulo=document.createElement('summary');titulo.textContent='Datos públicos e información del restaurante';
+ const titulo=document.createElement('summary');titulo.textContent='Ficha del restaurante';raiz.open=true;
  const nota=document.createElement('p');nota.className='nota';nota.textContent='El chat utilizará estos textos para responder consultas. Deje en blanco los datos que todavía no quiera publicar.';
  const form=document.createElement('form'),grid=document.createElement('div');grid.className='campos-datos';
  const controles={},publico=A.normalizarPublico(r),temas={};let version=r.datos_version,guardando=false;

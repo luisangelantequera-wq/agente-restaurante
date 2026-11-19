@@ -2,6 +2,26 @@
 const $ = id => document.getElementById(id);
 const mensaje = texto => { $('mensaje').textContent = texto; };
 let edicion=null, enviandoCambio=false;
+const navegacion = [...$('menu-restaurante').querySelectorAll('[data-seccion]')];
+const contenidos = ['inicio','reservas','mesas','avisos','ajustes'].map(s => $('contenido-'+s));
+function verSeccion(seccion, foco = false) {
+  for (const boton of navegacion) {
+    const activa = boton.dataset.seccion === seccion;
+    $(boton.getAttribute('aria-controls')).hidden = !activa;
+    if (activa) boton.setAttribute('aria-current','page');
+    else boton.removeAttribute('aria-current');
+  }
+  if (foco) $('titulo-'+seccion).focus();
+}
+function plegarMenu(plegado) {
+  $('menu-restaurante').hidden = plegado;
+  $('distribucion-panel').classList.toggle('menu-plegado',plegado);
+  $('plegar-menu').setAttribute('aria-expanded',String(!plegado));
+  $('plegar-menu').textContent = plegado ? 'Mostrar menú' : 'Ocultar menú';
+}
+navegacion.forEach(b => b.addEventListener('click', () => verSeccion(b.dataset.seccion,true)));
+$('plegar-menu').addEventListener('click', () => plegarMenu(!$('menu-restaurante').hidden));
+function limpiarVistas() { contenidos.forEach(c => c.replaceChildren()); }
 async function pedir(accion, datos = {}) {
   const respuesta = await fetch('/api/restaurante', {
     method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -20,7 +40,7 @@ function mostrarAcceso() {
   $('cambio-reserva').close(); edicion=null;
   $('panel').hidden = true;
   $('acceso').hidden = false;
-  $('configuracion').replaceChildren();
+  limpiarVistas();
   $('restaurante').replaceChildren();
   $('usuario').textContent = '';
 }
@@ -37,7 +57,7 @@ function tabla(titulo, columnas, filas) {
 }
 async function cargar() {
   $('restaurante').disabled = true; $('actualizar').disabled = true;
-  $('configuracion').replaceChildren(); mensaje('Cargando restaurante…');
+  limpiarVistas(); mensaje('Cargando restaurante…');
   try {
     const datos = await pedir('supabase_configuracion', { restaurante_id: Number($('restaurante').value) });
     $('titulo-panel').textContent = datos.restaurante.nombre;
@@ -66,20 +86,32 @@ async function cargar() {
       })));
     const nota = document.createElement('p'); nota.className = 'nota';
     nota.textContent = datos.reservas.length ? 'Horas del restaurante. Pulsa Actualizar para consultar nuevas reservas.' : 'Todavía no hay reservas para este restaurante.';
-    $('configuracion').append(window.ContactiaDatosPanel.crear(datos.restaurante,datos.puede_editar_datos,async solicitud=>{
+    const accesos = document.createElement('div'); accesos.className = 'resumen-panel';
+    const operativas = datos.mesas.filter(m=>m.estado==='libre' && datos.zonas.some(z=>z.id===m.zona_id && z.estado==='activo')).length;
+    for (const [seccion,texto] of [['reservas',datos.reservas.length+' reservas recientes'],['mesas',operativas+' mesas operativas'],['ajustes','Ficha del restaurante']]) {
+      const b=document.createElement('button'); b.type='button'; b.className='secundario'; b.textContent=texto;
+      b.addEventListener('click',()=>verSeccion(seccion,true));accesos.append(b);
+    }
+    $('contenido-inicio').append(accesos,resumen);
+    $('contenido-reservas').append(reservas,nota);
+    $('contenido-avisos').append(window.ContactiaAvisosPanel.crear(datos.restaurante,pedir),
+      window.ContactiaLlamadasPanel.crear(datos.restaurante,pedir));
+    $('contenido-ajustes').append(window.ContactiaDatosPanel.crear(datos.restaurante,datos.puede_editar_datos,async solicitud=>{
       const resultado=await pedir('supabase_guardar_datos',solicitud);
       datos.restaurante.nombre=solicitud.datos.nombre.trim();$('titulo-panel').textContent=datos.restaurante.nombre;
       const opcion=[...$('restaurante').options].find(o=>Number(o.value)===datos.restaurante.id);if(opcion)opcion.textContent=datos.restaurante.nombre;
       return resultado;
-    }),reservas, nota, resumen,
-      window.ContactiaAvisosPanel.crear(datos.restaurante,pedir),
-      window.ContactiaLlamadasPanel.crear(datos.restaurante,pedir),
-      tabla('Zonas', ['Nombre', 'Estado', 'Acciones'], datos.zonas.map(z => [z.nombre, z.estado === 'activo' ? 'Abierta' : 'Cerrada',
+    }));
+    const mesas = document.createElement('div'); mesas.className = 'tabla-reservas'; mesas.tabIndex = 0;
+    mesas.setAttribute('role','region'); mesas.setAttribute('aria-label','Tablas de mesas y zonas');
+    mesas.append(tabla('Zonas', ['Nombre', 'Estado', 'Acciones'], datos.zonas.map(z => [z.nombre, z.estado === 'activo' ? 'Abierta' : 'Cerrada',
         botonDisponibilidad('zona',z,datos.restaurante.id,datos.puede_editar_disponibilidad)])),
       tabla('Mesas', ['Nombre', 'Zona', 'Personas', 'Estado', 'Acciones'], datos.mesas.map(m => [m.nombre,zonas.get(m.zona_id)||'',`${m.min_personas}–${m.capacidad}`,
         m.estado==='libre'?'Operativa'+(datos.zonas.find(z=>z.id===m.zona_id)?.estado==='inactivo'?' · zona cerrada':''):'Fuera de servicio',
-        botonDisponibilidad('mesa',m,datos.restaurante.id,datos.puede_editar_disponibilidad)])),
-      window.ContactiaHorariosPanel.crear(datos.restaurante,datos.puede_editar_horarios,async datosHorario=>{
+        botonDisponibilidad('mesa',m,datos.restaurante.id,datos.puede_editar_disponibilidad)])));
+    $('contenido-mesas').append(mesas);
+    if (datos.puede_gestionar_contacto) $('contenido-ajustes').append(window.ContactiaContactoPanel.crear(datos.restaurante,pedir));
+    $('contenido-ajustes').append(window.ContactiaHorariosPanel.crear(datos.restaurante,datos.puede_editar_horarios,async datosHorario=>{
         const controles=[...document.querySelectorAll('#panel button'),$('restaurante')].map(n=>[n,n.disabled]);
         controles.forEach(([n])=>{n.disabled=true;});
         try{
@@ -163,6 +195,8 @@ async function mostrarPanel(datos) {
   $('restaurante').replaceChildren(...datos.restaurantes.map(r => {
     const opcion = document.createElement('option'); opcion.value = String(r.id); opcion.textContent = r.nombre; return opcion;
   }));
+  verSeccion('inicio');
+  plegarMenu(window.matchMedia?.('(max-width:760px)').matches ?? false);
   $('acceso').hidden = true; $('panel').hidden = false;
   await cargar();
 }

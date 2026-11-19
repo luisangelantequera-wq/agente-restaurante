@@ -8,6 +8,16 @@ Solo está habilitado en Preview de `migracion-supabase-fase-1`. Producción y
 otras ramas responden 404 antes de consultar proveedores. Para ejecución local,
 `CONTACTIA_SUPABASE_LOCAL=1` y un origen localhost permiten probar cookies HTTP.
 
+El menú lateral permite abrir Inicio, Reservas, Mesas y zonas, Avisos y recados,
+Ajustes del restaurante, Carta y Ayuda. Puede plegarse sin cambiar de vista y
+se muestra cerrado al entrar desde una pantalla estrecha. La edición de la
+carta aún está pendiente en este panel.
+
+En Ajustes, la ficha reúne los datos públicos, los horarios y el contacto
+privado. Solo el propietario puede ver y cambiar el contacto de su restaurante;
+se guarda en la ficha interna y queda en su historial. La API devuelve
+únicamente nombre, teléfono y correo de contacto, sin voz ni tarifas.
+
 ## Sesión y permisos
 
 - SDK oficiales fijados en package.json y lockfile: supabase-js y supabase/ssr.
