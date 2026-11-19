@@ -149,9 +149,39 @@ generales hasta volver a cambiarlos, no cierres programados para una fecha.
 El motor comprueba los estados en cada alta o reprogramación. Las pruebas
 07_disponibilidad_panel.sql se ejecutan con datos ficticios y rollback.
 
-No habilita todavía creación de reservas desde el panel, alta de restaurantes o zonas, registro
-público de cuentas ni recuperación desde la interfaz. La recuperación la gestiona
-administración hasta preparar SMTP y el flujo de restablecimiento.
+No habilita todavía creación de reservas desde el panel, alta de restaurantes o
+zonas ni registro público de cuentas. La invitación y la recuperación por correo
+están preparadas detrás de una opción desactivada por defecto.
+
+## Prueba de invitaciones y recuperación
+
+1. Preparar SMTP de Supabase Auth para el entorno de desarrollo. Utilizar
+   únicamente buzones que controle el equipo. Desactivar el registro público.
+2. Autorizar en Redirect URLs únicamente el origen de pruebas con la ruta
+   `/acceso-restaurante.html`. No usar patrones amplios para enlaces de acceso.
+   Configurar las plantillas **Invite user** y **Reset password** usando, respectivamente:
+
+   ```html
+   <a href="{{ .RedirectTo }}#tipo=invite&amp;token={{ .TokenHash }}">Activar mi acceso</a>
+   <a href="{{ .RedirectTo }}#tipo=recovery&amp;token={{ .TokenHash }}">Cambiar contraseña</a>
+   ```
+
+3. Configurar exclusivamente en Preview `CONTACTIA_ACCESO_CORREO_PRUEBA_ORIGEN`
+   con el origen exacto (sin barra final) y
+   `CONTACTIA_ACCESO_CORREO_PRUEBA_DESTINOS` con los buzones autorizados,
+   separados por comas. No añadir estas variables a producción.
+4. Desde la ficha del restaurante, invitar a una cuenta nueva de prueba como
+   empleado. Abrir el enlace, elegir la contraseña e iniciar sesión. Comprobar
+   que solo ve ese local e intentar volver a usar el enlace. Después probar
+   «He olvidado mi contraseña», salir y entrar con la nueva.
+5. Desactivar la pertenencia de prueba y comprobar que el usuario pierde
+   acceso incluso con una sesión abierta. La interfaz para gestionar las bajas
+   y el doble factor quedan pendientes antes de abrir el acceso en producción.
+
+Los enlaces no crean una sesión del panel. El formulario retira el identificador
+del enlace de la barra de direcciones, lo verifica al guardar y pide iniciar sesión
+con la nueva contraseña. Si se envió una invitación pero falló la asignación del
+permiso, revisar la cuenta en Supabase; no reintentar el envío sin comprobarla.
 
 Pruebas automatizadas: producción/otras ramas bloqueadas, CSRF, credenciales
 incorrectas y 429, sesión ausente/anónima, pertenencias vacías, selección de otro

@@ -3,6 +3,12 @@ const $=s=>document.querySelector(s),A=window.ContactiaAjustes,api='/api/centro-
 const etiquetas={nombre:'Nombre',slug:'Identificador público',id:'ID',telefono_publico:'Teléfono público',direccion:'Dirección',web:'Página web',zona_horaria:'Zona horaria',duracion_reserva_minutos:'Duración de la reserva (minutos)',antelacion_minima_reserva_minutos:'Antelación mínima (minutos)',intervalo_minutos:'Intervalo entre horas (minutos)',reservas_web_activas:'Reservas web activas',horario_reservas:'Horario de reservas',dias_cierre:'Días de cierre',cierres_especiales:'Fechas cerradas',informacion_publica:'Información pública',creado_en:'Fecha de creación',airtable_record_id:'Identificador histórico de Airtable',horarios_version:'Versión de horarios',horarios_modificado_por:'Último editor de horarios',horarios_modificado_en:'Última edición de horarios',datos_version:'Versión de datos',datos_modificado_por:'Último editor de datos',datos_modificado_en:'Última edición de datos',estado_servicio:'Estado del servicio',plan:'Modalidad',cuota_mensual:'Cuota mensual acordada',suplemento_voz:'Suplemento mensual de voz',moneda:'Moneda',proveedor_voz:'Proveedor de voz acordado',voz:'Voz acordada',estado_activacion:'Activación técnica comprobada',telefono_reservas:'Teléfono de reservas',contacto_nombre:'Persona de contacto',contacto_telefono:'Teléfono de la persona de contacto',contacto_email:'Correo de contacto',notas:'Notas internas'};
 const opciones={estado_servicio:{'':'Sin indicar',borrador:'Borrador',prueba:'En pruebas',activo:'Activo',pausado:'Pausado',baja:'Baja'},plan:{'':'Sin indicar',estandar:'Estándar',hibrido:'Híbrido',live:'Live'},moneda:{'':'Sin indicar',EUR:'EUR',USD:'USD'},proveedor_voz:{'':'Sin indicar',azure:'Azure',cartesia:'Cartesia',gradium:'Gradium',otro:'Otro'},estado_activacion:{'':'Sin verificar',pendiente:'Pendiente de activación',verificada:'Verificada por Contactia'}};
 let pagina=0,total=0,busqueda='',detalle=null,sucio=false,ocupado=false,peticion=0;const lectores={};
+let enviandoInvitacion=false;
+function prepararInvitacion(d){
+ const panel=$('#invitacion-prueba');
+ panel.hidden=!d.datos.id||!d.invitaciones_prueba;panel.open=false;
+ $('#form-invitacion').reset();$('#estado-invitacion').textContent='';
+}
 const elemento=(tag,texto,clase)=>{const e=document.createElement(tag);if(texto!==undefined)e.textContent=texto;if(clase)e.className=clase;return e;};
 function valor(v){return v===null||v===undefined||v===''?'Sin indicar':typeof v==='boolean'?(v?'Sí':'No'):typeof v==='object'?JSON.stringify(v,null,2):String(v);}
 async function solicitar(b){const r=await fetch(api,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const d=await r.json();if(!r.ok||!d.ok){if(r.status===401){$('#contenido').hidden=true;$('#acceso').hidden=false;$('#salir').hidden=true;}throw Error(d.error||'No se pudo completar la operación.');}return d;}
@@ -43,6 +49,7 @@ function editarZonas(g){
 }
 const avisoEdicion=$('#aviso').textContent;
 function pintar(d){detalle=d;sucio=false;Object.keys(lectores).forEach(k=>delete lectores[k]);$('#campos').replaceChildren();const r=d.datos,c=d.configuracion,nueva=!r.id;
+prepararInvitacion(d);
 $('#titulo').textContent=nueva?'Nuevo restaurante':r.nombre;
 $('#aviso').textContent=nueva?'Solo necesitas el nombre para guardar. Completa lo que sepas durante la visita. Las reservas quedarán desactivadas y no se enviará ninguna invitación.':avisoEdicion;
 $('#ir-zonas').hidden=!nueva;
@@ -62,6 +69,19 @@ $('#nuevo').onclick=()=>{
 };
 async function abrir(id){try{const d=await admin({operacion:'detalle',id});pintar(d);$('#ficha').showModal();}catch(e){$('#estado').textContent=e.message;}}
 function cerrar(){if(ocupado)return;sucio=false;$('#ficha').close();}
+$('#form-invitacion').onsubmit=async e=>{
+ e.preventDefault();
+ if(enviandoInvitacion||ocupado||!detalle?.invitaciones_prueba)return;
+ const actual=detalle,email=$('#correo-invitado').value.trim(),rol=$('#rol-invitado').value;
+ const nombreRol=$('#rol-invitado').selectedOptions[0].textContent;
+ if(!window.confirm('¿Enviar una invitación de prueba a '+email+' como '+nombreRol+' de '+actual.datos.nombre+'?'))return;
+ enviandoInvitacion=true;$('#enviar-invitacion').disabled=true;$('#estado-invitacion').textContent='Enviando invitación…';
+ try {
+  const r=await admin({operacion:'invitar',id:actual.datos.id,email,rol});
+  if(detalle===actual){$('#estado-invitacion').textContent=r.mensaje;$('#form-invitacion').reset();}
+ } catch(err) {if(detalle===actual)$('#estado-invitacion').textContent=err.message;}
+ finally {enviandoInvitacion=false;$('#enviar-invitacion').disabled=false;}
+};
 $('#editar').addEventListener('input',()=>{sucio=true;});$('#ficha').addEventListener('cancel',e=>{e.preventDefault();cerrar();});$('#cerrar').onclick=$('#cancelar').onclick=cerrar;
 $('#editar').onsubmit=async e=>{e.preventDefault();if(ocupado)return;try{const datos=Object.fromEntries(Object.entries(lectores).filter(([k])=>!['interna','zonasAlta'].includes(k)).map(([k,f])=>[k,f()])),configuracion=lectores.interna();if(['proveedor_voz','voz'].some(k=>(configuracion[k]||'')!==(detalle.configuracion[k]||''))){configuracion.estado_activacion='pendiente';}
 const nueva=!detalle.datos.id;if(!nueva&&!window.confirm('¿Guardar los cambios de '+detalle.datos.nombre+'? Los horarios y condiciones se aplicarán a nuevas reservas; las existentes no se modifican. Revise las reservas afectadas. Los cambios de voz requieren activación técnica.'))return;ocupado=true;$('#guardar').disabled=true;$('#estado-ficha').textContent='Guardando…';const d=await admin(nueva?{operacion:'crear',datos,configuracion,zonas:lectores.zonasAlta()}:{operacion:'guardar',id:detalle.datos.id,version:detalle.version,datos,configuracion});if(d.sin_cambios){sucio=false;$('#estado-ficha').textContent='No había cambios que guardar.';return;}pintar(d);if(nueva){pagina=0;busqueda=d.datos.slug;$('#consulta').value=busqueda;}$('#estado-ficha').textContent=nueva?'Borrador creado. Las reservas web siguen desactivadas.':'Cambios guardados. '+(configuracion.estado_activacion==='pendiente'?'La activación de voz sigue pendiente.':'');await cargar();}catch(e){$('#estado-ficha').textContent=e.message;}finally{ocupado=false;$('#guardar').disabled=false;}};

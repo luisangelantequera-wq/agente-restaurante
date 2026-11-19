@@ -15,6 +15,7 @@
   <script src="panel-avisos-supabase.js" defer></script>
   <script src="panel-llamadas-supabase.js" defer></script>
   <script src="acceso-restaurante.js" defer></script>
+  <script src="acceso-correo-restaurante.js" defer></script>
 </head>
 <body>
 <main>
@@ -30,6 +31,7 @@
       <input id="password" type="password" autocomplete="current-password" maxlength="1024" required>
       <button id="entrar" type="submit">Entrar</button>
     </form>
+    <button id="olvido-clave" class="secundario" type="button" hidden>He olvidado mi contraseña</button>
     <p class="nota">Si necesitas acceso o recuperar tu cuenta, contacta con la administración de Contactia.</p>
   </section>
   <p id="mensaje" role="status" aria-live="polite"></p>
@@ -66,6 +68,24 @@
     </div>
   </section>
 </main>
+<dialog id="correo-acceso" aria-labelledby="titulo-correo-acceso">
+  <h2 id="titulo-correo-acceso">Recuperar contraseña</h2>
+  <form id="pedir-enlace" hidden>
+    <label for="email-recuperacion">Correo de la cuenta</label>
+    <input id="email-recuperacion" type="email" autocomplete="email" required maxlength="254">
+    <button type="submit">Solicitar enlace</button>
+  </form>
+  <form id="elegir-clave" hidden>
+    <label for="clave-nueva">Nueva contraseña</label>
+    <input id="clave-nueva" type="password" autocomplete="new-password" minlength="14" required aria-describedby="ayuda-clave">
+    <label for="clave-repetida">Repite la nueva contraseña</label>
+    <input id="clave-repetida" type="password" autocomplete="new-password" required>
+    <p id="ayuda-clave" class="nota">Elige una contraseña única de al menos 14 caracteres.</p>
+    <button type="submit">Guardar contraseña</button>
+  </form>
+  <p id="estado-correo-acceso" role="status" aria-live="polite"></p>
+  <button id="cerrar-correo-acceso" class="secundario" type="button">Volver al acceso</button>
+</dialog>
 <dialog id="cambio-reserva" aria-labelledby="titulo-cambio">
   <h2 id="titulo-cambio">Cambiar fecha y hora</h2>
   <p id="resumen-cambio"></p>
