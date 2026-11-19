@@ -2,21 +2,21 @@
 #panel .barra-panel button{margin:0}
 #panel .selector-panel{flex:0 1 320px;min-width:0}
 #panel .selector-panel label{margin:0 0 6px}
-#distribucion-panel{display:grid;grid-template-columns:minmax(175px,215px) minmax(0,1fr);gap:24px;align-items:start}
+#distribucion-panel{display:grid;grid-template-columns:minmax(175px,215px) minmax(0,1fr);min-height:320px}
 #distribucion-panel.menu-plegado{grid-template-columns:minmax(0,1fr)}
-#menu-restaurante{display:grid;gap:5px;padding:10px;border:1px solid #35483c;border-radius:12px;background:#111c16}
+#menu-restaurante{display:grid;align-content:start;gap:5px;padding:0 16px 0 0;border-inline-end:1px solid #52695a}
 #menu-restaurante button{margin:0;text-align:left;background:transparent;color:#e5ece7;border-color:transparent;padding:9px 12px}
 #menu-restaurante button:hover{border-color:#52695a}
 #menu-restaurante button[aria-current]{background:#304c3b;border-color:#6d927a}
 #configuracion{min-width:0}
+#distribucion-panel:not(.menu-plegado) #configuracion{padding-inline-start:24px}
 #configuracion h3{margin:0 0 16px}
 #configuracion .editor-datos label,#configuracion .editor-contacto label{font-weight:700}
 #configuracion .editor-datos :is(input,textarea),#configuracion .editor-contacto input{font-weight:400}
-#configuracion .resumen-panel{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,165px),1fr));gap:12px;margin:0 0 16px}
-#configuracion .resumen-panel button{margin:0;padding:12px;text-align:left}
 @media(max-width:760px){
  #distribucion-panel{grid-template-columns:minmax(0,1fr);gap:16px}
- #menu-restaurante{display:flex;overflow:auto}
+ #menu-restaurante{display:flex;overflow:auto;padding:0 0 10px;border-inline-end:0;border-block-end:1px solid #52695a}
+ #distribucion-panel:not(.menu-plegado) #configuracion{padding-inline-start:0}
  #menu-restaurante button{flex:none;white-space:nowrap}
  #panel .selector-panel{order:-1;flex-basis:100%}
 }

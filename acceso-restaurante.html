@@ -34,17 +34,12 @@
   </section>
   <p id="mensaje" role="status" aria-live="polite"></p>
   <section id="panel" class="tarjeta" hidden aria-labelledby="titulo-panel">
-    <div class="cabecera"><div><h2 id="titulo-panel">Mi restaurante</h2><p id="usuario"></p></div>
-      <button id="salir" class="secundario" type="button">Cerrar sesión</button></div>
     <div class="barra-panel">
       <button id="plegar-menu" class="secundario" type="button" aria-controls="menu-restaurante" aria-expanded="true">Ocultar menú</button>
-      <div class="selector-panel"><label for="restaurante">Restaurante</label><select id="restaurante"></select></div>
-      <button id="actualizar" class="secundario" type="button">Actualizar</button>
     </div>
     <div id="distribucion-panel">
       <nav id="menu-restaurante" aria-label="Secciones del restaurante">
-        <button type="button" data-seccion="inicio" aria-controls="vista-inicio" aria-current="page">Inicio</button>
-        <button type="button" data-seccion="reservas" aria-controls="vista-reservas">Reservas</button>
+        <button type="button" data-seccion="reservas" aria-controls="vista-reservas" aria-current="page">Reservas</button>
         <button type="button" data-seccion="mesas" aria-controls="vista-mesas">Mesas y zonas</button>
         <button type="button" data-seccion="avisos" aria-controls="vista-avisos">Avisos y recados</button>
         <button type="button" data-seccion="ajustes" aria-controls="vista-ajustes">Ajustes del restaurante</button>
@@ -52,8 +47,13 @@
         <button type="button" data-seccion="ayuda" aria-controls="vista-ayuda">Ayuda</button>
       </nav>
       <div id="configuracion">
-        <section id="vista-inicio" aria-labelledby="titulo-inicio"><h3 id="titulo-inicio" tabindex="-1">Inicio</h3><div id="contenido-inicio"></div></section>
-        <section id="vista-reservas" aria-labelledby="titulo-reservas" hidden><h3 id="titulo-reservas" tabindex="-1">Reservas</h3><div id="contenido-reservas"></div></section>
+        <div class="cabecera"><div><h2 id="titulo-panel">Mi restaurante</h2><p id="usuario"></p></div>
+          <button id="salir" class="secundario" type="button">Cerrar sesión</button></div>
+        <div class="barra-panel">
+          <div class="selector-panel"><label for="restaurante">Restaurante</label><select id="restaurante"></select></div>
+          <button id="actualizar" class="secundario" type="button">Actualizar</button>
+        </div>
+        <section id="vista-reservas" aria-labelledby="titulo-reservas"><h3 id="titulo-reservas" tabindex="-1">Reservas</h3><div id="contenido-reservas"></div></section>
         <section id="vista-mesas" aria-labelledby="titulo-mesas" hidden><h3 id="titulo-mesas" tabindex="-1">Mesas y zonas</h3><div id="contenido-mesas"></div></section>
         <section id="vista-avisos" aria-labelledby="titulo-avisos" hidden><h3 id="titulo-avisos" tabindex="-1">Avisos y recados</h3><div id="contenido-avisos"></div></section>
         <section id="vista-ajustes" aria-labelledby="titulo-ajustes" hidden><h3 id="titulo-ajustes" tabindex="-1">Ajustes del restaurante</h3><div id="contenido-ajustes"></div></section>

@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const mensaje = texto => { $('mensaje').textContent = texto; };
 let edicion=null, enviandoCambio=false;
 const navegacion = [...$('menu-restaurante').querySelectorAll('[data-seccion]')];
-const contenidos = ['inicio','reservas','mesas','avisos','ajustes'].map(s => $('contenido-'+s));
+const contenidos = ['reservas','mesas','avisos','ajustes'].map(s => $('contenido-'+s));
 function verSeccion(seccion, foco = false) {
   for (const boton of navegacion) {
     const activa = boton.dataset.seccion === seccion;
@@ -57,11 +57,12 @@ function tabla(titulo, columnas, filas) {
 }
 async function cargar() {
   $('restaurante').disabled = true; $('actualizar').disabled = true;
+  $('titulo-panel').textContent = $('restaurante').selectedOptions[0]?.textContent || 'Mi restaurante';
   limpiarVistas(); mensaje('Cargando restaurante…');
   try {
     const datos = await pedir('supabase_configuracion', { restaurante_id: Number($('restaurante').value) });
     $('titulo-panel').textContent = datos.restaurante.nombre;
-    const resumen = document.createElement('p');
+    const resumen = document.createElement('p'); resumen.className = 'nota';
     resumen.textContent = `Duración de la reserva: ${datos.restaurante.duracion_reserva_minutos} minutos. Antelación mínima: ${datos.restaurante.antelacion_minima_reserva_minutos} minutos.`;
     const formatoFecha = new Intl.DateTimeFormat('es-ES', { timeZone: datos.restaurante.zona_horaria,
       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -86,13 +87,6 @@ async function cargar() {
       })));
     const nota = document.createElement('p'); nota.className = 'nota';
     nota.textContent = datos.reservas.length ? 'Horas del restaurante. Pulsa Actualizar para consultar nuevas reservas.' : 'Todavía no hay reservas para este restaurante.';
-    const accesos = document.createElement('div'); accesos.className = 'resumen-panel';
-    const operativas = datos.mesas.filter(m=>m.estado==='libre' && datos.zonas.some(z=>z.id===m.zona_id && z.estado==='activo')).length;
-    for (const [seccion,texto] of [['reservas',datos.reservas.length+' reservas recientes'],['mesas',operativas+' mesas operativas'],['ajustes','Ficha del restaurante']]) {
-      const b=document.createElement('button'); b.type='button'; b.className='secundario'; b.textContent=texto;
-      b.addEventListener('click',()=>verSeccion(seccion,true));accesos.append(b);
-    }
-    $('contenido-inicio').append(accesos,resumen);
     $('contenido-reservas').append(reservas,nota);
     $('contenido-avisos').append(window.ContactiaAvisosPanel.crear(datos.restaurante,pedir),
       window.ContactiaLlamadasPanel.crear(datos.restaurante,pedir));
@@ -111,7 +105,7 @@ async function cargar() {
         botonDisponibilidad('mesa',m,datos.restaurante.id,datos.puede_editar_disponibilidad)])));
     $('contenido-mesas').append(mesas);
     if (datos.puede_gestionar_contacto) $('contenido-ajustes').append(window.ContactiaContactoPanel.crear(datos.restaurante,pedir));
-    $('contenido-ajustes').append(window.ContactiaHorariosPanel.crear(datos.restaurante,datos.puede_editar_horarios,async datosHorario=>{
+    $('contenido-ajustes').append(resumen,window.ContactiaHorariosPanel.crear(datos.restaurante,datos.puede_editar_horarios,async datosHorario=>{
         const controles=[...document.querySelectorAll('#panel button'),$('restaurante')].map(n=>[n,n.disabled]);
         controles.forEach(([n])=>{n.disabled=true;});
         try{
@@ -195,7 +189,7 @@ async function mostrarPanel(datos) {
   $('restaurante').replaceChildren(...datos.restaurantes.map(r => {
     const opcion = document.createElement('option'); opcion.value = String(r.id); opcion.textContent = r.nombre; return opcion;
   }));
-  verSeccion('inicio');
+  verSeccion('reservas');
   plegarMenu(window.matchMedia?.('(max-width:760px)').matches ?? false);
   $('acceso').hidden = true; $('panel').hidden = false;
   await cargar();

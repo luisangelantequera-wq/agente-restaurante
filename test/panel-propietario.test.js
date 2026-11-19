@@ -23,6 +23,11 @@ test('el menú deja la vista activa a ancho completo y conserva una edición al 
   };
   for (const archivo of ['lib/ajustes-restaurante.js','panel-datos-supabase.js','panel-contacto-supabase.js','panel-avisos-supabase.js','panel-llamadas-supabase.js','panel-horarios-supabase.js','acceso-restaurante.js']) window.eval(leer(archivo));
   await new Promise(resolve=>setImmediate(resolve));
+  assert.equal($('vista-reservas').hidden,false);
+  assert.equal($('menu-restaurante').querySelector('[aria-current="page"]').dataset.seccion,'reservas');
+  assert.equal($('menu-restaurante').querySelector('[data-seccion="inicio"]'),null);
+  assert.equal($('titulo-panel').closest('#configuracion'),$('configuracion'));
+  assert.equal($('titulo-panel').textContent,'Restaurante de prueba');
   assert.equal($('menu-restaurante').hidden,true);
   $('plegar-menu').click();
   const ir = s => window.document.querySelector('[data-seccion="'+s+'"]').click();
