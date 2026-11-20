@@ -14,6 +14,7 @@
   <script src="panel-contacto-supabase.js" defer></script>
   <script src="panel-avisos-supabase.js" defer></script>
   <script src="panel-llamadas-supabase.js" defer></script>
+  <script src="equipo-restaurante.js" defer></script>
   <script src="acceso-restaurante.js" defer></script>
   <script src="acceso-correo-restaurante.js" defer></script>
 </head>
@@ -46,6 +47,7 @@
         <button type="button" data-seccion="avisos" aria-controls="vista-avisos">Avisos y recados</button>
         <button type="button" data-seccion="ajustes" aria-controls="vista-ajustes">Ajustes del restaurante</button>
         <button type="button" data-seccion="carta" aria-controls="vista-carta">Carta</button>
+        <button id="nav-equipo" type="button" data-seccion="equipo" aria-controls="vista-equipo" hidden>Equipo y accesos</button>
         <button type="button" data-seccion="cuenta" aria-controls="vista-cuenta">Configuración de usuario</button>
         <button type="button" data-seccion="ayuda" aria-controls="vista-ayuda">Ayuda</button>
       </nav>
@@ -61,6 +63,11 @@
         <section id="vista-avisos" aria-labelledby="titulo-avisos" hidden><h3 id="titulo-avisos" tabindex="-1">Avisos y recados</h3><div id="contenido-avisos"></div></section>
         <section id="vista-ajustes" aria-labelledby="titulo-ajustes" hidden><h3 id="titulo-ajustes" tabindex="-1">Ajustes del restaurante</h3><div id="contenido-ajustes"></div></section>
         <section id="vista-carta" aria-labelledby="titulo-carta" hidden><h3 id="titulo-carta" tabindex="-1">Carta</h3><p>La edición de la carta aún no está disponible en este panel.</p></section>
+        <section id="vista-equipo" aria-labelledby="titulo-equipo" hidden>
+          <h3 id="titulo-equipo" tabindex="-1">Equipo y accesos</h3>
+          <p class="nota">Personas que pueden acceder a este restaurante. Retirar el permiso no borra su cuenta ni afecta a otros restaurantes.</p>
+          <div id="contenido-equipo"></div>
+        </section>
         <section id="vista-cuenta" aria-labelledby="titulo-cuenta" hidden>
           <h3 id="titulo-cuenta" tabindex="-1">Configuración de usuario</h3>
           <p class="nota">Estos ajustes son de tu cuenta personal y no cambian la configuración del restaurante.</p>

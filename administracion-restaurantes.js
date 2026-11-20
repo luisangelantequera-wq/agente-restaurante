@@ -9,6 +9,18 @@ function prepararInvitacion(d){
  panel.hidden=!d.datos.id||!d.invitaciones_prueba;panel.open=false;
  $('#form-invitacion').reset();$('#estado-invitacion').textContent='';
 }
+function prepararEquipo(d) {
+ const panel=$('#equipo-interno');
+ panel.open=false;panel.hidden=!d.datos.id;
+ $('#contenido-equipo-interno').replaceChildren();
+}
+$('#equipo-interno').addEventListener('toggle',()=>{
+ const panel=$('#equipo-interno'),contenido=$('#contenido-equipo-interno');
+ if(!panel.open||panel.hidden||!detalle?.datos.id)return;
+ const r=detalle.datos;
+ const vista=window.ContactiaEquipo.crear(r.nombre,id=>admin({operacion:'equipo',id:r.id,...(id?{usuario_id:id}:{})}));
+ contenido.replaceChildren(vista.raiz);vista.cargar();
+});
 const elemento=(tag,texto,clase)=>{const e=document.createElement(tag);if(texto!==undefined)e.textContent=texto;if(clase)e.className=clase;return e;};
 function valor(v){return v===null||v===undefined||v===''?'Sin indicar':typeof v==='boolean'?(v?'Sí':'No'):typeof v==='object'?JSON.stringify(v,null,2):String(v);}
 async function solicitar(b){const r=await fetch(api,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const d=await r.json();if(!r.ok||!d.ok){if(r.status===401){$('#contenido').hidden=true;$('#acceso').hidden=false;$('#salir').hidden=true;}throw Error(d.error||'No se pudo completar la operación.');}return d;}
@@ -50,6 +62,7 @@ function editarZonas(g){
 const avisoEdicion=$('#aviso').textContent;
 function pintar(d){detalle=d;sucio=false;Object.keys(lectores).forEach(k=>delete lectores[k]);$('#campos').replaceChildren();const r=d.datos,c=d.configuracion,nueva=!r.id;
 prepararInvitacion(d);
+prepararEquipo(d);
 $('#titulo').textContent=nueva?'Nuevo restaurante':r.nombre;
 $('#aviso').textContent=nueva?'Solo necesitas el nombre para guardar. Completa lo que sepas durante la visita. Las reservas quedarán desactivadas y no se enviará ninguna invitación.':avisoEdicion;
 $('#ir-zonas').hidden=!nueva;

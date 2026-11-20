@@ -1,9 +1,9 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const mensaje = texto => { $('mensaje').textContent = texto; };
-let edicion=null, enviandoCambio=false;
+let edicion=null, enviandoCambio=false, vistaEquipo=null;
 const navegacion = [...$('menu-restaurante').querySelectorAll('[data-seccion]')];
-const contenidos = ['reservas','mesas','avisos','ajustes'].map(s => $('contenido-'+s));
+const contenidos = ['reservas','mesas','avisos','ajustes','equipo'].map(s => $('contenido-'+s));
 function verSeccion(seccion, foco = false) {
   for (const boton of navegacion) {
     const activa = boton.dataset.seccion === seccion;
@@ -12,6 +12,7 @@ function verSeccion(seccion, foco = false) {
     else boton.removeAttribute('aria-current');
   }
   if (foco) $('titulo-'+seccion).focus();
+  if (seccion==='equipo') vistaEquipo?.cargar();
 }
 function plegarMenu(plegado) {
   $('menu-restaurante').hidden = plegado;
@@ -21,7 +22,7 @@ function plegarMenu(plegado) {
 }
 navegacion.forEach(b => b.addEventListener('click', () => verSeccion(b.dataset.seccion,true)));
 $('plegar-menu').addEventListener('click', () => plegarMenu(!$('menu-restaurante').hidden));
-function limpiarVistas() { contenidos.forEach(c => c.replaceChildren()); }
+function limpiarVistas() { vistaEquipo=null;contenidos.forEach(c => c.replaceChildren()); }
 async function pedir(accion, datos = {}) {
   const respuesta = await fetch('/api/restaurante', {
     method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -41,6 +42,7 @@ function mostrarAcceso() {
   $('panel').hidden = true;
   $('acceso').hidden = false;
   limpiarVistas();
+  $('nav-equipo').hidden = true;
   $('restaurante').replaceChildren();
   $('usuario').textContent = '';
   $('correo-cuenta').textContent = '';
@@ -64,6 +66,15 @@ async function cargar() {
   try {
     const datos = await pedir('supabase_configuracion', { restaurante_id: Number($('restaurante').value) });
     $('titulo-panel').textContent = datos.restaurante.nombre;
+    $('nav-equipo').hidden = !datos.puede_gestionar_equipo;
+    if (datos.puede_gestionar_equipo) {
+      vistaEquipo=window.ContactiaEquipo.crear(datos.restaurante.nombre,async id=>{
+        try { return await pedir('supabase_equipo',{restaurante_id:datos.restaurante.id,...(id?{usuario_id:id}:{})}); }
+        catch(e) {if(e.status===401){mostrarAcceso();mensaje(e.message);}throw e;}
+      });
+      $('contenido-equipo').append(vistaEquipo.raiz);
+      if (!$('vista-equipo').hidden) vistaEquipo.cargar();
+    } else if (!$('vista-equipo').hidden) verSeccion('reservas');
     const resumen = document.createElement('p'); resumen.className = 'nota';
     resumen.textContent = `Duración de la reserva: ${datos.restaurante.duracion_reserva_minutos} minutos. Antelación mínima: ${datos.restaurante.antelacion_minima_reserva_minutos} minutos.`;
     const formatoFecha = new Intl.DateTimeFormat('es-ES', { timeZone: datos.restaurante.zona_horaria,
@@ -119,7 +130,7 @@ async function cargar() {
         finally{controles.forEach(([n,anterior])=>{n.disabled=anterior;});}
       }));
     mensaje('');
-  } catch (error) { if (error.status === 401) mostrarAcceso(); mensaje(error.message); }
+  } catch (error) { $('nav-equipo').hidden=true;if (!$('vista-equipo').hidden) verSeccion('reservas');if (error.status === 401) mostrarAcceso(); mensaje(error.message); }
   finally { $('restaurante').disabled = false; $('actualizar').disabled = false; }
 }
 function botonDisponibilidad(tipo,elemento,restauranteId,permitido) {

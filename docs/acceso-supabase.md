@@ -23,6 +23,15 @@ En Configuración de usuario se muestra el correo de la sesión. Las cuentas
 autorizadas para la prueba pueden pedir un enlace para cambiar su contraseña
 desde ahí. «¿Has olvidado tu contraseña?» permite solicitarlo sin iniciar sesión.
 
+**Equipo y accesos** muestra solo las cuentas activas del restaurante. El
+propietario puede retirar el acceso a encargados y empleados; el encargado,
+solo a empleados. Los empleados no pueden consultar esta sección ni llamar
+a su operación. La administración interna de Contactia también puede listar
+y retirar encargados y empleados desde la ficha. Una baja queda registrada y
+solo afecta a la pertenencia al local: no borra la cuenta ni las demás
+pertenencias. La base de datos aplica el bloqueo en la siguiente consulta,
+incluso con una sesión abierta o un token de acceso aún válido.
+
 ## Sesión y permisos
 
 - SDK oficiales fijados en package.json y lockfile: supabase-js y supabase/ssr.
@@ -179,8 +188,8 @@ están preparadas detrás de una opción desactivada por defecto.
    que solo ve ese local e intentar volver a usar el enlace. Después probar
    «He olvidado mi contraseña», salir y entrar con la nueva.
 5. Desactivar la pertenencia de prueba y comprobar que el usuario pierde
-   acceso incluso con una sesión abierta. La interfaz para gestionar las bajas
-   y el doble factor quedan pendientes antes de abrir el acceso en producción.
+   acceso incluso con una sesión abierta. Usar Equipo y accesos para retirar el
+   permiso. El doble factor queda pendiente antes de abrir en producción.
 
 Los enlaces no crean una sesión del panel. El formulario retira el identificador
 del enlace de la barra de direcciones, lo verifica al guardar y pide iniciar sesión

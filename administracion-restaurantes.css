@@ -29,3 +29,7 @@
 .zona-alta > button { margin: 8px 8px 0 0; }
 .mesa-alta { display: grid; grid-template-columns: minmax(0, 1fr) 90px auto; gap: 8px; align-items: end; margin-top: 12px; }
 @media (max-width: 520px) { .mesa-alta { grid-template-columns: minmax(0, 1fr) 80px; } }
+.equipo-lista{list-style:none;padding:0}
+.equipo-lista li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #35483c;padding:12px 0}
+.equipo-lista li div{min-width:0;overflow-wrap:anywhere}
+.equipo-lista li span{display:block;color:#aebdb3}
