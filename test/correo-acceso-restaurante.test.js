@@ -72,3 +72,25 @@ test('solo administración puede enviar invitaciones; los permisos se asignan al
     ['restaurante_usuarios',{restaurante_id:81,usuario_id:'uuid-del-invitado',rol:'empleado',activo:true}]
   ]);
 });
+test('el panel comprueba la jerarquía antes de enviar y vincula solo al usuario devuelto por Auth',async()=>{
+  const actor='11111111-1111-4111-a111-111111111111',invitado='22222222-2222-4222-a222-222222222222';
+  const datos={accion:'supabase_equipo_invitar',restaurante_id:81,email,rol:'encargado'};
+  const llamadas=[];
+  function handler(rol,admin){
+    return crearHandler({env,clienteInvitaciones:admin,clienteFactory:()=>({
+      auth:{getUser:async()=>({data:{user:{id:actor}}})},
+      from:()=>({select(){return this;},eq(){return this;},async maybeSingle(){return {data:{rol}};}})
+    })});
+  }
+  for(const rol of ['encargado','empleado']){
+    const r=res();await handler(rol,sesionPanel)(req,r,datos);assert.equal(r.statusCode,403);
+  }
+  const administrador={
+    async rpc(nombre,args){llamadas.push([nombre,args]);return {data:true};},
+    auth:{admin:{async inviteUserByEmail(destino){llamadas.push(destino);return {data:{user:{id:invitado}}};}}}
+  };
+  const r=res();await handler('propietario',()=>administrador)(req,r,datos);assert.equal(r.statusCode,201);
+  const args={p_restaurante:81,p_actor:actor,p_email:email,p_rol:'encargado'};
+  assert.deepEqual(llamadas,[['invitacion_equipo_contactia',{...args,p_invitado:null}],email,
+    ['invitacion_equipo_contactia',{...args,p_invitado:invitado}]]);
+});

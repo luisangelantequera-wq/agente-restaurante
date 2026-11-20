@@ -32,6 +32,13 @@ solo afecta a la pertenencia al local: no borra la cuenta ni las demás
 pertenencias. La base de datos aplica el bloqueo en la siguiente consulta,
 incluso con una sesión abierta o un token de acceso aún válido.
 
+Los propietarios pueden invitar a encargados y empleados desde la misma
+sección; los encargados, solo a empleados. En Preview se mantiene la lista de
+correos autorizados. No se reactivan ni reasignan cuentas existentes. Antes
+del envío y al asignar el permiso se comprueba la pertenencia activa y el
+rol del remitente. Si el envío y la asignación difieren, Contactia revisa
+la cuenta para evitar reintentos o permisos duplicados.
+
 ## Sesión y permisos
 
 - SDK oficiales fijados en package.json y lockfile: supabase-js y supabase/ssr.

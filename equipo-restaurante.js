@@ -42,4 +42,33 @@ window.ContactiaEquipo = { crear(nombre, pedir) {
   }
   actualizar.addEventListener('click',()=>consultar());
   return {raiz,cargar:()=>consultar()};
+}, crearInvitacion(nombre,roles,pedir,actualizar) {
+  const el=(tag,texto)=>{const e=document.createElement(tag);if(texto)e.textContent=texto;return e;};
+  const bloque=el('details');bloque.className='editor-horarios editor-invitacion';
+  const nota=el('p','Pruebas: solo se puede invitar a los correos autorizados por Contactia.');nota.className='nota';
+  const form=el('form'), email=el('input'), rol=el('select');
+  const etiquetaCorreo=el('label','Correo de la persona invitada'), etiquetaRol=el('label','Rol');
+  email.type='email';email.required=true;email.maxLength=254;email.autocomplete='off';
+  for (const valor of roles) {
+    const opcion=el('option',valor==='encargado'?'Encargado':'Empleado');
+    opcion.value=valor;rol.append(opcion);
+  }
+  etiquetaCorreo.append(email);etiquetaRol.append(rol);
+  const enviar=el('button','Enviar invitación'),estado=el('p');
+  estado.setAttribute('role','status');enviar.type='submit';
+  form.append(etiquetaCorreo,etiquetaRol,enviar,estado);
+  bloque.append(el('summary','Invitar a una persona'),nota,form);
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(enviar.disabled||!form.reportValidity())return;
+    const destino=email.value.trim(), permiso=rol.value;
+    if(!window.confirm('¿Enviar una invitación a '+destino+' como '+rol.selectedOptions[0].textContent+' de '+nombre+'?'))return;
+    email.disabled=rol.disabled=enviar.disabled=true;estado.textContent='Enviando invitación…';
+    try {
+      estado.textContent=(await pedir({email:destino,rol:permiso})).mensaje;
+      form.reset();actualizar();
+    } catch(error) { estado.textContent=error.message; }
+    finally {email.disabled=rol.disabled=enviar.disabled=false;}
+  });
+  return bloque;
 }};

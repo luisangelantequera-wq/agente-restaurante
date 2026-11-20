@@ -73,6 +73,14 @@ async function cargar() {
         catch(e) {if(e.status===401){mostrarAcceso();mensaje(e.message);}throw e;}
       });
       $('contenido-equipo').append(vistaEquipo.raiz);
+      const roles=datos.roles_invitacion||[];
+      if (roles.length) {
+        const vista=vistaEquipo;
+        $('contenido-equipo').append(window.ContactiaEquipo.crearInvitacion(datos.restaurante.nombre,roles,async ({email,rol})=>{
+          try { return await pedir('supabase_equipo_invitar',{restaurante_id:datos.restaurante.id,email,rol}); }
+          catch(e) {if(e.status===401){mostrarAcceso();mensaje(e.message);}throw e;}
+        },()=>vista.cargar()));
+      }
       if (!$('vista-equipo').hidden) vistaEquipo.cargar();
     } else if (!$('vista-equipo').hidden) verSeccion('reservas');
     const resumen = document.createElement('p'); resumen.className = 'nota';
