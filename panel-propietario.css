@@ -11,6 +11,10 @@
 #configuracion{min-width:0}
 #distribucion-panel:not(.menu-plegado) #configuracion{padding-inline-start:24px}
 #configuracion h3{margin:0 0 16px}
+#olvido-clave{display:block;margin:4px 0 12px;padding:6px 0;border:0;background:none;color:#bde2c9;text-align:left;text-decoration:underline;text-underline-offset:3px}
+#vista-cuenta .bloque-cuenta{border-top:1px solid #35483c;padding:14px 0}
+#vista-cuenta h4,#vista-cuenta .bloque-cuenta p{margin:0 0 7px;overflow-wrap:anywhere}
+#vista-cuenta button{margin:6px 0 0}
 #configuracion .editor-datos label,#configuracion .editor-contacto label{font-weight:700}
 #configuracion .editor-datos :is(input,textarea),#configuracion .editor-contacto input{font-weight:400}
 @media(max-width:760px){

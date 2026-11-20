@@ -10,7 +10,7 @@ otras ramas responden 404 antes de consultar proveedores. Para ejecución local,
 
 El panel abre directamente en Reservas. El menú lateral separa la navegación
 del nombre del restaurante y de la sección activa. Incluye Reservas, Mesas y
-zonas, Avisos y recados, Ajustes del restaurante, Carta y Ayuda. Puede plegarse sin cambiar de vista y
+zonas, Avisos y recados, Ajustes del restaurante, Carta, Configuración de usuario y Ayuda. Puede plegarse sin cambiar de vista y
 se muestra cerrado al entrar desde una pantalla estrecha. La edición de la
 carta aún está pendiente en este panel.
 
@@ -18,6 +18,10 @@ En Ajustes, la ficha reúne los datos públicos, los horarios y el contacto
 privado. Solo el propietario puede ver y cambiar el contacto de su restaurante;
 se guarda en la ficha interna y queda en su historial. La API devuelve
 únicamente nombre, teléfono y correo de contacto, sin voz ni tarifas.
+
+En Configuración de usuario se muestra el correo de la sesión. Las cuentas
+autorizadas para la prueba pueden pedir un enlace para cambiar su contraseña
+desde ahí. «¿Has olvidado tu contraseña?» permite solicitarlo sin iniciar sesión.
 
 ## Sesión y permisos
 

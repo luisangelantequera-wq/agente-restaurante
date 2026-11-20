@@ -43,6 +43,8 @@ function mostrarAcceso() {
   limpiarVistas();
   $('restaurante').replaceChildren();
   $('usuario').textContent = '';
+  $('correo-cuenta').textContent = '';
+  $('cambiar-clave-cuenta').hidden = true;
 }
 function tabla(titulo, columnas, filas) {
   const elemento = document.createElement('table');
@@ -185,7 +187,14 @@ async function cancelar(reserva, restauranteId, formatoFecha) {
   } finally {botones.forEach(b=>{b.disabled=false;});}
 }
 async function mostrarPanel(datos) {
-  $('usuario').textContent = datos.usuario.email || '';
+  const email = datos.usuario.email || '';
+  $('usuario').textContent = email;
+  $('correo-cuenta').textContent = email;
+  const puedeRecuperar = datos.puede_recuperar_clave === true && Boolean(email);
+  $('cambiar-clave-cuenta').hidden = !puedeRecuperar;
+  $('ayuda-cuenta-correo').textContent = puedeRecuperar
+    ? 'Te enviaremos un enlace a tu correo de acceso para elegir una nueva contraseña.'
+    : 'La recuperación por correo aún no está disponible para esta cuenta de pruebas.';
   $('restaurante').replaceChildren(...datos.restaurantes.map(r => {
     const opcion = document.createElement('option'); opcion.value = String(r.id); opcion.textContent = r.nombre; return opcion;
   }));
@@ -203,11 +212,12 @@ $('formulario').addEventListener('submit', async evento => {
   finally { datos.password = ''; $('entrar').disabled = false; }
 });
 $('salir').addEventListener('click', async () => {
-  $('salir').disabled = true;
+  $('salir').disabled = $('salir-cuenta').disabled = true;
   try { await pedir('supabase_salir'); mostrarAcceso(); mensaje('Sesión cerrada.'); $('email').focus(); }
   catch (error) { mensaje(error.message); }
-  finally { $('salir').disabled = false; }
+  finally { $('salir').disabled = $('salir-cuenta').disabled = false; }
 });
+$('salir-cuenta').addEventListener('click', () => $('salir').click());
 $('restaurante').addEventListener('change', cargar);
 $('actualizar').addEventListener('click', cargar);
 pedir('supabase_estado').then(mostrarPanel).catch(error => {

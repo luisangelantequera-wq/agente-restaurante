@@ -10,9 +10,15 @@ test('el menú deja la vista activa a ancho completo y conserva una edición al 
   t.after(()=>window.close());
   const $ = id => window.document.getElementById(id);
   window.matchMedia = () => ({matches:true});
+  window.HTMLDialogElement.prototype.showModal = function () { this.open=true; };
+  window.HTMLDialogElement.prototype.close = function () { this.open=false; };
+  const recuperaciones = [];
   window.fetch = async (_url,{body}) => {
-    const {accion} = JSON.parse(body);
-    const respuesta = accion==='supabase_estado' ? {usuario:{email:'prueba@example.org'},restaurantes:[{id:81,nombre:'Restaurante de prueba'}]} :
+    const {accion,email} = JSON.parse(body);
+    if (accion==='supabase_correo_recuperar') recuperaciones.push(email);
+    const respuesta = accion==='supabase_estado' ? {usuario:{email:'prueba@example.org'},restaurantes:[{id:81,nombre:'Restaurante de prueba'}],puede_recuperar_clave:true} :
+      accion==='supabase_correo_estado' ? {habilitado:true} :
+      accion==='supabase_correo_recuperar' ? {mensaje:'Solicitud recibida.'} :
       accion==='supabase_configuracion' ? {
         restaurante:{id:81,nombre:'Restaurante de prueba',zona_horaria:'Europe/Madrid',duracion_reserva_minutos:90,antelacion_minima_reserva_minutos:30},
         zonas:[{id:'i',nombre:'Interior',estado:'activo'}],
@@ -21,7 +27,7 @@ test('el menú deja la vista activa a ancho completo y conserva una edición al 
       } : {contacto:{contacto_nombre:'Responsable',contacto_telefono:'',contacto_email:''},version:'a'.repeat(32)};
     return {ok:true,json:async()=>({ok:true,...respuesta})};
   };
-  for (const archivo of ['lib/ajustes-restaurante.js','panel-datos-supabase.js','panel-contacto-supabase.js','panel-avisos-supabase.js','panel-llamadas-supabase.js','panel-horarios-supabase.js','acceso-restaurante.js']) window.eval(leer(archivo));
+  for (const archivo of ['lib/ajustes-restaurante.js','panel-datos-supabase.js','panel-contacto-supabase.js','panel-avisos-supabase.js','panel-llamadas-supabase.js','panel-horarios-supabase.js','acceso-restaurante.js','acceso-correo-restaurante.js']) window.eval(leer(archivo));
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal($('vista-reservas').hidden,false);
   assert.equal($('menu-restaurante').querySelector('[aria-current="page"]').dataset.seccion,'reservas');
@@ -48,4 +54,19 @@ test('el menú deja la vista activa a ancho completo y conserva una edición al 
   contacto.open=true;
   await new Promise(resolve=>setTimeout(resolve,15));
   assert.equal(contacto.querySelector('input').value,'Responsable');
+  ir('cuenta');
+  assert.equal($('vista-cuenta').hidden,false);
+  assert.equal($('correo-cuenta').textContent,'prueba@example.org');
+  $('cambiar-clave-cuenta').click();
+  assert.equal($('email-recuperacion').readOnly,true);
+  $('pedir-enlace').dispatchEvent(new window.Event('submit',{cancelable:true}));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(recuperaciones,['prueba@example.org']);
+  $('cerrar-correo-acceso').click();
+  $('salir-cuenta').click();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal($('acceso').hidden,false);
+  assert.equal($('correo-cuenta').textContent,'');
+  $('olvido-clave').click();
+  assert.equal($('email-recuperacion').readOnly,false);
 });

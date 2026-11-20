@@ -31,7 +31,7 @@
       <input id="password" type="password" autocomplete="current-password" maxlength="1024" required>
       <button id="entrar" type="submit">Entrar</button>
     </form>
-    <button id="olvido-clave" class="secundario" type="button" hidden>He olvidado mi contraseña</button>
+    <button id="olvido-clave" class="enlace-cuenta" type="button" aria-haspopup="dialog" hidden>¿Has olvidado tu contraseña?</button>
     <p class="nota">Si necesitas acceso o recuperar tu cuenta, contacta con la administración de Contactia.</p>
   </section>
   <p id="mensaje" role="status" aria-live="polite"></p>
@@ -46,6 +46,7 @@
         <button type="button" data-seccion="avisos" aria-controls="vista-avisos">Avisos y recados</button>
         <button type="button" data-seccion="ajustes" aria-controls="vista-ajustes">Ajustes del restaurante</button>
         <button type="button" data-seccion="carta" aria-controls="vista-carta">Carta</button>
+        <button type="button" data-seccion="cuenta" aria-controls="vista-cuenta">Configuración de usuario</button>
         <button type="button" data-seccion="ayuda" aria-controls="vista-ayuda">Ayuda</button>
       </nav>
       <div id="configuracion">
@@ -60,9 +61,26 @@
         <section id="vista-avisos" aria-labelledby="titulo-avisos" hidden><h3 id="titulo-avisos" tabindex="-1">Avisos y recados</h3><div id="contenido-avisos"></div></section>
         <section id="vista-ajustes" aria-labelledby="titulo-ajustes" hidden><h3 id="titulo-ajustes" tabindex="-1">Ajustes del restaurante</h3><div id="contenido-ajustes"></div></section>
         <section id="vista-carta" aria-labelledby="titulo-carta" hidden><h3 id="titulo-carta" tabindex="-1">Carta</h3><p>La edición de la carta aún no está disponible en este panel.</p></section>
+        <section id="vista-cuenta" aria-labelledby="titulo-cuenta" hidden>
+          <h3 id="titulo-cuenta" tabindex="-1">Configuración de usuario</h3>
+          <p class="nota">Estos ajustes son de tu cuenta personal y no cambian la configuración del restaurante.</p>
+          <div class="bloque-cuenta">
+            <h4>Correo de acceso</h4>
+            <p id="correo-cuenta"></p>
+          </div>
+          <div class="bloque-cuenta">
+            <h4>Contraseña</h4>
+            <p id="ayuda-cuenta-correo" class="nota">La recuperación por correo aún no está disponible para esta cuenta de pruebas.</p>
+            <button id="cambiar-clave-cuenta" class="secundario" type="button" aria-haspopup="dialog" hidden>Solicitar enlace para cambiar la contraseña</button>
+          </div>
+          <div class="bloque-cuenta">
+            <h4>Sesión</h4>
+            <button id="salir-cuenta" class="secundario" type="button">Cerrar sesión en este dispositivo</button>
+          </div>
+        </section>
         <section id="vista-ayuda" aria-labelledby="titulo-ayuda" hidden><h3 id="titulo-ayuda" tabindex="-1">Ayuda</h3>
           <p>En Ajustes del restaurante puedes actualizar la ficha y los horarios. En Mesas y zonas puedes consultar qué mesas están operativas.</p>
-          <p>Si necesitas recuperar tu cuenta o cambiar alguna condición del servicio, contacta con Contactia.</p>
+          <p>Para cambiar tu contraseña, abre Configuración de usuario. Si necesitas ayuda con tu cuenta o el servicio, contacta con Contactia.</p>
         </section>
       </div>
     </div>
@@ -84,7 +102,7 @@
     <button type="submit">Guardar contraseña</button>
   </form>
   <p id="estado-correo-acceso" role="status" aria-live="polite"></p>
-  <button id="cerrar-correo-acceso" class="secundario" type="button">Volver al acceso</button>
+  <button id="cerrar-correo-acceso" class="secundario" type="button">Cerrar</button>
 </dialog>
 <dialog id="cambio-reserva" aria-labelledby="titulo-cambio">
   <h2 id="titulo-cambio">Cambiar fecha y hora</h2>

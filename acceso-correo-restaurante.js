@@ -31,8 +31,16 @@
   dialogo.addEventListener('cancel',e=>{if(ocupado)e.preventDefault();});
   dialogo.addEventListener('close',borrarClave);
   el('olvido-clave').addEventListener('click',()=>{
-    el('email-recuperacion').value=el('email').value;
+    const campo=el('email-recuperacion');
+    campo.readOnly=false;
+    campo.value=el('email').value;
     abrir('Recuperar contraseña',recuperar);
+  });
+  el('cambiar-clave-cuenta').addEventListener('click',()=>{
+    const campo=el('email-recuperacion');
+    campo.readOnly=true;
+    campo.value=el('correo-cuenta').textContent;
+    abrir('Cambiar contraseña',recuperar);
   });
   recuperar.addEventListener('submit',async e=>{
     e.preventDefault(); if(ocupado)return;
