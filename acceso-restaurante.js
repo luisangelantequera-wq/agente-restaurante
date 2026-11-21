@@ -38,6 +38,11 @@ async function pedir(accion, datos = {}) {
   }
   return contenido;
 }
+function mostrarDireccion(direccion) {
+  const campo=$('direccion-panel');
+  campo.textContent=direccion?.trim()||'';
+  campo.hidden=!campo.textContent;
+}
 function mostrarAcceso() {
   $('cambio-reserva').close(); edicion=null;
   $('panel').hidden = true;
@@ -45,6 +50,7 @@ function mostrarAcceso() {
   limpiarVistas();
   $('nav-equipo').hidden = true;
   $('restaurante').replaceChildren();
+  mostrarDireccion();
   $('usuario').textContent = '';
   $('correo-cuenta').textContent = '';
   $('cambiar-clave-cuenta').hidden = true;
@@ -63,10 +69,12 @@ function tabla(titulo, columnas, filas) {
 async function cargar() {
   $('restaurante').disabled = true; $('actualizar').disabled = true;
   $('titulo-panel').textContent = $('restaurante').selectedOptions[0]?.textContent || 'Mi restaurante';
+  mostrarDireccion();
   limpiarVistas(); mensaje('Cargando restaurante…');
   try {
     const datos = await pedir('supabase_configuracion', { restaurante_id: Number($('restaurante').value) });
     $('titulo-panel').textContent = datos.restaurante.nombre;
+    mostrarDireccion(datos.restaurante.direccion);
     $('nav-equipo').hidden = !datos.puede_gestionar_equipo;
     if (datos.puede_gestionar_equipo) {
       vistaEquipo=window.ContactiaEquipo.crear(datos.restaurante.nombre,async id=>{
@@ -114,6 +122,7 @@ async function cargar() {
       window.ContactiaLlamadasPanel.crear(datos.restaurante,pedir));
     $('contenido-ajustes').append(window.ContactiaDatosPanel.crear(datos.restaurante,datos.puede_editar_datos,async solicitud=>{
       const resultado=await pedir('supabase_guardar_datos',solicitud);
+      if (Number($('restaurante').value)===datos.restaurante.id) mostrarDireccion(solicitud.datos.direccion);
       datos.restaurante.nombre=solicitud.datos.nombre.trim();$('titulo-panel').textContent=datos.restaurante.nombre;
       const opcion=[...$('restaurante').options].find(o=>Number(o.value)===datos.restaurante.id);if(opcion)opcion.textContent=datos.restaurante.nombre;
       return resultado;

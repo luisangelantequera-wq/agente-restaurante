@@ -3,6 +3,7 @@
 #cabecera-panel button{margin:0;justify-self:start}
 #cabecera-panel .identidad-restaurante{min-width:0;padding-inline:var(--separacion-panel);overflow-wrap:anywhere}
 #cabecera-panel h2{margin:0 0 4px}
+#cabecera-panel #direccion-panel{margin:0 0 3px;color:#d1e1d6}
 #cabecera-panel #usuario{margin:0}
 #cabecera-panel.menu-plegado{grid-template-columns:auto minmax(0,1fr) auto}
 #panel .barra-panel{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:0 0 24px}

@@ -25,7 +25,7 @@ test('el menú deja la vista activa a ancho completo y conserva una edición al 
       accion==='supabase_correo_recuperar' ? {mensaje:'Solicitud recibida.'} :
       accion==='supabase_equipo' ? {personas:usuario_id?[]:[{id:'prueba',email:'equipo@example.org',rol:'empleado',puede_retirar:true}]} :
       accion==='supabase_configuracion' ? {
-        restaurante:{id:81,nombre:'Restaurante de prueba',zona_horaria:'Europe/Madrid',duracion_reserva_minutos:90,antelacion_minima_reserva_minutos:30,
+        restaurante:{id:81,nombre:'Restaurante de prueba',direccion:'Calle de prueba, 12',zona_horaria:'Europe/Madrid',duracion_reserva_minutos:90,antelacion_minima_reserva_minutos:30,
           intervalo_minutos:15,horario_reservas:{},dias_cierre:[],cierres_especiales:[],horarios_version:0},
         zonas:[{id:'i',nombre:'Interior',estado:'activo'}],
         mesas:[{id:'m',zona_id:'i',nombre:'Mesa 1',min_personas:1,capacidad:4,estado:'libre'}],
@@ -41,6 +41,9 @@ test('el menú deja la vista activa a ancho completo y conserva una edición al 
   assert.equal($('titulo-panel').closest('#cabecera-panel'),$('cabecera-panel'));
   assert.equal($('salir').closest('#cabecera-panel'),$('cabecera-panel'));
   assert.equal($('titulo-panel').textContent,'Restaurante de prueba');
+  assert.equal($('titulo-panel').nextElementSibling,$('direccion-panel'));
+  assert.equal($('direccion-panel').textContent,'Calle de prueba, 12');
+  assert.equal($('direccion-panel').hidden,false);
   assert.equal($('selector-restaurante').hidden,true);
   assert.equal($('menu-restaurante').hidden,true);
   $('plegar-menu').click();
@@ -88,6 +91,7 @@ test('el menú deja la vista activa a ancho completo y conserva una edición al 
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal($('acceso').hidden,false);
   assert.equal($('correo-cuenta').textContent,'');
+  assert.equal($('direccion-panel').hidden,true);
   $('olvido-clave').click();
   assert.equal($('email-recuperacion').readOnly,false);
 });
