@@ -37,8 +37,10 @@
   </section>
   <p id="mensaje" role="status" aria-live="polite"></p>
   <section id="panel" class="tarjeta" hidden aria-labelledby="titulo-panel">
-    <div class="barra-panel">
+    <div id="cabecera-panel">
       <button id="plegar-menu" class="secundario" type="button" aria-controls="menu-restaurante" aria-expanded="true">Ocultar menú</button>
+      <div class="identidad-restaurante"><h2 id="titulo-panel">Mi restaurante</h2><p id="usuario"></p></div>
+      <button id="salir" class="secundario" type="button">Cerrar sesión</button>
     </div>
     <div id="distribucion-panel">
       <nav id="menu-restaurante" aria-label="Secciones del restaurante">
@@ -52,10 +54,8 @@
         <button type="button" data-seccion="ayuda" aria-controls="vista-ayuda">Ayuda</button>
       </nav>
       <div id="configuracion">
-        <div class="cabecera"><div><h2 id="titulo-panel">Mi restaurante</h2><p id="usuario"></p></div>
-          <button id="salir" class="secundario" type="button">Cerrar sesión</button></div>
         <div class="barra-panel">
-          <div class="selector-panel"><label for="restaurante">Restaurante</label><select id="restaurante"></select></div>
+          <div id="selector-restaurante" class="selector-panel" hidden><label for="restaurante">Cambiar de restaurante</label><select id="restaurante"></select></div>
           <button id="actualizar" class="secundario" type="button">Actualizar</button>
         </div>
         <section id="vista-reservas" aria-labelledby="titulo-reservas"><h3 id="titulo-reservas" tabindex="-1">Reservas</h3><div id="contenido-reservas"></div></section>

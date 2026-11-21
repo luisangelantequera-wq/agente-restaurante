@@ -1,16 +1,25 @@
+#panel{--ancho-menu:215px;--separacion-panel:24px}
+#cabecera-panel{display:grid;grid-template-columns:var(--ancho-menu) minmax(0,1fr) auto;align-items:start;margin-bottom:24px}
+#cabecera-panel button{margin:0;justify-self:start}
+#cabecera-panel .identidad-restaurante{min-width:0;padding-inline:var(--separacion-panel);overflow-wrap:anywhere}
+#cabecera-panel h2{margin:0 0 4px}
+#cabecera-panel #usuario{margin:0}
+#cabecera-panel.menu-plegado{grid-template-columns:auto minmax(0,1fr) auto}
 #panel .barra-panel{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:0 0 24px}
 #panel .barra-panel button{margin:0}
 #panel .selector-panel{flex:0 1 320px;min-width:0}
 #panel .selector-panel label{margin:0 0 6px}
-#distribucion-panel{display:grid;grid-template-columns:minmax(175px,215px) minmax(0,1fr);min-height:320px}
+#distribucion-panel{display:grid;grid-template-columns:var(--ancho-menu) minmax(0,1fr);min-height:320px}
 #distribucion-panel.menu-plegado{grid-template-columns:minmax(0,1fr)}
 #menu-restaurante{display:grid;align-content:start;gap:5px;padding:0 16px 0 0;border-inline-end:1px solid #52695a}
 #menu-restaurante button{margin:0;text-align:left;background:transparent;color:#e5ece7;border-color:transparent;padding:9px 12px}
 #menu-restaurante button:hover{border-color:#52695a}
 #menu-restaurante button[aria-current]{background:#304c3b;border-color:#6d927a}
 #configuracion{min-width:0}
-#distribucion-panel:not(.menu-plegado) #configuracion{padding-inline-start:24px}
+#distribucion-panel:not(.menu-plegado) #configuracion{padding-inline-start:var(--separacion-panel)}
 #configuracion h3{margin:0 0 16px}
+#configuracion #titulo-equipo{font-size:1.5rem}
+#vista-equipo .editor-invitacion > summary{font-size:1.125rem}
 #olvido-clave{display:block;margin:4px 0 12px;padding:6px 0;border:0;background:none;color:#bde2c9;text-align:left;text-decoration:underline;text-underline-offset:3px}
 #vista-cuenta .bloque-cuenta{border-top:1px solid #35483c;padding:14px 0}
 #vista-cuenta h4,#vista-cuenta .bloque-cuenta p{margin:0 0 7px;overflow-wrap:anywhere}
@@ -23,6 +32,9 @@
 #configuracion .editor-datos label,#configuracion .editor-contacto label{font-weight:700}
 #configuracion .editor-datos :is(input,textarea),#configuracion .editor-contacto input{font-weight:400}
 @media(max-width:760px){
+ #cabecera-panel,#cabecera-panel.menu-plegado{grid-template-columns:minmax(0,1fr) auto;gap:12px}
+ #cabecera-panel .identidad-restaurante{grid-column:1 / -1;grid-row:1;padding:0}
+ #cabecera-panel #salir{justify-self:end}
  #distribucion-panel{grid-template-columns:minmax(0,1fr);gap:16px}
  #menu-restaurante{display:flex;overflow:auto;padding:0 0 10px;border-inline-end:0;border-block-end:1px solid #52695a}
  #distribucion-panel:not(.menu-plegado) #configuracion{padding-inline-start:0}

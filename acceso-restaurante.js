@@ -17,6 +17,7 @@ function verSeccion(seccion, foco = false) {
 function plegarMenu(plegado) {
   $('menu-restaurante').hidden = plegado;
   $('distribucion-panel').classList.toggle('menu-plegado',plegado);
+  $('cabecera-panel').classList.toggle('menu-plegado',plegado);
   $('plegar-menu').setAttribute('aria-expanded',String(!plegado));
   $('plegar-menu').textContent = plegado ? 'Mostrar menú' : 'Ocultar menú';
 }
@@ -217,6 +218,7 @@ async function mostrarPanel(datos) {
   $('restaurante').replaceChildren(...datos.restaurantes.map(r => {
     const opcion = document.createElement('option'); opcion.value = String(r.id); opcion.textContent = r.nombre; return opcion;
   }));
+  $('selector-restaurante').hidden = datos.restaurantes.length <= 1;
   verSeccion('reservas');
   plegarMenu(window.matchMedia?.('(max-width:760px)').matches ?? false);
   $('acceso').hidden = true; $('panel').hidden = false;

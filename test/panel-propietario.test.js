@@ -38,8 +38,10 @@ test('el menú deja la vista activa a ancho completo y conserva una edición al 
   assert.equal($('vista-reservas').hidden,false);
   assert.equal($('menu-restaurante').querySelector('[aria-current="page"]').dataset.seccion,'reservas');
   assert.equal($('menu-restaurante').querySelector('[data-seccion="inicio"]'),null);
-  assert.equal($('titulo-panel').closest('#configuracion'),$('configuracion'));
+  assert.equal($('titulo-panel').closest('#cabecera-panel'),$('cabecera-panel'));
+  assert.equal($('salir').closest('#cabecera-panel'),$('cabecera-panel'));
   assert.equal($('titulo-panel').textContent,'Restaurante de prueba');
+  assert.equal($('selector-restaurante').hidden,true);
   assert.equal($('menu-restaurante').hidden,true);
   $('plegar-menu').click();
   const ir = s => window.document.querySelector('[data-seccion="'+s+'"]').click();
