@@ -1,0 +1,51 @@
+:root{color-scheme:dark;color:#e5ece7;background:#101815}
+main{max-width:1440px;margin:36px auto;padding:0 28px}
+#acceso{max-width:620px}
+.marca{color:#9bc5aa}.nota,#usuario{color:#aebdb3}
+.tarjeta{background:#1a2520;border-color:#35483c;box-shadow:0 16px 45px #0003}
+input,select{color:#e5ece7;background:#111c16;border-color:#52695a}
+input[type=number]{appearance:textfield;-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+button{background:#a4cbb0;color:#102318;border-color:#a4cbb0}
+.secundario{color:#c4dbcc;border-color:#6d927a}
+:focus-visible{outline-color:#b4dfc2}
+#mensaje{color:#f0c291}
+th,td{border-color:#35483c}
+.tabla-reservas{overflow-x:auto}.tabla-reservas table{min-width:560px}
+.cancelar{background:transparent;color:#efc4a1;border-color:#a47755;font-size:13px;padding:8px 12px;margin:0;min-height:40px}
+.acciones-reserva{display:flex;flex-wrap:wrap;gap:8px;min-width:165px}
+.cambiar{font-size:13px;padding:8px 12px;margin:0;min-height:40px}
+dialog{color:#e5ece7;background:#1a2520;border:1px solid #52695a;border-radius:18px;padding:28px;width:min(540px,calc(100% - 32px));max-height:90vh;overflow:auto}
+dialog::backdrop{background:#000a}dialog form{max-width:none}
+#mensaje-cambio{color:#f0c291}
+.editor-horarios{margin-top:32px;border-top:1px solid #35483c;padding-top:20px}
+.editor-horarios summary{font-size:22px;font-weight:650;cursor:pointer}
+.editor-horarios form{max-width:none}.editor-horarios fieldset{border:1px solid #52695a;border-radius:10px;padding:12px 16px;margin:10px 0;min-width:0}
+.editor-horarios legend{font-weight:650}.editor-horarios input{margin-top:4px;padding:8px 10px;min-height:42px}
+.grupo-horario>legend{float:left;width:112px;padding:0;margin:15px 0 0;font-size:14px}
+.contenido-horario{margin-left:124px;display:grid;grid-template-columns:94px minmax(0,1fr) auto;gap:16px;align-items:center}
+.lista-franjas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;min-width:0}
+.dia-cerrado .lista-franjas,.dia-cerrado .anadir-franja{display:none}
+.contenido-horario>.anadir-franja{margin:0;padding:8px 12px;font-size:13px;min-height:42px}
+.editor-horarios .opcion-horario{display:flex;align-items:center;gap:10px;margin:8px 0}
+.opcion-horario input[type=checkbox]{width:20px;min-height:20px;height:20px;margin:0;flex:none;accent-color:#a4cbb0}
+.franja-horario{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 42px;gap:8px;align-items:end;margin:0}
+.franja-horario label{margin:0;font-size:12px;min-width:0}.franja-horario input{min-width:0;width:100%}
+.franja-horario button{margin:0;padding:0;font-size:24px;min-height:42px;width:42px}
+.reglas-horario{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;max-width:800px;margin:20px 0}
+.reglas-horario label{margin:0}
+.fecha-especial{display:grid;grid-template-columns:220px minmax(0,1fr) auto;gap:12px 20px;align-items:center;border-bottom:1px solid #52695a;padding:16px 0}
+.fecha-especial>label{margin:0}.fecha-especial>.grupo-horario{grid-column:1/-1;margin:0}
+.fecha-especial>button{grid-column:3;grid-row:1;margin:0;font-size:13px;padding:8px 12px}
+.editor-horarios input:disabled{opacity:.55}
+.editor-datos form{max-width:none}.campos-datos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px;margin:20px 0}.campos-datos label{margin:0}.campos-datos textarea{display:block;width:100%;min-height:90px;margin-top:6px;padding:10px;font:inherit;border:1px solid #52695a;border-radius:8px;background:#14221b;color:#e5ece7;resize:vertical}.campos-datos textarea:disabled{opacity:.6}
+@media(max-width:760px){.campos-datos{grid-template-columns:1fr}}
+@media(max-width:1150px){.lista-franjas{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:760px){
+ main{padding:0 16px;margin:24px auto}.tarjeta{padding:20px}
+ .grupo-horario>legend{float:none;width:auto;margin:0;padding:0 6px}
+ .contenido-horario{margin-left:0;grid-template-columns:1fr;gap:10px}
+ .contenido-horario>.anadir-franja{justify-self:start}
+ .reglas-horario{grid-template-columns:1fr;gap:16px}
+ .fecha-especial{grid-template-columns:1fr}.fecha-especial>button{grid-column:1;grid-row:auto;justify-self:start}
+}

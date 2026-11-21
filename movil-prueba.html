@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Contactia · Llamada de prueba al móvil</title><link rel="stylesheet" href="/chat-prueba.css"></head>
+<body><main>
+ <header><div><p class="marca">CONTACTIA · PRUEBAS</p><h1>Llamada de prueba a mi móvil</h1></div></header>
+ <p>El número americano de Contactia llamará al móvil español habilitado para esta prueba. Conteste en el móvil para escuchar un aviso breve.</p>
+ <p class="nota">Esta llamada tiene coste en Twilio. No realiza ninguna reserva.</p>
+ <section class="voz-panel" aria-label="Preparar prueba">
+  <p id="destino"></p><p>Duración máxima tras contestar: 30 segundos. Puede colgar desde el móvil en cualquier momento. No se graba ni se escucha su micrófono.</p>
+  <button id="preparar" type="button" disabled>Preparar prueba</button>
+  <div id="verificacion" hidden></div>
+  <button id="llamar" type="button" hidden disabled>Llamar ahora a mi móvil</button>
+  <p id="movil-estado" role="status" aria-live="polite">Comprobando disponibilidad…</p>
+ </section>
+ <section class="voz-panel" aria-label="Resultado y coste">
+  <p>Al colgar, consulte el resultado y el coste de conexión registrado por Twilio. Puede tardar en aparecer; un importe pendiente no equivale a cero. La locución y el alquiler del número se contabilizan aparte. Esta prueba no utiliza LiveKit.</p>
+  <button id="consultar-coste" type="button" disabled>Consultar resultado y coste</button>
+  <p id="coste-estado" role="status" aria-live="polite">Todavía no hay una prueba que consultar.</p>
+ </section>
+ <p><a href="/chat-prueba.html?restaurante=prueba-sol">Volver a las pruebas de reservas</a></p>
+</main><script src="/movil-prueba.js"></script></body></html>

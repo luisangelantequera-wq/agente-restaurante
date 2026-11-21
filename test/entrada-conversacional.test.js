@@ -470,3 +470,19 @@ test("conserva un correo indicado antes del nombre", () => {
     /if \(paso === "observaciones_detalle"\)[\s\S]*datosReserva\.observaciones = sinObservaciones \? "" : mensaje/
   );
 });
+
+test('teléfono: acepta bloques hablados de dos cifras y mezclas con cifras sueltas sin rellenar ceros',()=>{
+ const casos=[
+  ['seis cuarenta y seis cero veintitrés seis veinticuatro','+34646023624'],
+  ['6 cuarenta y seis 0 veintitrés 6 veinticuatro','+34646023624'],
+  ['seis, cuarenta y seis, cero, veintitrés, seis, veinticuatro','+34646023624'],
+  ['seis doce treinta y cuatro cincuenta y seis setenta y ocho','+34612345678'],
+  ['más treinta y cuatro seis cuarenta y seis cero veintitrés seis veinticuatro','+34646023624'],
+  ['cero cero treinta y cuatro seis cuarenta y seis cero veintitrés seis veinticuatro','+34646023624']
+ ];
+ for(const [entrada,salida] of casos){assert.equal(normalizarTelefono(entrada),salida,entrada);assert.equal(telefonoValido(entrada),true,entrada);}
+ assert.equal(telefonoValido('6 46 0 23'),false);
+ assert.equal(normalizarTelefono('646023624 o 600000001'),'');
+ assert.equal(normalizarTelefono('6 seiscientos 46023624'),'');
+ assert.equal(normalizarTelefono('seis cuarenta y cero cero veintitrés seis veinticuatro'),'');
+});

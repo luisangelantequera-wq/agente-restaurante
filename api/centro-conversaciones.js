@@ -242,6 +242,10 @@ module.exports = async (req, res) => {
     return responder(res, 400, { ok: false, error: "Solicitud no válida." });
   }
 
+  if (cuerpo.accion === 'administrar_restaurantes') {
+    return require('../lib/administracion-restaurantes').crearHandler()(req, res, cuerpo);
+  }
+
   if (!centroContactiaConfigurado()) {
     return responder(res, 503, {
       ok: false,
