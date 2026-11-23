@@ -1,2 +1,4 @@
 livekit-agents~=1.8
+livekit-plugins-azure==1.8.6
+azure-cognitiveservices-speech==1.53.1
 python-dotenv>=1.0,<2

@@ -61,3 +61,32 @@ El acceso firmado, el arranque del worker y el temporizador usan el mismo límit
 el estado cifrado del motor dura seis minutos y no se amplía. El conector Twilio
 conserva sus tres minutos. Se verifica un turno a los cuatro minutos y la caducidad
 tras los cinco; el inicio repetido no renueva el plazo original.
+
+## Transferir al personal si no se puede confirmar una reserva
+
+El worker SIP ofrece un único reintento de la misma operación de reserva. Si
+sigue sin poder verificarla, ofrece la transferencia solo en el horario interno
+de atención y si hay un destino configurado. Sin horario, fuera de horario o
+si falla el traspaso, dicta el número público disponible. No se anuncia el
+destino interno y no se crea una segunda reserva.
+
+Para probarlo en Preview, aplicar primero la migración
+`20261122223000_telefono_transferencia_restaurante.sql`, desplegar backend y
+worker y completar la ficha interna del local de prueba. Confirmar que el
+número público y el de transferencia llegan al personal, sin volver a Contactia.
+La transferencia queda desactivada por defecto: habilitar SIP REFER en Telnyx y
+poner `CONTACTIA_SIP_TRANSFER_ENABLED=1` en Vercel Preview para la prueba.
+La comprobación manual usa una llamada en horario con un destino controlado y
+distinto del móvil que llama. Solo en Preview, fijar temporalmente
+`CONTACTIA_SIP_TRANSFER_TEST` con formato `+34<movil>@AAAA-MM-DDTHH:MM:SSZ`.
+La marca se aplica solo a ese móvil y al inicio de llamadas dentro de los
+30 minutos anteriores al vencimiento (UTC). Una sesión marcada simula el
+fallo al guardar y al reintentar, sin crear reservas ni enviar avisos. Las
+demás llamadas mantienen su flujo. Retirar la variable después de la prueba.
+Durante la llamada usar datos ficticios, confirmar, decir «reintentar» y
+aceptar el traspaso cuando se ofrezca; comprobar que ambos teléfonos quedan
+conectados al contestar el móvil de destino.
+El desvío de Telnyx cuando no conecta el SIP es independiente.
+
+- https://docs.livekit.io/reference/telephony/sip-api/#transfersipparticipant
+- https://docs.livekit.io/reference/telephony/troubleshooting/#call-transfer-issues

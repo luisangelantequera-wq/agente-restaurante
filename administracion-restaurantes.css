@@ -33,3 +33,5 @@
 .equipo-lista li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #35483c;padding:12px 0}
 .equipo-lista li div{min-width:0;overflow-wrap:anywhere}
 .equipo-lista li span{display:block;color:#aebdb3}
+
+.ayuda-telefonos{margin:0;font-size:13px}

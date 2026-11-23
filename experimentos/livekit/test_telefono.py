@@ -9,7 +9,7 @@ import sys
 import time
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 
 class ServidorFalso:
@@ -136,6 +136,82 @@ class Pruebas(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(finales, [True])
         await relay.enviar("Sí")
         self.assertEqual(len(http.peticiones), 2)
+
+    async def test_sip_transfiere_solo_tras_un_reintento_y_con_permiso(self):
+        d = {**datos(), "canal": "sip", "asistencia": {
+            "publico": "+34910000001", "destino": "+34600000002"}}
+        http = HTTP([resultado("pendiente-1", "pendiente"), resultado("pendiente-2", "pendiente")])
+        transferencia = AsyncMock()
+        relay = m.MotorTelefonico(d, http, url=URL, transferir=transferencia)
+        with patch.object(m, "_en_horario", return_value=True):
+            self.assertEqual(json.loads(await relay.enviar("Sí"))["paso"], "pendiente")
+            oferta = await relay.enviar("reintentar")
+            self.assertIn("¿Quiere que intente pasarle", oferta)
+            self.assertNotIn("600000002", oferta)
+            await relay.enviar("Sí, pero no me pase")
+            transferencia.assert_not_awaited()
+            self.assertEqual(json.loads(await relay.enviar("Sí, por favor"))["paso"], "transferida")
+            self.assertEqual(json.loads(await relay.enviar("sí"))["respuesta"], "")
+        transferencia.assert_awaited_once_with("+34600000002")
+        self.assertEqual(len(http.peticiones), 2)
+
+    async def test_livekit_recibe_la_sala_el_participante_y_el_destino_correctos(self):
+        peticion = types.SimpleNamespace(ringing_timeout=types.SimpleNamespace(seconds=0))
+        enviar = AsyncMock()
+        cliente = AsyncMock()
+        cliente.__aenter__.return_value = types.SimpleNamespace(sip=types.SimpleNamespace(transfer_sip_participant=enviar))
+        with patch.object(m.api, "LiveKitAPI", return_value=cliente, create=True), patch.object(
+            m.api, "TransferSIPParticipantRequest", return_value=peticion, create=True
+        ) as construir:
+            await m.transferir_sip("sala-de-prueba", "sip-cliente", "+34600000002")
+        construir.assert_called_once_with(room_name="sala-de-prueba", participant_identity="sip-cliente",
+                                          transfer_to="tel:+34600000002", play_dialtone=True)
+        enviar.assert_awaited_once_with(peticion)
+        self.assertEqual(peticion.ringing_timeout.seconds, 10)
+
+    async def test_sip_fallo_de_red_repite_el_mismo_turno_y_dicta_numero_si_falla_transferencia(self):
+        d = {**datos(), "canal": "sip", "asistencia": {
+            "publico": "+34910000001", "destino": "+34600000002"}}
+        http = HTTP([resultado("en-final", "final"), TimeoutError(), TimeoutError()])
+        transferencia = AsyncMock(side_effect=RuntimeError("No contesta"))
+        cierres = []
+        relay = m.MotorTelefonico(d, http, url=URL, transferir=transferencia, terminado=lambda: cierres.append(True))
+        with patch.object(m, "_en_horario", return_value=True):
+            await relay.enviar("Ninguna")
+            self.assertIn("reintentar", await relay.enviar("Confirmo los datos"))
+            self.assertIn("pasarle", await relay.enviar("reintentar"))
+            respuesta = json.loads(await relay.enviar("Sí"))["respuesta"]
+            self.assertIn("No he podido pasarle la llamada", respuesta)
+            self.assertIn("9, 1, 0, 0, 0, 0, 0, 0, 1", respuesta)
+            self.assertNotIn("6, 0, 0", respuesta)
+            for _ in range(2):
+                self.assertIn("¿Necesita que le repita el número?", await relay.enviar("Sí"))
+            self.assertIn("Disculpe las molestias", await relay.enviar("No, gracias"))
+        self.assertEqual(cierres, [True])
+        transferencia.assert_awaited_once()
+        self.assertEqual(len(http.peticiones), 3)
+        self.assertEqual(http.peticiones[1][1]["json"], http.peticiones[2][1]["json"])
+
+    async def test_sip_fuera_de_horario_sin_horario_y_cambio_de_franja(self):
+        antes = m.datetime.fromisoformat("2026-11-23T10:00:00+00:00")
+        limite = m.datetime.fromisoformat("2026-11-23T12:00:00+00:00")
+        en_horario = m._en_horario
+        for horario, instante in (({}, antes), ({"lunes": ["11:00-13:00"]}, limite), ({"lunes": ["11:00-13:00"]}, antes)):
+            d = {**datos(), "canal": "sip", "asistencia": {"zona": "Europe/Madrid", "horario": horario,
+                 "publico": "+34910000001", "destino": "+34600000002"}}
+            transferencia = AsyncMock()
+            http = HTTP([resultado("pendiente-1", "pendiente"), resultado("pendiente-2", "pendiente")])
+            relay = m.MotorTelefonico(d, http, url=URL, transferir=transferencia)
+            with patch.object(m, "_en_horario", side_effect=lambda a: en_horario(a, instante)):
+                await relay.enviar("Sí")
+                r = await relay.enviar("reintentar")
+                if instante == antes and horario:
+                    self.assertIn("¿Quiere que intente pasarle", r)
+                    instante = limite
+                    r = await relay.enviar("Sí")
+                self.assertIn("puede llamar al", r)
+                self.assertNotIn("cerrado", r)
+            transferencia.assert_not_awaited()
 
     async def test_web_conserva_rpc_y_telefono_usa_motor(self):
         class Local:

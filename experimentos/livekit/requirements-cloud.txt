@@ -7,6 +7,8 @@ annotated-types==0.8.0
 anyio==4.15.1
 attrs==26.1.0
 av==19.0.1
+azure-cognitiveservices-speech==1.53.1
+azure-core==1.41.0
 certifi==2026.10.23
 cffi==2.1.1
 charset-normalizer==3.5.2
@@ -29,6 +31,8 @@ livekit-agents==1.8.6
 livekit-api==1.2.1
 livekit-blingfire==1.1.0
 livekit-local-inference==0.2.7
+livekit-plugins-azure==1.8.6
+livekit-plugins-openai==1.8.6
 livekit-protocol==1.1.27
 markdown-it-py==4.2.0
 mdurl==0.1.2
@@ -44,6 +48,7 @@ opentelemetry-exporter-otlp-proto-http==1.44.0
 opentelemetry-proto==1.44.0
 opentelemetry-sdk==1.44.0
 opentelemetry-semantic-conventions==0.65b0
+pillow==13.0.0
 prometheus-client==0.26.0
 propcache==0.5.4
 protobuf==7.36.2

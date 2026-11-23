@@ -9,8 +9,12 @@ import json
 import hashlib
 import hmac
 import os
+import re
 import time
+import unicodedata
+from datetime import datetime
 from urllib.parse import urlparse, parse_qs
+from zoneinfo import ZoneInfo
 import aiohttp
 from dotenv import load_dotenv
 from livekit import rtc, api
@@ -20,6 +24,7 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext, RunCont
 load_dotenv(".env.local")
 
 AGENT_NAME = "contactia-cartesia-prueba"
+VOZ_AZURE_PRUEBA = "es-ES-Ximena:DragonHDLatestNeural"
 server = AgentServer()
 
 
@@ -42,6 +47,8 @@ class RecepcionistaPrueba(Agent):
             "Contactia verifica primero teléfono y código, salvo que el cliente adelante el cambio. "
             "Espere al resultado de la herramienta y comunique solo su campo respuesta, "
             "sin agregar ni alterar horas, fechas, personas, nombres o localizadores. "
+            "En asistencia telefónica, lea el número cifra por cifra tal como aparece y espere cada respuesta. "
+            "Si el resultado indica paso transferida, permanezca en silencio. "
             "No solicite datos personales reales: esta sesión es de prueba y "
             "debe usarse exclusivamente con datos ficticios. "
             "Si hay un fallo técnico, indique que no ha podido completar la operación."
@@ -96,17 +103,29 @@ async def contactia(ctx: JobContext):
     await iniciar_sesion(ctx, browser)
 
 
+def sintetizador_prueba(*, sip_sol=False):
+    if sip_sol and os.getenv("CONTACTIA_VOZ_SIP", "cartesia") == "azure":
+        clave = os.getenv("AZURE_SPEECH_KEY", "").strip()
+        region = os.getenv("AZURE_SPEECH_REGION", "").strip()
+        if not clave or not region:
+            raise RuntimeError("Faltan los ajustes de Azure Speech para Sol")
+        from livekit.plugins import azure
+
+        # Sin sustitución silenciosa: la única llamada debe probar Ximena.
+        return azure.TTS(voice=VOZ_AZURE_PRUEBA, language="es-ES",
+                         speech_key=clave, speech_region=region)
+    return inference.TTS(
+        model="cartesia/sonic-3",
+        voice="ad38904c-0ce9-42b1-9159-5ad5352ef089",
+        language="es",
+    )
+
+
 async def iniciar_sesion(ctx, participante, relay=None):
     session = AgentSession(
         stt=inference.STT(model="deepgram/nova-3", language="es"),
         llm=inference.LLM(model="openai/gpt-4.1-mini"),
-        # Rime Coda no admite el servicio EU: REGION_RESTRICTED en Cloud.
-        # Celia: voz de español peninsular del catálogo oficial de Cartesia.
-        tts=inference.TTS(
-            model="cartesia/sonic-3",
-            voice="ad38904c-0ce9-42b1-9159-5ad5352ef089",
-            language="es",
-        ),
+        tts=sintetizador_prueba(sip_sol=ctx.room.name.startswith("contactia-telefono-sol-")),
     )
     @session.on("metrics_collected")
     def on_metrics(ev):
@@ -132,11 +151,37 @@ async def iniciar_sesion(ctx, participante, relay=None):
     return session
 
 
+def _numero_asistencia(numero):
+    return isinstance(numero, str) and re.fullmatch(r"\+[1-9][0-9]{7,14}", numero)
+
+
+def _confirma_reserva(texto):
+    return bool(re.fullmatch(
+        r"(?:si|s|zi)(?: (?:es|esta|todo|son|los datos son|correcto|correctos|bien|por favor|si))*"
+        r"|(?:si )?confirmo(?: los datos)?|(?:los datos )?son correctos?"
+        r"|(?:todo )?(?:correctos?|esta bien)|de acuerdo|vale|adelante", texto
+    ))
+
+
+def _en_horario(asistencia, ahora=None):
+    try:
+        local = (ahora or datetime.now(ZoneInfo("UTC"))).astimezone(ZoneInfo(asistencia["zona"]))
+        dia = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")[local.weekday()]
+        hora = local.strftime("%H:%M")
+        return any(
+            re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]-(?:[01][0-9]|2[0-3]):[0-5][0-9]", franja)
+            and franja[:5] <= hora < franja[6:]
+            for franja in asistencia["horario"].get(dia, [])
+        )
+    except (KeyError, TypeError, ValueError, AttributeError, OSError):
+        return False
+
+
 class MotorTelefonico:
     """Estado opaco en memoria del worker; ninguna credencial global en el job."""
     HOST = "agente-restaurante-git-migrac-db4675-reservas-projects-46f41d07.vercel.app"
 
-    def __init__(self, datos, http, terminado=None, *, url=None):
+    def __init__(self, datos, http, terminado=None, *, url=None, transferir=None):
         # La URL con bypass es un secreto del worker, nunca metadata del job.
         url = url if url is not None else os.getenv("CONTACTIA_TELEFONO_MOTOR_URL", "")
         u = urlparse(url)
@@ -160,16 +205,89 @@ class MotorTelefonico:
         self.cerrada = False
         self.lock = asyncio.Lock()
         self.terminado = terminado
+        self.sip = datos.get("canal") == "sip"
+        self.asistencia = datos.get("asistencia") if self.sip and isinstance(datos.get("asistencia"), dict) else {}
+        self.transferir = transferir
+        self.paso_motor = None
+        self.reintento_ofrecido = False
+        self.fase_asistencia = None
+        self.respuesta_final = None
+
+    def _responder(self, respuesta, paso=""):
+        if paso == "terminado":
+            self.respuesta_final = respuesta
+            self.cerrada = True
+            if self.terminado:
+                self.terminado()
+        return json.dumps({"respuesta": respuesta[:4000], "paso": paso}, ensure_ascii=False)
+
+    def _despedir(self, extra=""):
+        return self._responder(extra + "Disculpe las molestias. Gracias por llamar. Que tenga un buen día.", "terminado")
+
+    def _dar_telefono(self, prefijo=""):
+        publico = self.asistencia.get("publico")
+        if not _numero_asistencia(publico):
+            return self._despedir(prefijo + "Contacte con el restaurante para comprobar la reserva antes de hacer otra. ")
+        self.fase_asistencia = "repetir"
+        digitos = ", ".join(publico[3:] if publico.startswith("+34") else publico[1:])
+        if not publico.startswith("+34"):
+            digitos = "más " + digitos
+        if prefijo:
+            prefijo += "puede llamar al "
+        return self._responder(prefijo + digitos + ". ¿Necesita que le repita el número?", "asistencia")
+
+    def _transferencia_disponible(self):
+        return bool(self.transferir and _numero_asistencia(self.asistencia.get("destino")) and _en_horario(self.asistencia))
+
+    def _ofrecer_asistencia(self):
+        aviso = "Sigo sin poder comprobar si la reserva se ha realizado. "
+        if self._transferencia_disponible():
+            self.fase_asistencia = "transferir"
+            return self._responder(aviso + "¿Quiere que intente pasarle con el personal del restaurante para comprobarlo?", "asistencia")
+        return self._dar_telefono(aviso + "Para comprobar si se ha registrado antes de hacer otra, ")
+
+    async def _atender_asistencia(self, texto):
+        si = texto in ("si", "si por favor", "por favor", "si quiero", "si repitalo", "repitalo")
+        no = texto in ("no", "no gracias", "no hace falta", "no es necesario")
+        if self.fase_asistencia == "repetir":
+            if no:
+                return self._despedir()
+            return self._dar_telefono() if si else self._responder("¿Necesita que le repita el número? Diga sí o no.", "asistencia")
+        if no:
+            return self._dar_telefono("Para comprobar si la reserva se ha registrado antes de hacer otra, ")
+        if not si:
+            return self._responder("¿Quiere que intente pasarle la llamada? Diga sí o no.", "asistencia")
+        if self._transferencia_disponible():
+            try:
+                await self.transferir(self.asistencia["destino"])
+            except Exception:
+                # Nunca divulgar el destino interno, ni intentar la transferencia otra vez.
+                return self._dar_telefono("No he podido pasarle la llamada. Para comprobar si la reserva se ha registrado antes de hacer otra, ")
+            self.fase_asistencia = "transferida"
+            self.cerrada = True
+            self.respuesta_final = ""
+            return self._responder("", "transferida")
+        return self._dar_telefono("No puedo pasarle la llamada en este momento. Para comprobar la reserva antes de hacer otra, ")
 
     async def enviar(self, mensaje):
         async with self.lock:
             if self.cerrada:
-                return json.dumps({"respuesta": "La reserva de prueba ya está confirmada.", "paso": "terminado"})
-            if self.pendiente is not None and mensaje.strip().lower().rstrip(".!? ") not in ("reintentar", "sí", "si"):
+                return self._responder(self.respuesta_final or "", "transferida" if self.fase_asistencia == "transferida" else "cerrada")
+            texto = " ".join(re.findall(r"[a-z0-9]+", unicodedata.normalize("NFD", mensaje.casefold())
+                                       .encode("ascii", "ignore").decode()))
+            if self.fase_asistencia:
+                return await self._atender_asistencia(texto)
+            confirmando = self.sip and (self.paso_motor == "pendiente" or self.reintento_ofrecido)
+            if confirmando:
+                if texto in ("no", "no gracias"):
+                    return self._ofrecer_asistencia()
+                if texto not in ("reintentar", "reintente", "volver a intentar", "compruebe", "comprobar", "si", "si por favor"):
+                    return self._responder("¿Quiere que lo compruebe de nuevo? Diga «reintentar» o «no».", "pendiente")
+            if self.pendiente is not None and not confirmando and mensaje.strip().lower().rstrip(".!? ") not in ("reintentar", "sí", "si"):
                 return json.dumps({"respuesta": "El resultado anterior está pendiente. Diga reintentar para comprobarlo sin crear otra reserva."})
             # Si se pierde la respuesta, conservar exactamente el turno y token
             # anteriores. El UUID de reserva del servidor tampoco cambia.
-            turno = self.pendiente if self.pendiente is not None else mensaje
+            turno = self.pendiente if self.pendiente is not None else ("reintentar" if confirmando else mensaje)
             self.pendiente = turno
             try:
                 async with self.http.post(self.url,
@@ -184,12 +302,20 @@ class MotorTelefonico:
                     raise RuntimeError("Respuesta no válida")
                 self.token = d["conversacion_token"]
                 self.pendiente = None
-                if d.get("paso") == "terminado":
-                    self.cerrada = True
-                    if self.terminado:
-                        self.terminado()
-                return json.dumps({"respuesta": d["respuesta"][:4000], "paso": d.get("paso", "")}, ensure_ascii=False)
+                self.paso_motor = d.get("paso", "")
+                if self.sip and self.paso_motor == "pendiente":
+                    if confirmando:
+                        return self._ofrecer_asistencia()
+                    self.reintento_ofrecido = True
+                else:
+                    self.reintento_ofrecido = False
+                return self._responder(d["respuesta"], self.paso_motor)
             except Exception:
+                if confirmando:
+                    return self._ofrecer_asistencia()
+                if self.sip and self.paso_motor == "final" and _confirma_reserva(texto):
+                    self.reintento_ofrecido = True
+                    return self._responder("Por problemas técnicos no he podido comprobar si la reserva se ha realizado. Si quiere que lo compruebe de nuevo, diga «reintentar».", "pendiente")
                 return json.dumps({"respuesta": "No he podido comprobar el resultado. Diga reintentar para comprobarlo sin duplicar la reserva."}, ensure_ascii=False)
 
 
@@ -233,6 +359,15 @@ async def iniciar_sip(room, identity, http):
     if respuesta.get("ok") is not True or respuesta.get("room") != room or respuesta.get("identity") != identity:
         raise ErrorInicioSIP("respuesta_invalida")
     return respuesta
+
+
+async def transferir_sip(room, identity, destino):
+    solicitud = api.TransferSIPParticipantRequest(
+        room_name=room, participant_identity=identity,
+        transfer_to="tel:" + destino, play_dialtone=True)
+    solicitud.ringing_timeout.seconds = 10
+    async with api.LiveKitAPI() as lk:
+        await asyncio.wait_for(lk.sip.transfer_sip_participant(solicitud), timeout=13)
 
 
 async def contactia_telefono(ctx: JobContext):
@@ -288,7 +423,12 @@ async def contactia_telefono(ctx: JobContext):
         await asyncio.sleep(1.5)
         await colgar()
     final_locutado = asyncio.Event()
-    relay = MotorTelefonico(datos,http,terminado=lambda: lanzar(cierre_final()))
+    async def transferir(destino):
+        if time.time() * 1000 + 15000 >= datos["exp"]:
+            raise RuntimeError("No queda tiempo para transferir")
+        await transferir_sip(ctx.room.name, participante.identity, destino)
+    relay = MotorTelefonico(datos,http,terminado=lambda: lanzar(cierre_final()),
+                            transferir=transferir if datos.get("canal") == "sip" else None)
     lanzar(limite())
     session = await iniciar_sesion(ctx,participante,relay)
     @session.on("agent_state_changed")
