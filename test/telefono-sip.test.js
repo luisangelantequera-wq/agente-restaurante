@@ -157,8 +157,10 @@ test('SIP: el ensayo temporal solo afecta al móvil autorizado y no escribe ni e
   [{...envPrueba,CONTACTIA_SIP_TRANSFER_TEST:'malformado'},origen,false]
  ];
  for(const [env,numero,simulado] of casos){
-  const s=escenario({env,attrs:{'sip.phoneNumber':numero},falloAlConfirmar:'antes'});
+  const s=escenario({env,attrs:{'sip.phoneNumber':numero},falloAlConfirmar:'antes',
+   publico:'910 000 001',asistencia:{telefono_transferencia:'+34600000002',horario_atencion_telefonica:{lunes:['11:00-13:00']}}});
   const inicio=await s.inicio();assert.equal(inicio.statusCode,200,inicio.raw);
+  assert.equal(inicio.body.asistencia.destino,simulado?'+34600000002':undefined);
   for(const frase of ['El martes para dos a las dos','Cliente ficticio','cliente arroba example punto invalid','Sí','600000003','Ninguna']){
    await s.turno(inicio.body,frase);
   }
