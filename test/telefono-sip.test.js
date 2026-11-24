@@ -172,6 +172,18 @@ test('SIP: el ensayo temporal solo afecta al móvil autorizado y no escribe ni e
  }
 });
 
+test('SIP: el móvil privado de ensayo sustituye el respaldo inválido solo en la llamada autorizada',async()=>{
+ const origen='+34600000001',destino='+34600000002';
+ const env={CONTACTIA_SIP_TRANSFER_ENABLED:'1',CONTACTIA_SIP_TRANSFER_TEST:origen+'@'+new Date(now+300000).toISOString().replace(/\.\d{3}Z$/,'Z'),CONTACTIA_SIP_TRANSFER_TEST_DESTINATION:destino};
+ for(const [numero,movil,esperado] of [[origen,destino,destino],['+34600000003',destino,undefined],[origen,origen,undefined],[origen,sip.NUMERO,undefined]]){
+  const s=escenario({publico:'9100000012',env:{...env,CONTACTIA_SIP_TRANSFER_TEST_DESTINATION:movil},attrs:{'sip.phoneNumber':numero}});
+  const r=await s.inicio();assert.equal(r.statusCode,200,r.raw);
+  assert.equal(r.body.asistencia.publico,esperado);
+  assert.equal(r.body.asistencia.destino,esperado);
+  if(esperado)assert.deepEqual(r.body.asistencia.horario.martes,['00:00-23:59']);
+ }
+});
+
 for(const fallo of ['antes','despues']){
  for(const canal of ['correo','WhatsApp']){
   test(`SIP: fallo ${fallo} de guardar con ${canal}, sin confirmar ni enviar hasta recuperar el resultado`,async()=>{
