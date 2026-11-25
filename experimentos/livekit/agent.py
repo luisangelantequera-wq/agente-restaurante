@@ -19,13 +19,18 @@ import aiohttp
 from dotenv import load_dotenv
 from livekit import rtc, api
 
-from livekit.agents import Agent, AgentServer, AgentSession, JobContext, RunContext, cli, function_tool, inference
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, RunContext, StopResponse, cli, function_tool, inference
 
 load_dotenv(".env.local")
 
 AGENT_NAME = "contactia-cartesia-prueba"
 VOZ_AZURE_PRUEBA = "es-ES-Ximena:DragonHDLatestNeural"
 server = AgentServer()
+
+
+def _registro_transferencia(etapa, **datos):
+    # Solo estados y códigos controlados; no incluir audio, teléfonos ni errores completos.
+    print(json.dumps({"tipo": "contactia_transferencia", "etapa": etapa, **datos}), flush=True)
 
 
 class RecepcionistaPrueba(Agent):
@@ -56,6 +61,14 @@ class RecepcionistaPrueba(Agent):
         self.ctx = ctx
         self.browser_identity = browser_identity
         self.relay = relay
+
+    async def on_user_turn_completed(self, turn_ctx, new_message):
+        # En este paso solo se dicta un número público ya validado. Usar el
+        # turno transcrito y el texto del motor directamente, sin pasar por el LLM.
+        if self.relay is not None and self.relay.esperando_repeticion_telefono():
+            resultado = json.loads(await self.relay.enviar(new_message.text_content or ""))
+            self.session.say(resultado["respuesta"])
+            raise StopResponse()
 
     @function_tool()
     async def procesar_turno_contactia(self, context: RunContext, mensaje: str) -> str:
@@ -224,7 +237,7 @@ class MotorTelefonico:
     def _despedir(self, extra=""):
         return self._responder(extra + "Disculpe las molestias. Gracias por llamar. Que tenga un buen día.", "terminado")
 
-    def _dar_telefono(self, prefijo=""):
+    def _dar_telefono(self, prefijo="", *, repeticion=False):
         publico = self.asistencia.get("publico")
         if not _numero_asistencia(publico):
             return self._despedir(prefijo + "Contacte con el restaurante para comprobar la reserva antes de hacer otra. ")
@@ -232,17 +245,23 @@ class MotorTelefonico:
         digitos = ", ".join(publico[3:] if publico.startswith("+34") else publico[1:])
         if not publico.startswith("+34"):
             digitos = "más " + digitos
-        if prefijo:
+        if repeticion:
+            prefijo = "Se lo repito: "
+        elif prefijo:
             prefijo += "puede llamar al "
         return self._responder(prefijo + digitos + ". ¿Necesita que le repita el número?", "asistencia")
 
     def _transferencia_disponible(self):
         return bool(self.transferir and _numero_asistencia(self.asistencia.get("destino")) and _en_horario(self.asistencia))
 
+    def esperando_repeticion_telefono(self):
+        return self.sip and not self.cerrada and self.fase_asistencia == "repetir"
+
     def _ofrecer_asistencia(self):
         aviso = "Sigo sin poder comprobar si la reserva se ha realizado. "
         if self._transferencia_disponible():
             self.fase_asistencia = "transferir"
+            _registro_transferencia("oferta")
             return self._responder(aviso + "¿Quiere que intente pasarle con el personal del restaurante para comprobarlo?", "asistencia")
         return self._dar_telefono(aviso + "Para comprobar si se ha registrado antes de hacer otra, ")
 
@@ -250,9 +269,18 @@ class MotorTelefonico:
         si = texto in ("si", "si por favor", "por favor", "si quiero", "si repitalo", "repitalo")
         no = texto in ("no", "no gracias", "no hace falta", "no es necesario")
         if self.fase_asistencia == "repetir":
-            if no:
+            repetir = bool(re.fullmatch(
+                r"(?:si )?(?:por favor )?(?:me lo )?(?:(?:puede|podria|que) )?(?:me lo )?"
+                r"(?:repetir(?:lo)?|repite|repita(?:lo|me)?)(?: (?:el numero|el telefono|por favor|otra vez))*",
+                texto,
+            ))
+            if no or texto in ("no lo necesito", "ya lo tengo", "no ya lo tengo", "no gracias ya lo tengo",
+                               "no hace falta gracias", "no no hace falta"):
                 return self._despedir()
-            return self._dar_telefono() if si else self._responder("¿Necesita que le repita el número? Diga sí o no.", "asistencia")
+            if si or repetir or texto in ("claro", "vale", "si claro"):
+                return self._dar_telefono(repeticion=True)
+            return self._responder("¿Necesita que le repita el número? Diga sí o no.", "asistencia")
+        _registro_transferencia("respuesta_cliente", decision="si" if si else "no" if no else "no_reconocida")
         if no:
             return self._dar_telefono("Para comprobar si la reserva se ha registrado antes de hacer otra, ")
         if not si:
@@ -260,13 +288,28 @@ class MotorTelefonico:
         if self._transferencia_disponible():
             try:
                 await self.transferir(self.asistencia["destino"])
-            except Exception:
+            except asyncio.CancelledError:
+                _registro_transferencia("resultado", estado="cancelada")
+                raise
+            except Exception as error:
+                codigo = getattr(error, "code", None)
+                if codigo not in ("canceled", "unknown", "invalid_argument", "malformed",
+                                   "deadline_exceeded", "not_found", "bad_route", "already_exists",
+                                   "permission_denied", "unauthenticated", "resource_exhausted",
+                                   "failed_precondition", "aborted", "out_of_range", "unimplemented",
+                                   "internal", "unavailable", "data_loss"):
+                    codigo = None
+                _registro_transferencia("resultado",
+                                        estado="tiempo_agotado" if isinstance(error, asyncio.TimeoutError) else "error",
+                                        codigo=codigo)
                 # Nunca divulgar el destino interno, ni intentar la transferencia otra vez.
                 return self._dar_telefono("No he podido pasarle la llamada. Para comprobar si la reserva se ha registrado antes de hacer otra, ")
+            _registro_transferencia("resultado", estado="aceptada_api")
             self.fase_asistencia = "transferida"
             self.cerrada = True
             self.respuesta_final = ""
             return self._responder("", "transferida")
+        _registro_transferencia("resultado", estado="no_disponible")
         return self._dar_telefono("No puedo pasarle la llamada en este momento. Para comprobar la reserva antes de hacer otra, ")
 
     async def enviar(self, mensaje):
@@ -367,6 +410,7 @@ async def transferir_sip(room, identity, destino):
         transfer_to="tel:" + destino, play_dialtone=True)
     solicitud.ringing_timeout.seconds = 10
     async with api.LiveKitAPI() as lk:
+        _registro_transferencia("solicitud")
         await asyncio.wait_for(lk.sip.transfer_sip_participant(solicitud), timeout=13)
 
 
@@ -425,6 +469,7 @@ async def contactia_telefono(ctx: JobContext):
     final_locutado = asyncio.Event()
     async def transferir(destino):
         if time.time() * 1000 + 15000 >= datos["exp"]:
+            _registro_transferencia("bloqueada", motivo="limite_llamada")
             raise RuntimeError("No queda tiempo para transferir")
         await transferir_sip(ctx.room.name, participante.identity, destino)
     relay = MotorTelefonico(datos,http,terminado=lambda: lanzar(cierre_final()),
