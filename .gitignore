@@ -3,3 +3,6 @@ node_modules/
 .env.*
 .vercel/
 
+
+# Los SDK del navegador se versionan en vendor/ para que el despliegue
+# estático los incluya, igual que el bundle de LiveKit.

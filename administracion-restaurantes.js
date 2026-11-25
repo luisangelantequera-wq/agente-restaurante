@@ -1,0 +1,124 @@
+(()=>{'use strict';
+const $=s=>document.querySelector(s),A=window.ContactiaAjustes,api='/api/centro-conversaciones';
+const etiquetas={nombre:'Nombre',slug:'Identificador público',id:'ID',telefono_publico:'Teléfono público',direccion:'Dirección',web:'Página web',zona_horaria:'Zona horaria',duracion_reserva_minutos:'Duración de la reserva (minutos)',antelacion_minima_reserva_minutos:'Antelación mínima (minutos)',intervalo_minutos:'Intervalo entre horas (minutos)',reservas_web_activas:'Reservas web activas',horario_reservas:'Horario de reservas',dias_cierre:'Días de cierre',cierres_especiales:'Fechas cerradas',informacion_publica:'Información pública',creado_en:'Fecha de creación',airtable_record_id:'Identificador histórico de Airtable',horarios_version:'Versión de horarios',horarios_modificado_por:'Último editor de horarios',horarios_modificado_en:'Última edición de horarios',datos_version:'Versión de datos',datos_modificado_por:'Último editor de datos',datos_modificado_en:'Última edición de datos',estado_servicio:'Estado del servicio',plan:'Modalidad',cuota_mensual:'Cuota mensual acordada',suplemento_voz:'Suplemento mensual de voz',moneda:'Moneda',proveedor_voz:'Proveedor de voz acordado',voz:'Voz acordada',estado_activacion:'Activación técnica comprobada',telefono_reservas:'Teléfono de reservas',telefono_transferencia:'Teléfono para pasar llamadas',contacto_nombre:'Persona de contacto',contacto_telefono:'Teléfono de la persona de contacto',contacto_email:'Correo de contacto',notas:'Notas internas'};
+const opciones={estado_servicio:{'':'Sin indicar',borrador:'Borrador',prueba:'En pruebas',activo:'Activo',pausado:'Pausado',baja:'Baja'},plan:{'':'Sin indicar',estandar:'Estándar',hibrido:'Híbrido',live:'Live'},moneda:{'':'Sin indicar',EUR:'EUR',USD:'USD'},proveedor_voz:{'':'Sin indicar',azure:'Azure',cartesia:'Cartesia',gradium:'Gradium',otro:'Otro'},estado_activacion:{'':'Sin verificar',pendiente:'Pendiente de activación',verificada:'Verificada por Contactia'}};
+etiquetas.horario_atencion_telefonica='Horario de atención telefónica';
+let pagina=0,total=0,busqueda='',detalle=null,sucio=false,ocupado=false,peticion=0;const lectores={};
+let enviandoInvitacion=false;
+function prepararInvitacion(d){
+ const panel=$('#invitacion-prueba');
+ panel.hidden=!d.datos.id||!d.invitaciones_prueba;panel.open=false;
+ $('#form-invitacion').reset();$('#estado-invitacion').textContent='';
+}
+function prepararEquipo(d) {
+ const panel=$('#equipo-interno');
+ panel.open=false;panel.hidden=!d.datos.id;
+ $('#contenido-equipo-interno').replaceChildren();
+}
+$('#equipo-interno').addEventListener('toggle',()=>{
+ const panel=$('#equipo-interno'),contenido=$('#contenido-equipo-interno');
+ if(!panel.open||panel.hidden||!detalle?.datos.id)return;
+ const r=detalle.datos;
+ const vista=window.ContactiaEquipo.crear(r.nombre,id=>admin({operacion:'equipo',id:r.id,...(id?{usuario_id:id}:{})}));
+ contenido.replaceChildren(vista.raiz);vista.cargar();
+});
+const elemento=(tag,texto,clase)=>{const e=document.createElement(tag);if(texto!==undefined)e.textContent=texto;if(clase)e.className=clase;return e;};
+function valor(v){return v===null||v===undefined||v===''?'Sin indicar':typeof v==='boolean'?(v?'Sí':'No'):typeof v==='object'?JSON.stringify(v,null,2):String(v);}
+async function solicitar(b){const r=await fetch(api,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const d=await r.json();if(!r.ok||!d.ok){if(r.status===401){$('#contenido').hidden=true;$('#acceso').hidden=false;$('#salir').hidden=true;}throw Error(d.error||'No se pudo completar la operación.');}return d;}
+const admin=b=>solicitar({accion:'administrar_restaurantes',...b});
+function mostrarSesion(){ $('#acceso').hidden=true;$('#contenido').hidden=false;$('#salir').hidden=false;}
+function linea(c,t,v){const p=elemento('div',undefined,'dato');p.append(elemento('strong',t,'nombre-campo'),elemento('span',valor(v),'valor'));c.append(p);}
+async function cargar(){const turno=++peticion;$('#estado').textContent='Cargando restaurantes…';try{const d=await admin({operacion:'listar',busqueda,pagina});if(turno!==peticion)return;total=d.total;$('#lista').replaceChildren();for(const f of d.restaurantes){const r=f.datos,c=f.configuracion,t=elemento('article',undefined,'tarjeta resumen');const nombre=elemento('div');nombre.append(elemento('h2',r.nombre),elemento('span',r.slug+' · ID '+r.id,'dato'),elemento('span',opciones.estado_servicio[c.estado_servicio]||'Servicio sin configurar','etiqueta'));const contacto=elemento('div');linea(contacto,'Contacto',c.contacto_nombre);linea(contacto,'Teléfono de reservas',c.telefono_reservas||r.telefono_publico);linea(contacto,'Dirección',r.direccion);const plan=elemento('div');linea(plan,'Modalidad',opciones.plan[c.plan]);linea(plan,'Cuota mensual',c.cuota_mensual?c.cuota_mensual+' '+(c.moneda||''):null);linea(plan,'Suplemento de voz',c.suplemento_voz?c.suplemento_voz+' '+(c.moneda||''):null);const voz=elemento('div');linea(voz,'Voz acordada',c.voz);linea(voz,'Proveedor',opciones.proveedor_voz[c.proveedor_voz]);linea(voz,'Activación',opciones.estado_activacion[c.estado_activacion]||'Sin verificar');const boton=elemento('button','Ver y editar ficha');boton.type='button';boton.addEventListener('click',()=>abrir(r.id));t.append(nombre,contacto,plan,voz,boton);$('#lista').append(t);}$('#recuento').textContent=total+' restaurantes'+(busqueda?' · Resultados de «'+busqueda+'»':'');$('#pagina').textContent='Página '+(pagina+1)+' de '+Math.max(1,Math.ceil(total/20));$('#anterior').disabled=pagina===0;$('#siguiente').disabled=(pagina+1)*20>=total;$('#estado').textContent=total?'':'No hay restaurantes que coincidan con la búsqueda.';}catch(e){$('#estado').textContent=e.message;}}
+function campo(contenedor,k,v,{tipo='text',ancho=false,nombre}={}){const l=elemento('label',nombre||etiquetas[k]||k,ancho?'ancho':'');let i;if(opciones[k]){i=elemento('select');for(const [v,t]of Object.entries(opciones[k])){const o=elemento('option',t);o.value=v;i.append(o);}i.value=v||'';}else{i=elemento(tipo==='textarea'?'textarea':'input');if(tipo!=='textarea')i.type=tipo;if(tipo==='checkbox')i.checked=!!v;else i.value=v??'';if(tipo==='number'){i.min='0';i.step='1';}if(k==='cuota_mensual'||k==='suplemento_voz'){i.inputMode='decimal';i.placeholder='Sin indicar';}}l.append(i);contenedor.append(l);return ()=>tipo==='checkbox'?i.checked:tipo==='number'?Number(i.value):(k==='cuota_mensual'||k==='suplemento_voz'?i.value.replace(',','.'):i.value);}
+function seccion(titulo){const f=elemento('fieldset'),g=elemento('div',undefined,'cuadricula');f.append(elemento('legend',titulo),g);$('#campos').append(f);return g;}
+function editarHorarioTelefonico(contenedor,horario={}){
+ const bloque=elemento('details',undefined,'ancho'),cuadricula=elemento('div',undefined,'cuadricula');
+ const resumen=elemento('summary','Horario de atención telefónica (opcional)');
+ bloque.open=Object.keys(horario).length>0;
+ bloque.append(resumen,elemento('p','¿Cuándo suele haber alguien disponible para atender el teléfono, aunque el local esté cerrado al público? Escribe las franjas como 11:00-13:00, 18:00-20:00. Deja en blanco los días sin un horario fiable.'),cuadricula);
+ const horas=A.DIAS.map(dia=>[dia,campo(cuadricula,dia,(horario[dia]||[]).join(', '),{nombre:dia[0].toUpperCase()+dia.slice(1)+' · Atención telefónica'})]);
+ contenedor.append(bloque);
+ return ()=>Object.fromEntries(horas.map(([dia,leer])=>[dia,leer().split(',').map(franja=>franja.trim()).filter(Boolean)]).filter(([,franjas])=>franjas.length));
+}
+function fechasEditor(padre,titulo,filas,conRangos){const box=elemento('div',undefined,'ancho');box.append(elemento('h3',titulo));const lista=elemento('div');box.append(lista);const rows=[];function add(v){const linea=elemento('div',undefined,'fila-especial'),fecha=elemento('input');fecha.placeholder=conRangos?'AAAA-MM-DD o MM-DD':'AAAA-MM-DD';fecha.setAttribute('aria-label',titulo+' · Fecha');fecha.value=typeof v==='string'?v:v.fecha||'';const horas=elemento('input');horas.placeholder='13:00-16:00, 20:00-23:00 (vacío: cerrado)';horas.setAttribute('aria-label','Franjas horarias');horas.value=(v.rangos||[]).join(', ');linea.append(fecha);if(conRangos)linea.append(horas);const borrar=elemento('button','Quitar');borrar.type='button';const row={linea,fecha,horas};rows.push(row);borrar.onclick=()=>{rows.splice(rows.indexOf(row),1);linea.remove();sucio=true;};linea.append(borrar);lista.append(linea);}filas.forEach(add);const b=elemento('button','Añadir fecha');b.type='button';b.onclick=()=>{add('');sucio=true;};box.append(b);padre.append(box);return ()=>rows.map(r=>conRangos?{fecha:r.fecha.value.trim(),rangos:r.horas.value.split(',').map(s=>s.trim()).filter(Boolean)}:r.fecha.value.trim());}
+function estructura(padre,titulo,v){
+ if(v===null||typeof v!=='object')return campo(padre,titulo,v,{tipo:typeof v==='boolean'?'checkbox':typeof v==='number'?'number':'textarea',nombre:titulo});
+ const f=elemento('fieldset',undefined,'ancho');f.append(elemento('legend',titulo));padre.append(f);
+ if(!Array.isArray(v)){const getters=Object.entries(v).map(([k,x])=>[k,estructura(f,k,x)]);return ()=>Object.fromEntries(getters.map(([k,g])=>[k,g()]));}
+ const lista=elemento('div');f.append(lista);const filas=[];function add(x){const box=elemento('div');lista.append(box);const get=estructura(box,'Elemento '+(filas.length+1),x);const row={box,get};filas.push(row);const b=elemento('button','Quitar elemento');b.type='button';b.onclick=()=>{filas.splice(filas.indexOf(row),1);box.remove();sucio=true;};box.append(b);}
+ v.forEach(add);if(v.length){const b=elemento('button','Añadir elemento');b.type='button';b.onclick=()=>{add(structuredClone(v[0]));sucio=true;};f.append(b);}else f.append(elemento('p','Sin elementos configurados.'));return ()=>filas.map(r=>r.get());
+}
+function editarZonas(g){
+ const destino=elemento('div',undefined,'ancho'),filas=[];
+ destino.append(elemento('p','Anota las zonas y las mesas que conozcas. Puedes guardar el borrador aunque aún no tengas estos datos.'));
+ const lista=elemento('div');destino.append(lista);
+ const boton=(texto,accion)=>{const b=elemento('button',texto);b.type='button';b.onclick=()=>{accion();sucio=true;};return b;};
+ function anadirZona(){
+  if(filas.length>=12)return;
+  const grupo=elemento('fieldset',undefined,'zona-alta');grupo.append(elemento('legend','Zona'));
+  const leerNombre=campo(grupo,'zona','',{nombre:'Nombre de la zona (p. ej., Terraza)'}),mesas=[],contenedor=elemento('div');
+  grupo.append(contenedor,boton('Añadir mesa',()=>{
+   if(mesas.length>=30)return;
+   const linea=elemento('div',undefined,'mesa-alta'),n=campo(linea,'mesa','',{nombre:'Nombre de la mesa'}),c=campo(linea,'capacidad','',{tipo:'number',nombre:'Plazas'});
+   const mesa={leer:()=>({nombre:n().trim(),capacidad:c()})};mesas.push(mesa);
+   linea.append(boton('Quitar mesa',()=>{mesas.splice(mesas.indexOf(mesa),1);linea.remove();}));contenedor.append(linea);
+  }));
+  const zona={leer:()=>({nombre:leerNombre().trim(),mesas:mesas.map(m=>m.leer()).filter(m=>m.nombre||m.capacidad)})};filas.push(zona);
+  grupo.append(boton('Quitar zona',()=>{filas.splice(filas.indexOf(zona),1);grupo.remove();}));lista.append(grupo);
+ }
+ destino.append(boton('Añadir zona',anadirZona));g.append(destino);
+ return ()=>filas.map(f=>f.leer()).filter(z=>z.nombre||z.mesas.length);
+}
+const avisoEdicion=$('#aviso').textContent;
+function pintar(d){detalle=d;sucio=false;Object.keys(lectores).forEach(k=>delete lectores[k]);$('#campos').replaceChildren();const r=d.datos,c=d.configuracion,nueva=!r.id;
+prepararInvitacion(d);
+prepararEquipo(d);
+$('#titulo').textContent=nueva?'Nuevo restaurante':r.nombre;
+$('#aviso').textContent=nueva?'Solo necesitas el nombre para guardar. Completa lo que sepas durante la visita. Las reservas quedarán desactivadas y no se enviará ninguna invitación.':avisoEdicion;
+$('#ir-zonas').hidden=!nueva;
+$('#guardar').textContent=nueva?'Guardar borrador':'Guardar cambios';
+for(const id of ['tecnicos','historial'])$('#'+id).parentElement.hidden=nueva;
+const internos={};
+let g=seccion('01 · Datos del restaurante');
+lectores.nombre=campo(g,'nombre',r.nombre);
+if(nueva){const n=g.querySelector('input');n.required=true;n.maxLength=200;}
+lectores.telefono_publico=campo(g,'telefono_publico',r.telefono_publico,{tipo:'tel',nombre:'Teléfono público (atención del personal)'});
+internos.telefono_transferencia=campo(g,'telefono_transferencia',c.telefono_transferencia,{tipo:'tel'});
+g.append(elemento('p','El teléfono público se puede comunicar al cliente. El de transferencia es de uso interno y puede coincidir con el público. Ambos deben llegar al personal sin volver al asistente. Las franjas de reservas no indican cuándo se atiende el teléfono.','ayuda-telefonos ancho'));
+internos.horario_atencion_telefonica=editarHorarioTelefonico(g,c.horario_atencion_telefonica);
+for(const k of ['direccion','web','zona_horaria'])lectores[k]=campo(g,k,r[k]);
+g=seccion('02 · Reservas');for(const k of ['duracion_reserva_minutos','antelacion_minima_reserva_minutos','intervalo_minutos'])lectores[k]=campo(g,k,r[k],{tipo:'number'});lectores.reservas_web_activas=nueva?()=>false:campo(g,'reservas_web_activas',r.reservas_web_activas,{tipo:'checkbox'});
+g=seccion('03 · Horarios y fechas especiales');const hs={};for(const dia of A.DIAS)hs[dia]=campo(g,dia,(r.dias_cierre.includes(dia)?[]:r.horario_reservas[dia]||[]).join(', '),{nombre:dia[0].toUpperCase()+dia.slice(1)+' · Franjas (vacío: cerrado)'});const especiales=fechasEditor(g,'Horarios especiales (anuales o con año)',r.horario_reservas._contactia?.especiales||[],true);lectores.cierres_especiales=fechasEditor(g,'Fechas de cierre completo',r.cierres_especiales,false);
+lectores.horario_reservas=()=>{const horario=Object.fromEntries(A.DIAS.map(d=>[d,hs[d]().split(',').map(s=>s.trim()).filter(Boolean)]));const fechas=especiales();if(r.horario_reservas._contactia||fechas.length)horario._contactia={habitual:r.horario_reservas._contactia?.habitual||Object.values(horario).find(x=>x.length)||['13:00-16:00'],especiales:fechas};return horario;};lectores.dias_cierre=()=>A.DIAS.filter(d=>!hs[d]().trim());
+g=seccion('04 · Información para clientes');const info={...r.informacion_publica},textos={};for(const t of A.TEMAS)textos[t.id]=campo(g,t.id,info[t.id]||'',{tipo:'textarea',nombre:t.titulo});const extras=Object.fromEntries(Object.entries(info).filter(([k])=>!A.TEMAS.some(t=>t.id===k)).map(([k,v])=>[k,estructura(g,k,v)]));lectores.informacion_publica=()=>({...Object.fromEntries(Object.entries(extras).map(([k,f])=>[k,f()])),...Object.fromEntries(Object.entries(textos).map(([k,f])=>[k,f()]))});
+g=seccion('05 · Servicio, contacto y condiciones acordadas');for(const k of ['estado_servicio','plan','cuota_mensual','suplemento_voz','moneda','telefono_reservas','contacto_nombre','contacto_telefono','contacto_email'])internos[k]=nueva&&k==='estado_servicio'?()=> 'borrador':campo(g,k,c[k],{tipo:k==='contacto_email'?'email':['contacto_telefono','telefono_reservas'].includes(k)?'tel':'text'});
+g=seccion('06 · Voz y seguimiento interno');for(const k of ['proveedor_voz','voz','estado_activacion','notas'])internos[k]=nueva&&k==='estado_activacion'?()=> 'pendiente':campo(g,k,c[k],{tipo:k==='notas'?'textarea':'text',ancho:k==='notas'});lectores.interna=()=>Object.fromEntries(Object.entries(internos).map(([k,f])=>[k,f()]));if(nueva){const zonas=seccion('07 · Zonas y mesas iniciales');zonas.id='zonas-alta';lectores.zonasAlta=editarZonas(zonas);}
+$('#tecnicos').replaceChildren();for(const[k,v]of Object.entries(r)){$('#tecnicos').append(elemento('dt',etiquetas[k]||k),elemento('dd',valor(v)));}$('#historial').replaceChildren();for(const h of d.historial||[]){const e=elemento('article',undefined,'historia');e.append(elemento('strong',new Date(h.creado_en).toLocaleString('es-ES')),elemento('p',h.editor));const ul=elemento('ul');for(const grupo of ['datos','configuracion'])for(const k of new Set([...Object.keys(h.antes[grupo]),...Object.keys(h.despues[grupo])]))if(JSON.stringify(h.antes[grupo][k])!==JSON.stringify(h.despues[grupo][k]))ul.append(elemento('li',(etiquetas[k]||k)+': '+valor(h.antes[grupo][k])+' → '+valor(h.despues[grupo][k])));e.append(ul);$('#historial').append(e);}if(!d.historial?.length)$('#historial').textContent='Todavía no hay cambios registrados desde este panel.';$('#estado-ficha').textContent='';}
+$('#ir-zonas').onclick=()=>$('#zonas-alta')?.querySelector('button')?.focus();
+$('#nuevo').onclick=()=>{
+ pintar({datos:{nombre:'',telefono_publico:'',direccion:'',web:'',zona_horaria:'Europe/Madrid',duracion_reserva_minutos:90,antelacion_minima_reserva_minutos:30,intervalo_minutos:15,reservas_web_activas:false,horario_reservas:{},dias_cierre:[],cierres_especiales:[],informacion_publica:{}},configuracion:{},historial:[]});
+ $('#ficha').showModal();$('#campos input').focus();
+};
+async function abrir(id){try{const d=await admin({operacion:'detalle',id});pintar(d);$('#ficha').showModal();}catch(e){$('#estado').textContent=e.message;}}
+function cerrar(){if(ocupado)return;sucio=false;$('#ficha').close();}
+$('#form-invitacion').onsubmit=async e=>{
+ e.preventDefault();
+ if(enviandoInvitacion||ocupado||!detalle?.invitaciones_prueba)return;
+ const actual=detalle,email=$('#correo-invitado').value.trim(),rol=$('#rol-invitado').value;
+ const nombreRol=$('#rol-invitado').selectedOptions[0].textContent;
+ if(!window.confirm('¿Enviar una invitación de prueba a '+email+' como '+nombreRol+' de '+actual.datos.nombre+'?'))return;
+ enviandoInvitacion=true;$('#enviar-invitacion').disabled=true;$('#estado-invitacion').textContent='Enviando invitación…';
+ try {
+  const r=await admin({operacion:'invitar',id:actual.datos.id,email,rol});
+  if(detalle===actual){$('#estado-invitacion').textContent=r.mensaje;$('#form-invitacion').reset();}
+ } catch(err) {if(detalle===actual)$('#estado-invitacion').textContent=err.message;}
+ finally {enviandoInvitacion=false;$('#enviar-invitacion').disabled=false;}
+};
+$('#editar').addEventListener('input',()=>{sucio=true;});$('#ficha').addEventListener('cancel',e=>{e.preventDefault();cerrar();});$('#cerrar').onclick=$('#cancelar').onclick=cerrar;
+$('#editar').onsubmit=async e=>{e.preventDefault();if(ocupado)return;try{const datos=Object.fromEntries(Object.entries(lectores).filter(([k])=>!['interna','zonasAlta'].includes(k)).map(([k,f])=>[k,f()])),configuracion=lectores.interna();if(['proveedor_voz','voz'].some(k=>(configuracion[k]||'')!==(detalle.configuracion[k]||''))){configuracion.estado_activacion='pendiente';}
+const nueva=!detalle.datos.id;if(!nueva&&!window.confirm('¿Guardar los cambios de '+detalle.datos.nombre+'? Los horarios y condiciones se aplicarán a nuevas reservas; las existentes no se modifican. Revise las reservas afectadas. Los cambios de voz requieren activación técnica.'))return;ocupado=true;$('#guardar').disabled=true;$('#estado-ficha').textContent='Guardando…';const d=await admin(nueva?{operacion:'crear',datos,configuracion,zonas:lectores.zonasAlta()}:{operacion:'guardar',id:detalle.datos.id,version:detalle.version,datos,configuracion});if(d.sin_cambios){sucio=false;$('#estado-ficha').textContent='No había cambios que guardar.';return;}pintar(d);if(nueva){pagina=0;busqueda=d.datos.slug;$('#consulta').value=busqueda;}$('#estado-ficha').textContent=nueva?'Borrador creado. Las reservas web siguen desactivadas.':'Cambios guardados. '+(configuracion.estado_activacion==='pendiente'?'La activación de voz sigue pendiente.':'');await cargar();}catch(e){$('#estado-ficha').textContent=e.message;}finally{ocupado=false;$('#guardar').disabled=false;}};
+$('#login').onsubmit=async e=>{e.preventDefault();try{await solicitar({accion:'iniciar_sesion',clave:$('#clave').value});$('#clave').value='';mostrarSesion();await cargar();}catch(e){$('#estado').textContent=e.message;}};
+$('#buscar').onsubmit=e=>{e.preventDefault();pagina=0;busqueda=$('#consulta').value.trim();cargar();};$('#actualizar').onclick=()=>cargar();$('#anterior').onclick=()=>{pagina--;cargar();};$('#siguiente').onclick=()=>{pagina++;cargar();};$('#salir').onclick=async()=>{if(sucio&&!window.confirm('¿Cerrar sesión y descartar los cambios?'))return;try{await solicitar({accion:'cerrar_sesion'});location.reload();}catch(e){$('#estado').textContent=e.message;}};
+window.addEventListener('beforeunload',e=>{if(sucio){e.preventDefault();e.returnValue='';}});
+solicitar({accion:'validar_sesion'}).then(()=>{mostrarSesion();return cargar();}).catch(()=>{});
+})();

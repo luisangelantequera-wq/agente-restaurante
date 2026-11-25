@@ -1,0 +1,8 @@
+:root{font-family:system-ui,sans-serif;color:#273d32;background:#f6f3ec;color-scheme:light}
+*{box-sizing:border-box}body{margin:0}main{max-width:760px;margin:64px auto;padding:0 22px}
+.marca{font-size:13px;letter-spacing:.22em;font-weight:800;color:#697c69}h1{font-family:Georgia,serif;font-size:clamp(32px,6vw,48px);font-weight:500;margin:12px 0 18px}h2{font-size:24px;margin:0 0 14px}p{line-height:1.6}
+.tarjeta{background:#fffdf8;border:1px solid #dcded2;border-radius:18px;padding:30px;margin-top:28px;box-shadow:0 12px 35px #283d3208}
+form{max-width:430px}label{display:block;font-size:14px;font-weight:650;margin:20px 0 8px}input,select{font:inherit;display:block;width:100%;border:1px solid #a3b0a0;border-radius:8px;background:white;padding:12px;min-height:46px}
+button{font:inherit;font-weight:650;border:1px solid #304f3b;border-radius:8px;background:#304f3b;color:white;padding:12px 20px;cursor:pointer;margin:20px 0 4px;min-height:46px}.secundario{background:transparent;color:#304f3b}button:disabled{opacity:.55;cursor:wait}
+:focus-visible{outline:3px solid #b78631;outline-offset:3px}.nota,#usuario{color:#687164;font-size:14px}#mensaje{min-height:24px;color:#873d28}.cabecera{display:flex;justify-content:space-between;gap:16px;align-items:start}.cabecera button{margin:0}table{border-collapse:collapse;width:100%;margin:16px 0}th,td{text-align:left;border-bottom:1px solid #e1e3da;padding:12px 8px;font-size:14px}caption{text-align:left;font-weight:700;padding:18px 0 4px}[hidden]{display:none!important}
+@media(max-width:520px){main{margin-top:32px}.tarjeta{padding:20px}.cabecera{display:block}.cabecera button{margin:0 0 16px}th,td{padding:10px 4px}}
