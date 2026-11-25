@@ -99,6 +99,36 @@ def resultado(token, paso="nombre"):
 
 
 class Pruebas(unittest.IsolatedAsyncioTestCase):
+    async def test_sip_acepta_si_y_reintentar_y_solo_comprueba_una_vez(self):
+        for mensaje in ("Sí.", "Sí, sí", "Sí, quiero", "Reintentar, por favor", "Compruébelo"):
+            with self.subTest(mensaje=mensaje):
+                d = datos()
+                d.update(canal="sip", asistencia={"publico": "+34910000000"})
+                http = HTTP([resultado("estado-1", "pendiente")])
+                relay = m.MotorTelefonico(d, http, url=URL)
+                relay.paso_motor = "pendiente"
+                respuesta = json.loads(await relay.enviar(mensaje))
+                self.assertEqual(respuesta["paso"], "asistencia")
+                self.assertEqual(len(http.peticiones), 1)
+                self.assertEqual(http.peticiones[0][1]["json"]["mensaje"], "reintentar")
+
+    async def test_sip_acepta_no_y_limita_las_aclaraciones(self):
+        for mensajes in (("No.",), ("No, no, gracias",), ("No quiero",),
+                         ("¿Cómo dice?", "No le entiendo")):
+            with self.subTest(mensajes=mensajes):
+                d = datos()
+                d.update(canal="sip", asistencia={"publico": "+34910000000"})
+                http = HTTP([])
+                relay = m.MotorTelefonico(d, http, url=URL)
+                relay.paso_motor = "pendiente"
+                for mensaje in mensajes[:-1]:
+                    respuesta = json.loads(await relay.enviar(mensaje))
+                    self.assertEqual(respuesta["paso"], "pendiente")
+                respuesta = json.loads(await relay.enviar(mensajes[-1]))
+                self.assertIn("9, 1, 0, 0, 0, 0, 0, 0, 0", respuesta["respuesta"])
+                self.assertEqual(respuesta["paso"], "asistencia")
+                self.assertEqual(http.peticiones, [])
+
     async def test_cielo_locuta_la_respuesta_del_motor_sin_invocar_el_llm(self):
         d = datos()
         d.update(canal="sip", ensayoCielo=True, nombreRestaurante="Restaurante Cielo (PRUEBA)")

@@ -183,6 +183,18 @@ def _confirma_reserva(texto):
     ))
 
 
+def _decision_reintento(texto):
+    if re.fullmatch(r"(?:no+(?: no+)*(?: gracias| por favor)?|no (?:quiero|reintente|hace falta|es necesario)(?: gracias)?)", texto):
+        return "no"
+    if _confirma_reserva(texto) or re.fullmatch(
+        r"(?:(?:si|s|zi)(?: si| por favor| claro| quiero| reintentar| reintente)*"
+        r"|(?:por favor )?(?:reintentar|reintente|volver a intentar|compruebe(?:lo)?|comprobar)(?: por favor)?"
+        r"|claro|por favor)", texto
+    ):
+        return "si"
+    return None
+
+
 def _en_horario(asistencia, ahora=None):
     try:
         local = (ahora or datetime.now(ZoneInfo("UTC"))).astimezone(ZoneInfo(asistencia["zona"]))
@@ -237,6 +249,7 @@ class MotorTelefonico:
         self.transferir = transferir
         self.paso_motor = None
         self.reintento_ofrecido = False
+        self.reintento_aclarado = False
         self.fase_asistencia = None
         self.respuesta_final = None
 
@@ -336,10 +349,12 @@ class MotorTelefonico:
                 return await self._atender_asistencia(texto)
             confirmando = self.sip and (self.paso_motor == "pendiente" or self.reintento_ofrecido)
             if confirmando:
-                if texto in ("no", "no gracias"):
+                decision = _decision_reintento(texto)
+                if decision == "no" or (decision is None and self.reintento_aclarado):
                     return self._ofrecer_asistencia()
-                if texto not in ("reintentar", "reintente", "volver a intentar", "compruebe", "comprobar", "si", "si por favor"):
-                    return self._responder("¿Quiere que lo compruebe de nuevo? Diga «reintentar» o «no».", "pendiente")
+                if decision is None:
+                    self.reintento_aclarado = True
+                    return self._responder("Si quiere que vuelva a comprobar la reserva, diga «sí» o «reintentar». Si prefiere que le indique cómo contactar con el restaurante, diga «no».", "pendiente")
             if self.pendiente is not None and not confirmando and mensaje.strip().lower().rstrip(".!? ") not in ("reintentar", "sí", "si"):
                 return json.dumps({"respuesta": "El resultado anterior está pendiente. Diga reintentar para comprobarlo sin crear otra reserva."})
             # Si se pierde la respuesta, conservar exactamente el turno y token
@@ -366,6 +381,7 @@ class MotorTelefonico:
                     self.reintento_ofrecido = True
                 else:
                     self.reintento_ofrecido = False
+                    self.reintento_aclarado = False
                 return self._responder(d["respuesta"], self.paso_motor)
             except Exception:
                 if confirmando:
