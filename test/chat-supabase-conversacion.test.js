@@ -311,3 +311,23 @@ test('la reserva por voz pide móvil y distingue un fijo completo de un número 
  assert.equal(chat.estado().paso,'observaciones');
  assert.equal(chat.exportar().datos.telefono,'+34600000000');
 });
+
+test('tras elegir zona por voz, repetir esa zona sigue dejando pendiente el nombre',async()=>{
+ const {chat,mensajes,llamadas}=escenario({cierrePorVoz:true,config:{zonas:[{id:'zona1',nombre:'INTERIOR'},{id:'zona2',nombre:'TERRAZA'}]}});
+ for(const turno of ['El martes.','Dos personas.','A las dos de la tarde.'])await chat.enviar(turno,{canal:'voz'});
+ assert.equal(chat.estado().paso,'zona_id');
+ await chat.enviar('Terraza.',{canal:'voz'});
+ assert.equal(chat.estado().paso,'nombre');
+ const consultas=llamadas.length;
+ for(const repeticion of ['Terraza.','En la terraza, por favor.']){
+  await chat.enviar(repeticion,{canal:'voz'});
+  assert.equal(chat.estado().paso,'nombre');
+  assert.equal(chat.exportar().datos.nombre,undefined);
+  assert.equal(chat.exportar().datos.zona_id,'zona2');
+  assert.match(mensajes.at(-1),/A nombre de quién/);
+ }
+ assert.equal(llamadas.length,consultas);
+ await chat.enviar('A nombre de Terraza.',{canal:'voz'});
+ assert.equal(chat.estado().paso,'email');
+ assert.equal(chat.exportar().datos.nombre,'Terraza');
+});
