@@ -99,6 +99,34 @@ def resultado(token, paso="nombre"):
 
 
 class Pruebas(unittest.IsolatedAsyncioTestCase):
+    async def test_cielo_locuta_la_respuesta_del_motor_sin_invocar_el_llm(self):
+        d = datos()
+        d.update(canal="sip", ensayoCielo=True, nombreRestaurante="Restaurante Cielo (PRUEBA)")
+        relay = m.MotorTelefonico(d, HTTP([]), url=URL)
+        agente = m.RecepcionistaPrueba(None, "telefono", relay)
+        locuciones = []
+        agente.session = types.SimpleNamespace(say=locuciones.append)
+        respuesta = "Puede elegir Interior o Terraza. ¿En qué zona prefiere reservar?"
+        with patch.object(relay, "enviar", AsyncMock(return_value=json.dumps(
+                {"respuesta": respuesta, "paso": "zona"}))) as enviar:
+            with self.assertRaises(m.StopResponse):
+                await agente.on_user_turn_completed(None, types.SimpleNamespace(text_content=" Dos personas "))
+            enviar.assert_awaited_once_with("Dos personas")
+        self.assertEqual(locuciones, [respuesta])
+
+    async def test_cielo_da_una_respuesta_si_el_motor_devuelve_texto_vacio(self):
+        d = datos()
+        d.update(canal="sip", ensayoCielo=True)
+        relay = m.MotorTelefonico(d, HTTP([]), url=URL)
+        agente = m.RecepcionistaPrueba(None, "telefono", relay)
+        locuciones = []
+        agente.session = types.SimpleNamespace(say=locuciones.append)
+        with patch.object(relay, "enviar", AsyncMock(return_value=json.dumps(
+                {"respuesta": "", "paso": "zona"}))):
+            with self.assertRaises(m.StopResponse):
+                await agente.on_user_turn_completed(None, types.SimpleNamespace(text_content="Terraza"))
+        self.assertEqual(locuciones, ["No he podido completar esta operación. ¿Puede repetirlo?"])
+
     def test_un_registro_y_destinos_fijos(self):
         self.assertEqual(len(m.server.registros), 1)
         for cambio in ({"host": "otro.example"}, {"exp": 1}, {"exp": time.time()*1000+360000}, {"acceso": None}):

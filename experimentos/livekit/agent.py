@@ -64,12 +64,19 @@ class RecepcionistaPrueba(Agent):
         self.relay = relay
 
     async def on_user_turn_completed(self, turn_ctx, new_message):
-        # En este paso solo se dicta un número público ya validado. Usar el
-        # turno transcrito y el texto del motor directamente, sin pasar por el LLM.
-        if self.relay is not None and self.relay.esperando_repeticion_telefono():
-            resultado = json.loads(await self.relay.enviar(new_message.text_content or ""))
-            self.session.say(resultado["respuesta"])
+        if self.relay is None:
+            return
+        if not (self.relay.ensayo_cielo or self.relay.esperando_repeticion_telefono()):
+            return
+        mensaje = (new_message.text_content or "").strip()
+        if not mensaje:
             raise StopResponse()
+        # Leer el texto del motor directamente, sin que el LLM decida qué decir.
+        resultado = json.loads(await self.relay.enviar(mensaje))
+        if resultado.get("paso") != "transferida":
+            respuesta = resultado.get("respuesta", "").strip()
+            self.session.say(respuesta or "No he podido completar esta operación. ¿Puede repetirlo?")
+        raise StopResponse()
 
     @function_tool()
     async def procesar_turno_contactia(self, context: RunContext, mensaje: str) -> str:
@@ -219,6 +226,7 @@ class MotorTelefonico:
         self.lock = asyncio.Lock()
         self.terminado = terminado
         self.sip = datos.get("canal") == "sip"
+        self.ensayo_cielo = self.sip and datos.get("ensayoCielo") is True
         nombre = datos.get("nombreRestaurante")
         self.nombre_restaurante = (
             nombre.removesuffix(" (PRUEBA)")
