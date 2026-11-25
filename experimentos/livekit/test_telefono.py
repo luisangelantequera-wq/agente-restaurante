@@ -34,6 +34,7 @@ def cargar():
     agentes = types.ModuleType("livekit.agents")
     for nombre in ("AgentSession", "JobContext", "RunContext"):
         setattr(agentes, nombre, type(nombre, (), {}))
+    agentes.StopResponse = type("StopResponse", (Exception,), {})
     agentes.Agent = AgenteFalso
     agentes.AgentServer = ServidorFalso
     agentes.function_tool = lambda: lambda f: f

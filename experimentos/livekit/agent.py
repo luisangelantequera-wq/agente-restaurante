@@ -35,8 +35,9 @@ def _registro_transferencia(etapa, **datos):
 
 class RecepcionistaPrueba(Agent):
     def __init__(self, ctx: JobContext, browser_identity: str, relay=None):
+        restaurante = relay.nombre_restaurante if relay is not None else "Restaurante Sol"
         super().__init__(instructions=(
-            "Es usted el recepcionista de Restaurante Sol en una prueba privada. "
+            f"Es usted el recepcionista de {restaurante} en una prueba privada. "
             "Hable en español peninsular de forma breve, natural y siempre de usted. "
             "El sistema Contactia es el único que decide horarios, disponibilidad, "
             "retenciones, confirmaciones y cancelaciones. "
@@ -158,9 +159,8 @@ async def iniciar_sesion(ctx, participante, relay=None):
         room=ctx.room,
         record=False,  # Desactivar audio, transcripciones, trazas y logs en Agent Insights.
     )
-    await session.say(
-        "Bienvenido al sistema de reservas del Restaurante Sol. ¿En qué le puedo ayudar?"
-    )
+    restaurante = relay.nombre_restaurante if relay is not None else "Restaurante Sol"
+    await session.say(f"Bienvenido al sistema de reservas de {restaurante}. ¿En qué le puedo ayudar?")
     return session
 
 
@@ -219,6 +219,12 @@ class MotorTelefonico:
         self.lock = asyncio.Lock()
         self.terminado = terminado
         self.sip = datos.get("canal") == "sip"
+        nombre = datos.get("nombreRestaurante")
+        self.nombre_restaurante = (
+            nombre.removesuffix(" (PRUEBA)")
+            if self.sip and isinstance(nombre, str) and nombre.strip()
+            else "Restaurante Sol"
+        )
         self.asistencia = datos.get("asistencia") if self.sip and isinstance(datos.get("asistencia"), dict) else {}
         self.transferir = transferir
         self.paso_motor = None
